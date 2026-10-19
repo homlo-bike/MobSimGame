@@ -16,10 +16,16 @@ import {
   joinLines,
   lineLengthM,
   moveStation,
+  CROSSOVER_DISPLAY_OFFSET_M,
   orderedStops,
+  placedCrossovers,
+  removeStopFromLine,
   renameStation,
+  reverseLineDirection,
   splitLine,
+  toggleCrossover,
   uniqueStationName,
+  updateLine,
   updateLineGeometry,
 } from './network';
 import { buildDemoProject } from './demo';
@@ -288,5 +294,67 @@ describe('scenarios and projects', () => {
     const r = parseProject(p);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.join()).toMatch(/missing station/);
+  });
+});
+
+describe('direction, crossovers and track sides', () => {
+  const build = () => {
+    let s = emptyScenario();
+    const r = createLine(s, {
+      coordinates: [
+        [0, 0],
+        [0.01, 0],
+        [0.02, 0],
+      ],
+      mode: 'tram',
+    });
+    s = r.scenario;
+    for (const p of [
+      [0, 0],
+      [0.01, 0],
+      [0.02, 0],
+    ] as LngLat[])
+      s = addStationOnLine(s, r.line.id, p).scenario;
+    return { s, id: r.line.id };
+  };
+
+  it('places crossovers before and after stations and toggles them', () => {
+    const { s, id } = build();
+    const mid = orderedStops(s.lines[0]!, s.stations)[1]!;
+    let next = toggleCrossover(s, id, mid.station.id, 'before');
+    next = toggleCrossover(next, id, mid.station.id, 'after');
+    const placed = placedCrossovers(next.lines[0]!, next.stations);
+    expect(placed.map((c) => c.side)).toEqual(['before', 'after']);
+    expect(placed[0]!.chainageM).toBeLessThan(mid.chainageM);
+    expect(placed[1]!.chainageM).toBeGreaterThan(mid.chainageM);
+    expect(mid.chainageM - placed[0]!.chainageM).toBeLessThanOrEqual(CROSSOVER_DISPLAY_OFFSET_M + 1);
+    expect(toggleCrossover(next, id, mid.station.id, 'before').lines[0]!.crossovers).toHaveLength(1);
+  });
+
+  it('removing a stop removes its crossovers', () => {
+    const { s, id } = build();
+    const mid = orderedStops(s.lines[0]!, s.stations)[1]!;
+    const next = removeStopFromLine(toggleCrossover(s, id, mid.station.id, 'after'), id, mid.station.id);
+    expect(next.lines[0]!.crossovers).toEqual([]);
+  });
+
+  it('reversing a line mirrors segments, ends and crossover sides', () => {
+    const { s, id } = build();
+    const first = orderedStops(s.lines[0]!, s.stations)[0]!;
+    let next = updateLine(s, id, {
+      termination: { kind: 'ends', start: 'depot', end: 'terminal_station' },
+      segments: [
+        { ...s.lines[0]!.segments[0]!, toFraction: 0.3, structure: 'tunnel' },
+        { ...s.lines[0]!.segments[0]!, id: 'seg-b', fromFraction: 0.3 },
+      ],
+    });
+    next = toggleCrossover(next, id, first.station.id, 'after');
+    const rev = reverseLineDirection(next, id).lines[0]!;
+    expect(rev.coordinates[0]![0]).toBeCloseTo(0.02, 6);
+    expect(rev.termination).toEqual({ kind: 'ends', start: 'terminal_station', end: 'depot' });
+    expect(rev.segments[rev.segments.length - 1]!.structure).toBe('tunnel');
+    expect(rev.segments[rev.segments.length - 1]!.fromFraction).toBeCloseTo(0.7, 6);
+    expect(rev.crossovers[0]!.side).toBe('before');
+    expect(orderedStops(rev, next.stations)[0]!.station.position[0]).toBeCloseTo(0.02, 6);
   });
 });

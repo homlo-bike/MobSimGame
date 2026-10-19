@@ -11,6 +11,9 @@ import { EMPTY } from './overlays';
 
 export const SRC = {
   segments: 'msg-segments',
+  arrows: 'msg-arrows',
+  crossovers: 'msg-crossovers',
+  closures: 'msg-closures',
   stations: 'msg-stations',
   catchments: 'msg-catchments',
   vehicles: 'msg-vehicles',
@@ -21,6 +24,49 @@ export const SRC = {
 } as const;
 
 export const STATION_LAYER = 'msg-stations-circle';
+export const CROSSOVER_LAYER = 'msg-crossovers-circle';
+
+const ARROW_IMAGE = 'msg-arrow';
+
+/** A small arrowhead pointing up (north): dark fill with a white outline, readable on any line colour. */
+function arrowImage(): { width: number; height: number; data: Uint8Array } {
+  const size = 16;
+  const data = new Uint8Array(size * size * 4);
+  // Triangle with apex at the top centre.
+  const inside = (x: number, y: number, inset: number) => {
+    const top = 2 + inset * 1.6;
+    const bottom = size - 3 - inset;
+    if (y < top || y > bottom) return false;
+    const half = ((y - top) / (bottom - top)) * (size / 2 - 2 - inset);
+    return Math.abs(x - size / 2) <= half;
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const px = x + 0.5;
+      const py = y + 0.5;
+      if (inside(px, py, 1.5)) {
+        data.set([31, 41, 55, 255], i);
+      } else if (inside(px, py, 0)) {
+        data.set([255, 255, 255, 255], i);
+      }
+    }
+  }
+  return { width: size, height: size, data };
+}
+
+/** Pixel offset of each track from the line centre; grows with zoom so double track reads as two lines. */
+const TRACK_OFFSET = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  10,
+  ['*', ['get', 'offsetSign'], 1],
+  14,
+  ['*', ['get', 'offsetSign'], 2.5],
+  17,
+  ['*', ['get', 'offsetSign'], 5],
+] as unknown as number;
 export const SEGMENT_LAYER_PREFIX = 'msg-seg-';
 
 const STRUCTURES: StructureType[] = [
@@ -107,6 +153,7 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'line-color': '#ffffff',
       'line-width': ['case', ['get', 'selected'], 11, 8],
       'line-opacity': 0.9,
+      'line-offset': TRACK_OFFSET,
     },
   });
   for (const s of STRUCTURES) {
@@ -119,12 +166,62 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       layout: { 'line-cap': dash ? 'butt' : 'round', 'line-join': 'round' },
       paint: {
         'line-color': ['get', 'color'],
-        'line-width': ['case', ['get', 'selected'], 7, ['==', ['get', 'tracks'], 'single'], 3, 5],
+        'line-width': [
+          'case',
+          ['==', ['get', 'track'], 'single'],
+          ['case', ['get', 'selected'], 5, 3],
+          ['case', ['get', 'selected'], 4, 3],
+        ],
         'line-opacity': ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.75 : 1,
+        'line-offset': TRACK_OFFSET,
         ...(dash ? { 'line-dasharray': dash } : {}),
       },
     });
   }
+  // Closed sections: wide dashed band in a warning colour plus a pattern, never colour alone.
+  add({
+    id: 'msg-closures-line',
+    type: 'line',
+    source: SRC.closures,
+    layout: { 'line-cap': 'butt' },
+    paint: { 'line-color': '#b91c1c', 'line-width': 9, 'line-opacity': 0.55, 'line-dasharray': [1, 1] },
+  });
+  // Direction of travel on every track (both directions on single track used both ways).
+  if (!map.hasImage(ARROW_IMAGE)) map.addImage(ARROW_IMAGE, arrowImage(), { pixelRatio: 1 });
+  add({
+    id: 'msg-arrows',
+    type: 'symbol',
+    source: SRC.arrows,
+    minzoom: 13,
+    layout: {
+      'icon-image': ARROW_IMAGE,
+      'icon-rotate': ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 0.9],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      // Offset in the rotated frame: +x is the right of travel, matching the track offset.
+      'icon-offset': [
+        'case',
+        ['>', ['get', 'offsetSign'], 0],
+        ['literal', [4, 0]],
+        ['<', ['get', 'offsetSign'], 0],
+        ['literal', [-4, 0]],
+        ['literal', [0, 0]],
+      ],
+    },
+  });
+  add({
+    id: CROSSOVER_LAYER,
+    type: 'circle',
+    source: SRC.crossovers,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 3, 16, 6],
+      'circle-color': '#ffffff',
+      'circle-stroke-color': '#111827',
+      'circle-stroke-width': 2,
+    },
+  });
   add({
     id: STATION_LAYER,
     type: 'circle',
@@ -137,6 +234,18 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     },
   });
   if (opts.labels) {
+    add({
+      id: 'msg-crossovers-label',
+      type: 'symbol',
+      source: SRC.crossovers,
+      layout: {
+        'text-field': '×',
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 12,
+        'text-allow-overlap': true,
+      },
+      paint: { 'text-color': '#111827' },
+    });
     add({
       id: 'msg-stations-label',
       type: 'symbol',

@@ -42,6 +42,16 @@ export interface LayerToggles {
 
 export type View = 'map' | 'schematic' | 'dashboard' | 'table';
 
+/** A closed section in the disruption simulation (not part of the project, not undoable). */
+export interface SectionClosure {
+  id: string;
+  lineId: string;
+  fromStationId: string;
+  toStationId: string;
+  /** turnback: both tracks closed; single_track: one track closed, trains share the other. */
+  kind: 'turnback' | 'single_track';
+}
+
 export interface AppState {
   project: Project;
   past: Project[];
@@ -62,6 +72,7 @@ export interface AppState {
   simulationEpoch: number;
   /** Polite screen-reader announcements. */
   announcement: string;
+  closures: SectionClosure[];
 
   commitScenario: (scenario: Scenario, label?: string) => void;
   commitProject: (project: Project, label?: string) => void;
@@ -83,6 +94,8 @@ export interface AppState {
   setSimulationMultiplier: (m: number) => void;
   resetSimulation: () => void;
   announce: (msg: string) => void;
+  addClosure: (c: Omit<SectionClosure, 'id'>) => void;
+  removeClosure: (id: string) => void;
   duplicateActiveScenario: () => void;
   setActiveScenario: (id: string) => void;
   deleteScenario: (id: string) => void;
@@ -152,6 +165,7 @@ export const useStore = create<AppState>()((set, get) => {
     simulationMultiplier: 30,
     simulationEpoch: 0,
     announcement: '',
+    closures: [],
 
     commitScenario: (scenario, label) => push(replaceScenario(get().project, scenario), label),
     commitProject: (project, label) => push(project, label),
@@ -167,6 +181,7 @@ export const useStore = create<AppState>()((set, get) => {
         past: [],
         future: [],
         selection: null,
+        closures: [],
         // Keep the user's basemap choice across projects; the OSM map is the default.
         basemapId: get().basemapId,
         announcement: `Loaded project ${project.name}`,
@@ -204,6 +219,13 @@ export const useStore = create<AppState>()((set, get) => {
       set({ simulationEpoch: get().simulationEpoch + 1 });
     },
     announce: (announcement) => set({ announcement }),
+    addClosure: (c) =>
+      set({
+        closures: [...get().closures.filter((x) => x.lineId !== c.lineId), { ...c, id: newId('closure') }],
+        announcement: 'Section closed in the simulation',
+      }),
+    removeClosure: (id) =>
+      set({ closures: get().closures.filter((c) => c.id !== id), announcement: 'Section reopened' }),
     duplicateActiveScenario: () => {
       const p = get().project;
       push(duplicateScenario(p, p.activeScenarioId), 'Scenario duplicated');

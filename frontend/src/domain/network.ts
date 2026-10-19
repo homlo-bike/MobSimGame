@@ -628,3 +628,85 @@ export function emptyScenario(name = 'Scenario A'): Scenario {
     updatedAt: nowIso(),
   };
 }
+
+/**
+ * Crossovers are drawn this far before or after their station (or halfway to the
+ * neighbouring stop if that is closer). This is a display position only: the
+ * real location would follow from track design, which a sketch does not have.
+ */
+export const CROSSOVER_DISPLAY_OFFSET_M = 80;
+
+export interface PlacedCrossover {
+  id: string;
+  stationId: string;
+  side: 'before' | 'after';
+  chainageM: number;
+  position: LngLat;
+}
+
+/** Crossovers of a line with their chainage, in line order. */
+export function placedCrossovers(line: TransportLine, stations: readonly Station[]): PlacedCrossover[] {
+  const stops = orderedStops(line, stations);
+  const total = lineLengthM(line);
+  if (total <= 0) return [];
+  const out: PlacedCrossover[] = [];
+  for (const c of line.crossovers) {
+    const i = stops.findIndex((s) => s.station.id === c.stationId);
+    if (i < 0) continue;
+    const here = stops[i]!.chainageM;
+    const neighbour =
+      c.side === 'before' ? (stops[i - 1]?.chainageM ?? 0) : (stops[i + 1]?.chainageM ?? total);
+    const room = Math.abs(here - neighbour) / 2;
+    const d = Math.min(CROSSOVER_DISPLAY_OFFSET_M, room);
+    const chainageM = Math.min(total, Math.max(0, here + (c.side === 'before' ? -d : d)));
+    out.push({
+      ...c,
+      chainageM,
+      position: positionAtFraction(line.coordinates, isRing(line), chainageM / total),
+    });
+  }
+  return out.sort((a, b) => a.chainageM - b.chainageM);
+}
+
+/** Add or remove the crossover before or after a station of the line. */
+export function toggleCrossover(
+  scenario: Scenario,
+  lineId: string,
+  stationId: string,
+  side: 'before' | 'after',
+): Scenario {
+  const line = scenario.lines.find((l) => l.id === lineId);
+  if (!line || !line.stops.some((s) => s.stationId === stationId)) return scenario;
+  const existing = line.crossovers.find((c) => c.stationId === stationId && c.side === side);
+  return updateLine(scenario, lineId, {
+    crossovers: existing
+      ? line.crossovers.filter((c) => c !== existing)
+      : [...line.crossovers, { id: newId('xo'), stationId, side }],
+  });
+}
+
+/**
+ * Reverse the drawn direction of a line: geometry, segments, ends and crossover
+ * sides follow. Street-routed legs are re-routed because one-way streets may differ.
+ */
+export function reverseLineDirection(scenario: Scenario, lineId: string): Scenario {
+  const line = scenario.lines.find((l) => l.id === lineId);
+  if (!line) return scenario;
+  const points = [...editablePoints(line)].reverse();
+  const built = buildAlignment(line.alignment.kind, points, isRing(line));
+  const updated: TransportLine = {
+    ...line,
+    alignment: built.alignment,
+    coordinates: built.coordinates,
+    segments: [...line.segments]
+      .reverse()
+      .map((s) => ({ ...s, fromFraction: 1 - s.toFraction, toFraction: 1 - s.fromFraction })),
+    termination:
+      line.termination.kind === 'ends'
+        ? { kind: 'ends', start: line.termination.end, end: line.termination.start }
+        : line.termination,
+    crossovers: line.crossovers.map((c) => ({ ...c, side: c.side === 'before' ? 'after' : 'before' })),
+    origin: line.origin.source === 'osm' ? { ...line.origin, edited: true } : line.origin,
+  };
+  return reorderStops(updateLine(scenario, lineId, updated), lineId);
+}

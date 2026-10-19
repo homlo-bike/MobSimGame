@@ -6,7 +6,7 @@
  */
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore, useScenario } from '../store/projectStore';
-import { computeSchematic, describeSchematic, GRID } from '../schematic/layout';
+import { computeSchematic, crossoverPoint, describeSchematic, GRID } from '../schematic/layout';
 import { Button, Section } from './primitives';
 import { downloadText, safeFilename } from '../store/persistence';
 
@@ -130,6 +130,22 @@ export function SchematicView() {
             );
           });
         })}
+        {layout.lines.flatMap((l) =>
+          l.crossovers.map((c) => {
+            const p = crossoverPoint(layout, l, c);
+            if (!p) return null;
+            return (
+              <g key={`xo-${l.id}-${c.stationId}-${c.side}`} aria-hidden="true">
+                <circle cx={p.x} cy={p.y} r={6} fill="#ffffff" stroke="#111827" strokeWidth={1.5} />
+                <path
+                  d={`M${p.x - 3} ${p.y - 3} L${p.x + 3} ${p.y + 3} M${p.x + 3} ${p.y - 3} L${p.x - 3} ${p.y + 3}`}
+                  stroke="#111827"
+                  strokeWidth={1.5}
+                />
+              </g>
+            );
+          }),
+        )}
         {layout.stations.map((s) => (
           <g
             key={s.id}

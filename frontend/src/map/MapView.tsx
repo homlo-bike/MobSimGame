@@ -25,7 +25,7 @@ import { snapToPath } from '../geo/geometry';
 import { basemapOptions, terrainSource } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
-import { simulationClock } from '../simulation/runtime';
+import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
 import {
   ensureLayers,
@@ -36,7 +36,10 @@ import {
   STATION_LAYER,
 } from './layers';
 import {
+  arrowsCollection,
   catchmentsCollection,
+  closuresCollection,
+  crossoversCollection,
   EMPTY,
   populationCollection,
   segmentsCollection,
@@ -73,6 +76,7 @@ export default function MapView() {
   const running = useStore((s) => s.simulationRunning);
   const reducedMotion = useStore((s) => s.reducedMotion);
   const simulationEpoch = useStore((s) => s.simulationEpoch);
+  const closures = useStore((s) => s.closures);
 
   // --- Create map and draw once -------------------------------------------
   useEffect(() => {
@@ -316,11 +320,15 @@ export default function MapView() {
     const map = mapRef.current;
     const draw = drawRef.current;
     if (!map || !draw || !map.getSource(SRC.segments)) return;
-    setData(map, SRC.segments, segmentsCollection(scenario, selectedLineId));
+    const segments = segmentsCollection(scenario, selectedLineId);
+    setData(map, SRC.segments, segments);
+    setData(map, SRC.arrows, arrowsCollection(segments));
+    setData(map, SRC.crossovers, crossoversCollection(scenario));
+    setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
     reconcileDraw(draw, scenario, selectedLineId);
-  }, [scenario, selectedLineId, selectedStationId, styleVersion, layers.catchments]);
+  }, [scenario, selectedLineId, selectedStationId, styleVersion, layers.catchments, closures]);
 
   // --- Context layers --------------------------------------------------------------
   useEffect(() => {
@@ -390,7 +398,8 @@ export default function MapView() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    let models: LineSimulationModel[] = buildScenarioModels(scenario);
+    const simOptions = simulationOptions(scenario, closures);
+    let models: LineSimulationModel[] = buildScenarioModels(scenario, simOptions);
     let frame = 0;
     let lastDraw = 0;
     const render = () => {
@@ -408,7 +417,7 @@ export default function MapView() {
       frame = requestAnimationFrame(render);
     } else {
       simulationClock.pause();
-      models = buildScenarioModels(scenario);
+      models = buildScenarioModels(scenario, simOptions);
       if (map.getSource(SRC.vehicles)) {
         const t = simulationClock.timeS;
         setData(
@@ -419,7 +428,7 @@ export default function MapView() {
       }
     }
     return () => cancelAnimationFrame(frame);
-  }, [running, scenario, reducedMotion, styleVersion, simulationEpoch]);
+  }, [running, scenario, reducedMotion, styleVersion, simulationEpoch, closures]);
 
   return (
     <div className="relative h-full w-full">

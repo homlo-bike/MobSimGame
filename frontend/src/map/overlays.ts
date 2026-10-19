@@ -1,33 +1,147 @@
 /** Pure builders for the GeoJSON shown in MapLibre layers (no map access). */
 import type { FeatureCollection, Feature } from 'geojson';
 import { circle } from '@turf/turf';
-import type { Scenario } from '../domain/schema';
-import { isInterchange, isRing, linesServingStation } from '../domain/network';
+import type { LngLat, Scenario } from '../domain/schema';
+import {
+  isInterchange,
+  isRing,
+  linesServingStation,
+  orderedStops,
+  placedCrossovers,
+} from '../domain/network';
 import { slicePath } from '../geo/geometry';
-import type { VehicleState } from '../simulation/engine';
+import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 
+/**
+ * One feature per track and segment. A double-track segment becomes two
+ * features: each runs in its direction of travel (the return track's
+ * coordinates are reversed) and is drawn offset to the running side, so arrows
+ * along the line show the direction of each track. `offsetSign` is +1 for an
+ * offset to the right of the feature's own direction.
+ */
 export function segmentsCollection(scenario: Scenario, selectedLineId: string | null): FeatureCollection {
   const features: Feature[] = [];
   for (const line of scenario.lines) {
+    const guidedOrRoad = !['cycling', 'pedestrian'].includes(line.mode);
     for (const seg of line.segments) {
       const coords = slicePath(line.coordinates, isRing(line), seg.fromFraction, seg.toFraction);
       if (coords.length < 2) continue;
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coords },
-        properties: {
-          lineId: line.id,
-          segmentId: seg.id,
-          color: line.color,
-          structure: seg.structure,
-          tracks: seg.tracks,
-          selected: line.id === selectedLineId,
-        },
-      });
+      const base = {
+        lineId: line.id,
+        segmentId: seg.id,
+        color: line.color,
+        structure: seg.structure,
+        tracks: seg.tracks,
+        selected: line.id === selectedLineId,
+      };
+      const sideSign = (line.runningSide === 'right' ? 1 : -1) * (seg.flipped ? -1 : 1);
+      if (seg.tracks === 'double' && line.direction === 'bidirectional' && guidedOrRoad) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: coords },
+          properties: { ...base, track: 'forward', offsetSign: sideSign, arrow: '›' },
+        });
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [...coords].reverse() },
+          properties: { ...base, track: 'return', offsetSign: sideSign, arrow: '›' },
+        });
+      } else {
+        const oneWay = line.direction === 'one_way';
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: coords },
+          properties: {
+            ...base,
+            track: 'single',
+            offsetSign: 0,
+            // Single track used both ways shows both directions; active modes show no arrows.
+            arrow: !guidedOrRoad ? '' : oneWay ? '›' : '‹ ›',
+          },
+        });
+      }
     }
   }
   return { type: 'FeatureCollection', features };
+}
+
+/** Sections closed in the disruption simulation. */
+export function closuresCollection(
+  scenario: Scenario,
+  closures: readonly { lineId: string; fromStationId: string; toStationId: string }[],
+): FeatureCollection {
+  const features: Feature[] = [];
+  for (const c of closures) {
+    const line = scenario.lines.find((l) => l.id === c.lineId);
+    if (!line) continue;
+    const stops = orderedStops(line, scenario.stations);
+    const a = stops.find((s) => s.station.id === c.fromStationId)?.fraction;
+    const b = stops.find((s) => s.station.id === c.toStationId)?.fraction;
+    if (a === undefined || b === undefined) continue;
+    const coords = slicePath(line.coordinates, isRing(line), Math.min(a, b), Math.max(a, b));
+    if (coords.length >= 2)
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: coords },
+        properties: { lineId: line.id },
+      });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+/** Distance between direction arrows along a track. */
+const ARROW_SPACING_M = 150;
+
+/**
+ * Direction-of-travel arrows: points along each track with the bearing of
+ * travel and the side of the line the track is drawn on.
+ */
+export function arrowsCollection(segments: FeatureCollection): FeatureCollection {
+  const features: Feature[] = [];
+  for (const f of segments.features) {
+    if (f.geometry.type !== 'LineString') continue;
+    const p = f.properties ?? {};
+    if (!p.arrow) continue;
+    const path = measurePath(f.geometry.coordinates as LngLat[], false);
+    const both = p.arrow === '‹ ›';
+    for (let d = ARROW_SPACING_M / 2; d < path.lengthM; d += ARROW_SPACING_M) {
+      const here = interpolate(path, d).position;
+      const ahead = interpolate(path, Math.min(path.lengthM, d + 2)).position;
+      const bearing = bearingDeg(here, ahead);
+      const props = { color: p.color, offsetSign: p.offsetSign ?? 0 };
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: here },
+        properties: { ...props, bearing },
+      });
+      if (both)
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: here },
+          properties: { ...props, bearing: (bearing + 180) % 360 },
+        });
+    }
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+function bearingDeg(a: LngLat, b: LngLat): number {
+  const k = Math.cos((a[1] * Math.PI) / 180);
+  return ((Math.atan2((b[0] - a[0]) * k, b[1] - a[1]) * 180) / Math.PI + 360) % 360;
+}
+
+export function crossoversCollection(scenario: Scenario): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: scenario.lines.flatMap((line) =>
+      placedCrossovers(line, scenario.stations).map((c) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: c.position },
+        properties: { lineId: line.id, crossoverId: c.id, color: line.color },
+      })),
+    ),
+  };
 }
 
 export function stationsCollection(scenario: Scenario, selectedStationId: string | null): FeatureCollection {
