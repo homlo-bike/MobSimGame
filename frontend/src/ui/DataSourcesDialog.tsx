@@ -146,7 +146,7 @@ export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: (
         <h3 className="font-semibold">Privacy</h3>
         <p className="mb-2 text-sm">
           Projects are stored in this browser (local storage). Nothing is sent to MobSimGame’s backend unless
-          you choose File › Share link. Search text goes to the configured geocoder; station-name lookups send
+          you sign in and choose File › Save to server and share. Search text goes to the configured geocoder; station-name lookups send
           the station’s coordinates (not the project) to Overpass through the backend. Basemap and terrain
           tiles are requested from their hosts. No tracking or analytics.
         </p>

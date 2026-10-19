@@ -147,9 +147,24 @@ describe('File menu', () => {
       'Import GeoJSON…',
       'Export GeoJSON',
       'Export coordinates.csv',
-      'Share link…',
+      'Save to server and share…',
       'Print report',
+      'Sign in…server',
     ]);
+  });
+
+  it('asks for the server login before sharing', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: /Save to server and share/ }));
+    expect(screen.getByRole('heading', { name: 'Sign in to save on the server' })).toBeInTheDocument();
+    // Nothing was sent before signing in.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
+    vi.unstubAllGlobals();
   });
 
   it('supports keyboard navigation and returns focus on Escape', async () => {
@@ -162,7 +177,7 @@ describe('File menu', () => {
     await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('menuitem', { name: 'Load demo' })).toHaveFocus();
     await user.keyboard('{End}');
-    expect(screen.getByRole('menuitem', { name: 'Print report' })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: /Sign in/ })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('menuitem', { name: 'New project' })).toHaveFocus();
     await user.keyboard('{Escape}');

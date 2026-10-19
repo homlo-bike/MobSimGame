@@ -1,7 +1,8 @@
 """Save and share projects. A project is stored only when the user shares it.
 
-Creating returns an unguessable id (view link) and a separate edit token; only
-the token's hash is stored. Authentication can later replace edit tokens.
+Writing (create, update, delete) requires a login (app/auth.py). Creating
+returns an unguessable id (view link) and a separate edit token; only the
+token's hash is stored. Anyone with the link can view a shared project.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from ..auth import LoggedIn
 from ..geo import extent_ewkt
 from ..logging_config import get_logger
 from ..models import AuditLog, SharedProject
@@ -54,7 +56,7 @@ def _out(row: SharedProject) -> SharedProjectOut:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_project(
-    envelope: ProjectEnvelope, request: Request, db: Annotated[Session, Depends(get_db)]
+    envelope: ProjectEnvelope, request: Request, db: Annotated[Session, Depends(get_db)], _user: LoggedIn
 ) -> ShareCreated:
     document = envelope.project.model_dump(mode="json")
     pid = secrets.token_urlsafe(12)
@@ -107,6 +109,7 @@ def update_project(
     envelope: ProjectEnvelope,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
+    _user: LoggedIn,
     x_edit_token: Annotated[str | None, Header()] = None,
 ) -> ShareCreated:
     row = _authorise(db.get(SharedProject, project_id[:32]), x_edit_token)
@@ -127,6 +130,7 @@ def delete_project(
     project_id: str,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
+    _user: LoggedIn,
     x_edit_token: Annotated[str | None, Header()] = None,
 ) -> None:
     row = _authorise(db.get(SharedProject, project_id[:32]), x_edit_token)

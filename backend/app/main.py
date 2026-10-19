@@ -10,7 +10,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
-from .api import health, projects, providers, reports
+from .api import auth, health, projects, providers, reports
+from .auth import SessionSigner
 from .config import Settings, get_settings
 from .db import Base, make_engine, session_factory
 from .logging_config import configure_logging, get_logger
@@ -63,6 +64,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.AsyncClient 
     app.state.session_factory = session_factory(engine)
     app.state.providers = build_providers(settings, client)
     app.state.provider_limiter = RateLimiter(settings.provider_rate_limit_per_minute)
+    app.state.login_limiter = RateLimiter(settings.login_attempts_per_minute)
+    app.state.session_signer = SessionSigner(settings)
 
     # Order: last added runs first.
     app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)
@@ -71,13 +74,14 @@ def create_app(settings: Settings | None = None, http_client: httpx.AsyncClient 
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Content-Type", "X-Edit-Token"],
+        allow_headers=["Content-Type", "X-Edit-Token", "Authorization"],
         allow_credentials=False,
     )
     app.add_middleware(SecurityHeadersMiddleware)
     # Outermost: sees the final status of every request, including rejected ones.
     app.add_middleware(RequestLoggingMiddleware)
 
+    app.include_router(auth.router)
     app.include_router(health.router)
     app.include_router(projects.router)
     app.include_router(providers.router)

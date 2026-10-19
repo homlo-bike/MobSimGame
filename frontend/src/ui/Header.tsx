@@ -3,6 +3,8 @@ import { useStore, useScenario } from '../store/projectStore';
 import { downloadText, parseProjectText, safeFilename, serializeProject } from '../store/persistence';
 import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJSON } from '../geo/geojson';
 import { openServerReport, shareProject } from '../api/projects';
+import { currentSession, logout } from '../api/auth';
+import { LoginDialog } from './LoginDialog';
 import { ProviderError } from '../providers/backend';
 import { Badge } from './primitives';
 import { Menu, type MenuEntry } from './Menu';
@@ -80,7 +82,19 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
     }
   };
 
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [signedInAs, setSignedInAs] = useState<string | null>(() => currentSession()?.username ?? null);
+
+  /** Share again right after signing in when sharing is what asked for the login. */
+  const pendingShare = useRef(false);
+
   const onShare = async () => {
+    if (!currentSession()) {
+      setSignedInAs(null);
+      pendingShare.current = true;
+      setLoginOpen(true);
+      return;
+    }
     try {
       const res = await shareProject(project, shareId ?? undefined);
       setShareId(res.id);
@@ -90,6 +104,13 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
         `Shared. Link: ${url} (copied if the clipboard is available). Anyone with the link can view it.`,
       );
     } catch (e) {
+      if (e instanceof ProviderError && e.state === 'authentication_required') {
+        setSignedInAs(null);
+        report('Your server session has ended. Sign in again to share.', true);
+        pendingShare.current = true;
+        setLoginOpen(true);
+        return;
+      }
       report(e instanceof ProviderError ? `Share unavailable: ${e.message}` : 'Share failed', true);
     }
   };
@@ -133,8 +154,25 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
     },
     { kind: 'separator' },
     { kind: 'heading', label: 'Share' },
-    { kind: 'item', label: 'Share link…', onSelect: onShare },
+    {
+      kind: 'item',
+      label: shareId ? 'Update shared project' : 'Save to server and share…',
+      onSelect: onShare,
+    },
     { kind: 'item', label: 'Print report', onSelect: openReport },
+    { kind: 'separator' },
+    signedInAs
+      ? {
+          kind: 'item',
+          label: 'Sign out',
+          hint: signedInAs,
+          onSelect: () => {
+            logout();
+            setSignedInAs(null);
+            report('Signed out of the server');
+          },
+        }
+      : { kind: 'item', label: 'Sign in…', hint: 'server', onSelect: () => setLoginOpen(true) },
   ];
 
   const tabs: { id: View; label: string; title?: string }[] = [
@@ -228,6 +266,24 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
         }
       />
       {message && <Toast message={message} onDismiss={dismissMessage} />}
+      {loginOpen && (
+        <LoginDialog
+          open={loginOpen}
+          onClose={() => {
+            setLoginOpen(false);
+            pendingShare.current = false;
+          }}
+          onSignedIn={(user) => {
+            setSignedInAs(user);
+            setLoginOpen(false);
+            report(`Signed in as ${user}`);
+            if (pendingShare.current) {
+              pendingShare.current = false;
+              void onShare();
+            }
+          }}
+        />
+      )}
     </header>
   );
 }

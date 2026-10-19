@@ -5,6 +5,7 @@
 import type { Project } from '../domain/schema';
 import { parseProject } from '../domain/schema';
 import { apiFetch, ProviderError } from '../providers/backend';
+import { authHeaders, logout } from './auth';
 import { createLogger } from '../util/logger';
 
 const log = createLogger('share');
@@ -35,14 +36,25 @@ export function rememberEditToken(id: string, token: string) {
 
 export async function shareProject(project: Project, existingId?: string): Promise<ShareResult> {
   const token = existingId ? tokens()[existingId] : undefined;
-  const res = await apiFetch(
-    existingId && token ? `/api/v1/projects/${encodeURIComponent(existingId)}` : '/api/v1/projects',
-    {
-      method: existingId && token ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Edit-Token': token } : {}) },
-      body: JSON.stringify({ project }),
-    },
-  );
+  let res: Response;
+  try {
+    res = await apiFetch(
+      existingId && token ? `/api/v1/projects/${encodeURIComponent(existingId)}` : '/api/v1/projects',
+      {
+        method: existingId && token ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+          ...(token ? { 'X-Edit-Token': token } : {}),
+        },
+        body: JSON.stringify({ project }),
+      },
+    );
+  } catch (e) {
+    // An expired or rejected session: forget it so the next attempt asks to sign in.
+    if (e instanceof ProviderError && e.state === 'authentication_required') logout();
+    throw e;
+  }
   if (res.status === 413) {
     log.warn('project too large to share', { status: 413 });
     throw new ProviderError('Project is too large to share', 'temporarily_unavailable');

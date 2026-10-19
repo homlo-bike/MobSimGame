@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     )
     log_format: LogFormat = "auto"
 
+    # Saving and sharing to the server requires this login. Change the password in .env;
+    # the API refuses to start in production while it is still the default.
+    admin_username: str = "admin"
+    admin_password: SecretStr = SecretStr("admin")
+    # Signs login sessions. Unset: a random key per process (sessions end on restart).
+    session_secret: SecretStr | None = None
+    session_ttl_s: int = 8 * 3600
+    login_attempts_per_minute: int = 10
+
     # Request limits
     max_request_bytes: int = 5 * 1024 * 1024
     rate_limit_per_minute: int = 120
@@ -99,6 +108,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "contact_email",
+        "session_secret",
         "arcgis_token",
         "camara_population_url",
         "camara_token_url",
@@ -122,6 +132,10 @@ class Settings(BaseSettings):
                 raise ValueError(f"{name} must use https")
             if parsed.hostname not in self.outbound_allowlist:
                 raise ValueError(f"{name} host {parsed.hostname!r} is not in MOBSIM_OUTBOUND_ALLOWLIST")
+        if self.environment == "production" and self.admin_password.get_secret_value() == "admin":
+            raise ValueError("Set MOBSIM_ADMIN_PASSWORD: the default password is not allowed in production")
+        if not self.admin_username.strip() or not self.admin_password.get_secret_value():
+            raise ValueError("MOBSIM_ADMIN_USERNAME and MOBSIM_ADMIN_PASSWORD must not be empty")
         if self.environment == "production" and "*" in self.cors_origins:
             raise ValueError("Wildcard CORS origins are not allowed in production")
         if self.max_request_bytes > 50 * 1024 * 1024:
