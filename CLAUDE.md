@@ -56,8 +56,12 @@ Run all relevant checks before committing. In this sandbox Playwright needs
   (`ms-`/`me-`/`start-`) for RTL readiness.
 - **Wording:** findings are advisory; never call an alignment safe or
   construction-ready; emissions are "estimated under the selected assumptions".
-- **Licensing:** do not edit `LICENSE`. Keep `THIRD_PARTY_NOTICES.md` and
-  `docs/licenses/` current (`npm run licenses`, pip-licenses).
+- **Licensing:** the project is AGPL-3.0-only. Do not edit `LICENSE` (verbatim GNU
+  text) or change the licence without the owner's explicit decision. Only add
+  dependencies whose licence may be combined with AGPL-3.0. Keep
+  `THIRD_PARTY_NOTICES.md` (licence link + repository for every resource) and
+  `docs/licenses/` current (`cd frontend && npm run licenses`;
+  `cd backend && python scripts/license_report.py --runtime-python <runtime-only venv> --dev-python .venv/bin/python`).
 - **Git:** never push directly to `main`; work on a branch and open a PR.
 - **Docs:** update README/docs/CHANGELOG with every behaviour change; do not
   describe planned features as available.

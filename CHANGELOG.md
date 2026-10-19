@@ -6,6 +6,20 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Licence: the project is now GNU AGPL-3.0-only** (previously MIT), so that it fits
+  the bundled `@sakuzu/maplibre-gl-draw` (AGPL-3.0-only) and all other dependencies
+  without conflict. `LICENSE` holds the verbatim GNU text; `NOTICE` holds the copyright
+  and licence notice and the licence history. Versions up to `20cce9e` remain MIT.
+- `THIRD_PARTY_NOTICES.md` now lists every direct dependency, container image, CI
+  action, map style, font, dataset and service with licence link and repository URL,
+  plus a licence-compatibility table.
+- Generated licence reports in `docs/licenses/` now include licence links and
+  repository URLs for every production and development package
+  (`npm run licenses`, `backend/scripts/license_report.py`).
+- In-app "Data & licences" dialog and the server HTML report state the new licence.
+
 ## [0.1.0] — Phase 1 vertical slice
 
 ### Added

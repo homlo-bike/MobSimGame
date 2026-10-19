@@ -88,12 +88,21 @@ export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: (
             only, cached.
           </li>
           <li>
-            MobSimGame source code: MIT licence,{' '}
-            <a className="underline" href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
-              source code
+            MobSimGame © 2026 Homlo-Bike is free software under the{' '}
+            <a
+              className="underline"
+              href="https://www.gnu.org/licenses/agpl-3.0.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GNU Affero General Public License v3.0 only
             </a>
-            . Because the built app includes an AGPL-3.0 library, operators of modified versions must offer
-            their modified source to users. Datasets keep their own licences.
+            , without warranty.{' '}
+            <a className="underline" href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
+              Get the source code of this version
+            </a>
+            . Operators of modified versions must offer their modified source to users. Datasets keep their
+            own licences.
           </li>
         </ul>
         <h3 className="font-semibold">Providers</h3>

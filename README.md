@@ -158,11 +158,19 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Licensing
 
-MobSimGame's source code is MIT-licensed ([LICENSE](LICENSE)). The frontend bundles
-`@sakuzu/maplibre-gl-draw`, which is AGPL-3.0-only; deployments must therefore
-offer the source of the built app to its users (the app links to it). See
-[docs/LICENSING_OPTIONS.md](docs/LICENSING_OPTIONS.md) and ADR 0003. Datasets
-keep their own licences.
+MobSimGame — Copyright (C) 2026 Homlo-Bike — is free software under the
+[GNU Affero General Public License v3.0 only](https://www.gnu.org/licenses/agpl-3.0.html)
+(`AGPL-3.0-only`, see [LICENSE](LICENSE) and [NOTICE](NOTICE)). This licence matches
+the bundled `@sakuzu/maplibre-gl-draw` (AGPL-3.0-only) and is compatible with every
+other dependency. If you run a modified version for others over a network, you
+must offer them its source; set `VITE_SOURCE_URL` so the app links to it.
+Releases up to commit `20cce9e` were MIT-licensed.
+
+Every third-party component, image, dataset and service is listed with its
+licence link and repository in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md);
+complete per-package lists are in [docs/licenses/](docs/licenses/). Datasets keep
+their own licences. Background: [docs/LICENSING_OPTIONS.md](docs/LICENSING_OPTIONS.md),
+[ADR 0003](docs/architecture/0003-drawing-library-licensing.md).
 
 ## Contributing and security
 

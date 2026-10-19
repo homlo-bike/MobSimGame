@@ -30,7 +30,8 @@ ATTRIBUTION = [
     "Map data © OpenStreetMap contributors, available under the Open Database Licence (ODbL 1.0).",
     "Basemap tiles: OpenFreeMap © OpenMapTiles (when used).",
     "Map rendering: MapLibre GL JS (BSD-3-Clause). Drawing: @sakuzu/maplibre-gl-draw (AGPL-3.0-only).",
-    "MobSimGame source code: MIT licence. Datasets keep their own licences.",
+    "MobSimGame © 2026 Homlo-Bike: GNU AGPL-3.0-only, source at https://github.com/homlo-bike/MobSimGame. "
+    "Datasets keep their own licences.",
 ]
 
 

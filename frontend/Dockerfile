@@ -13,6 +13,9 @@ ENV VITE_SOURCE_URL=$VITE_SOURCE_URL VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_E
 RUN npm run build && node scripts/check-bundle-secrets.mjs
 
 FROM nginx:1.27-alpine AS web
+LABEL org.opencontainers.image.title="MobSimGame" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.source="https://github.com/homlo-bike/MobSimGame"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /src/dist /usr/share/nginx/html
 ENV MOBSIM_API_UPSTREAM=http://api:8000
