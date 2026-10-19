@@ -1,0 +1,183 @@
+/**
+ * MapLibre sources and layers owned by MobSimGame. They are re-added after every
+ * basemap switch (style.load). Structure types use distinct dash patterns and
+ * widths so they are distinguishable without colour.
+ */
+import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
+import type { StructureType } from '../domain/schema';
+import { STRUCTURE_DASH } from '../domain/modes';
+import { EMPTY } from './overlays';
+
+export const SRC = {
+  segments: 'msg-segments',
+  stations: 'msg-stations',
+  catchments: 'msg-catchments',
+  vehicles: 'msg-vehicles',
+  population: 'msg-population',
+  traffic: 'msg-traffic',
+  transit: 'msg-transit',
+  dem: 'msg-dem',
+} as const;
+
+export const STATION_LAYER = 'msg-stations-circle';
+export const SEGMENT_LAYER_PREFIX = 'msg-seg-';
+
+const STRUCTURES: StructureType[] = [
+  'at_grade',
+  'underground',
+  'tunnel',
+  'cut_and_cover',
+  'elevated',
+  'bridge',
+];
+
+export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
+  for (const id of Object.values(SRC)) {
+    if (id === SRC.dem || map.getSource(id)) continue;
+    map.addSource(id, { type: 'geojson', data: EMPTY });
+  }
+  const add = (layer: Parameters<MlMap['addLayer']>[0]) => {
+    if (!map.getLayer(layer.id)) map.addLayer(layer);
+  };
+  add({
+    id: 'msg-population-fill',
+    type: 'fill',
+    source: SRC.population,
+    layout: { visibility: 'none' },
+    paint: {
+      'fill-color': [
+        'interpolate',
+        ['linear'],
+        ['get', 'density'],
+        0,
+        '#fff7ec',
+        2000,
+        '#fdbb84',
+        6000,
+        '#e34a33',
+        10000,
+        '#7f0000',
+      ],
+      'fill-opacity': 0.45,
+    },
+  });
+  add({
+    id: 'msg-traffic-line',
+    type: 'line',
+    source: SRC.traffic,
+    layout: { visibility: 'none', 'line-cap': 'round' },
+    paint: {
+      'line-width': 4,
+      'line-color': [
+        'interpolate',
+        ['linear'],
+        ['get', 'speedRatio'],
+        0,
+        '#7f1d1d',
+        0.5,
+        '#f59e0b',
+        1,
+        '#16a34a',
+      ],
+      'line-dasharray': [1, 1],
+    },
+  });
+  add({
+    id: 'msg-transit-line',
+    type: 'line',
+    source: SRC.transit,
+    layout: { visibility: 'none' },
+    paint: { 'line-width': 3, 'line-color': '#64748b', 'line-dasharray': [3, 2] },
+  });
+  add({
+    id: 'msg-catchments-fill',
+    type: 'fill',
+    source: SRC.catchments,
+    layout: { visibility: 'none' },
+    paint: { 'fill-color': '#0ea5e9', 'fill-opacity': 0.08, 'fill-outline-color': '#0369a1' },
+  });
+  // Halo under every segment so lines read on any basemap.
+  add({
+    id: 'msg-seg-halo',
+    type: 'line',
+    source: SRC.segments,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': ['case', ['get', 'selected'], 11, 8],
+      'line-opacity': 0.9,
+    },
+  });
+  for (const s of STRUCTURES) {
+    const dash = STRUCTURE_DASH[s];
+    add({
+      id: `${SEGMENT_LAYER_PREFIX}${s}`,
+      type: 'line',
+      source: SRC.segments,
+      filter: ['==', ['get', 'structure'], s],
+      layout: { 'line-cap': dash ? 'butt' : 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': ['case', ['get', 'selected'], 7, ['==', ['get', 'tracks'], 'single'], 3, 5],
+        'line-opacity': ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.75 : 1,
+        ...(dash ? { 'line-dasharray': dash } : {}),
+      },
+    });
+  }
+  add({
+    id: STATION_LAYER,
+    type: 'circle',
+    source: SRC.stations,
+    paint: {
+      'circle-radius': ['case', ['get', 'selected'], 9, ['get', 'interchange'], 8, 6],
+      'circle-color': '#ffffff',
+      'circle-stroke-color': ['case', ['get', 'interchange'], '#111827', ['get', 'color']],
+      'circle-stroke-width': ['case', ['get', 'selected'], 4, ['get', 'interchange'], 3.5, 3],
+    },
+  });
+  if (opts.labels) {
+    add({
+      id: 'msg-stations-label',
+      type: 'symbol',
+      source: SRC.stations,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 12,
+        'text-offset': [0, 1.2],
+        'text-anchor': 'top',
+        'text-optional': true,
+      },
+      paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    });
+  }
+  add({
+    id: 'msg-vehicles-circle',
+    type: 'circle',
+    source: SRC.vehicles,
+    paint: {
+      'circle-radius': 5,
+      'circle-color': ['get', 'color'],
+      'circle-stroke-color': '#111827',
+      'circle-stroke-width': ['case', ['==', ['get', 'state'], 'running'], 1.5, 3],
+    },
+  });
+}
+
+export function setData(map: MlMap, source: string, data: FeatureCollection) {
+  (map.getSource(source) as GeoJSONSource | undefined)?.setData(data);
+}
+
+export function setVisible(map: MlMap, layerId: string, visible: boolean) {
+  if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+}
+
+/** Toggle basemap layers by their vector source-layer (e.g. "building"). */
+export function setBasemapSourceLayersVisible(map: MlMap, sourceLayers: string[], visible: boolean) {
+  for (const layer of map.getStyle().layers ?? []) {
+    const sl = (layer as { 'source-layer'?: string })['source-layer'];
+    if (sl && sourceLayers.includes(sl))
+      map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none');
+  }
+}

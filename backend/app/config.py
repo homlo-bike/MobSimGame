@@ -1,0 +1,121 @@
+"""Settings from environment variables, validated at start-up.
+
+Secrets (database password, provider tokens) are read only here and never
+returned by any endpoint. See docs/PROVIDER_CONFIGURATION.md.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Annotated, Literal
+from urllib.parse import urlparse
+
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MOBSIM_", env_file=".env", extra="ignore")
+
+    environment: Literal["development", "test", "production"] = "development"
+    database_url: str = "sqlite+pysqlite:///./mobsim-dev.sqlite3"
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:5173"])
+    public_base_url: str = "http://localhost:5173"
+
+    # Request limits
+    max_request_bytes: int = 5 * 1024 * 1024
+    rate_limit_per_minute: int = 120
+    provider_rate_limit_per_minute: int = 20
+
+    # Outbound HTTP: only these hosts may be contacted (SSRF protection).
+    outbound_allowlist: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "overpass-api.de",
+            "overpass.kumi.systems",
+            "nominatim.openstreetmap.org",
+            "v6.db.transport.rest",
+            "v6.vbb.transport.rest",
+            "v6.bvg.transport.rest",
+            "traffic.arcgis.com",
+        ]
+    )
+    # Resolve outbound hosts and refuse private/loopback addresses (disable only behind a trusted egress proxy).
+    outbound_dns_check: bool = True
+    user_agent: str = "MobSimGame/0.1 (self-hosted; +https://github.com/homlo-bike/MobSimGame)"
+    contact_email: str | None = None
+
+    # OpenStreetMap / Overpass
+    overpass_enabled: bool = True
+    overpass_url: str = "https://overpass-api.de/api/interpreter"
+    overpass_timeout_s: int = 25
+    overpass_max_bbox_km2: float = 25.0
+    overpass_max_radius_m: int = 1000
+    overpass_cache_ttl_s: int = 24 * 3600
+
+    # Nominatim
+    geocoder_enabled: bool = True
+    nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    geocoder_cache_ttl_s: int = 7 * 24 * 3600
+
+    # ArcGIS traffic (disabled unless a token is configured)
+    arcgis_traffic_url: str = "https://traffic.arcgis.com/arcgis/rest/services/World/Traffic/MapServer"
+    arcgis_token: SecretStr | None = None
+
+    # CAMARA population density (disabled unless fully configured)
+    camara_population_url: str | None = None
+    camara_token_url: str | None = None
+    camara_client_id: str | None = None
+    camara_client_secret: SecretStr | None = None
+
+    # transport.rest (disabled by default; best-effort community service)
+    transport_rest_enabled: bool = False
+    transport_rest_url: str = "https://v6.db.transport.rest"
+
+    @field_validator("cors_origins", "outbound_allowlist", mode="before")
+    @classmethod
+    def _split_csv(cls, v: object) -> object:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
+
+    @field_validator(
+        "contact_email",
+        "arcgis_token",
+        "camara_population_url",
+        "camara_token_url",
+        "camara_client_id",
+        "camara_client_secret",
+        mode="before",
+    )
+    @classmethod
+    def _empty_is_none(cls, v: object) -> object:
+        # Compose passes unset optional variables as empty strings; treat them as absent.
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @model_validator(mode="after")
+    def _check(self) -> Settings:
+        for name in ("overpass_url", "nominatim_url", "arcgis_traffic_url", "transport_rest_url"):
+            url = getattr(self, name)
+            parsed = urlparse(url)
+            if parsed.scheme != "https":
+                raise ValueError(f"{name} must use https")
+            if parsed.hostname not in self.outbound_allowlist:
+                raise ValueError(f"{name} host {parsed.hostname!r} is not in MOBSIM_OUTBOUND_ALLOWLIST")
+        if self.environment == "production" and "*" in self.cors_origins:
+            raise ValueError("Wildcard CORS origins are not allowed in production")
+        if self.max_request_bytes > 50 * 1024 * 1024:
+            raise ValueError("max_request_bytes is capped at 50 MB")
+        return self
+
+    @property
+    def camara_configured(self) -> bool:
+        return bool(
+            self.camara_population_url and self.camara_token_url and self.camara_client_id and self.camara_client_secret
+        )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

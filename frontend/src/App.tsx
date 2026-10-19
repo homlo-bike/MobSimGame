@@ -1,0 +1,199 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { useStore, useScenario } from './store/projectStore';
+import { saveToLocalStorage } from './store/persistence';
+import { activeScenario, deleteLine, deleteStation } from './domain/network';
+import { fetchSharedProject } from './api/projects';
+import { Header } from './ui/Header';
+import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
+import { LineInspector } from './ui/LineInspector';
+import { StationInspector } from './ui/StationInspector';
+import { SimulationControls } from './ui/SimulationControls';
+import { SchematicView } from './ui/SchematicView';
+import { Dashboard } from './ui/Dashboard';
+import { TableView } from './ui/TableView';
+import { DataSourcesDialog } from './ui/DataSourcesDialog';
+import { FindingsList } from './ui/FindingsList';
+import { Checkbox, Section } from './ui/primitives';
+import { validateScenario } from './validation/validate';
+import { t } from './i18n';
+
+const MapView = lazy(() => import('./map/MapView'));
+
+function isEditableTarget(el: EventTarget | null) {
+  const node = el as HTMLElement | null;
+  return (
+    !!node &&
+    (node.tagName === 'INPUT' ||
+      node.tagName === 'TEXTAREA' ||
+      node.tagName === 'SELECT' ||
+      node.isContentEditable)
+  );
+}
+
+function Inspector() {
+  const scenario = useScenario();
+  const selection = useStore((s) => s.selection);
+  const reducedMotion = useStore((s) => s.reducedMotion);
+  const setReducedMotion = useStore((s) => s.setReducedMotion);
+  const unitSystem = useStore((s) => s.unitSystem);
+  const setUnitSystem = useStore((s) => s.setUnitSystem);
+  if (selection?.kind === 'line' || selection?.kind === 'segment') {
+    const id = selection.kind === 'line' ? selection.id : selection.lineId;
+    const line = scenario.lines.find((l) => l.id === id);
+    if (line) return <LineInspector key={line.id} line={line} scenario={scenario} />;
+  }
+  if (selection?.kind === 'station') {
+    const station = scenario.stations.find((s) => s.id === selection.id);
+    if (station) return <StationInspector key={station.id} station={station} scenario={scenario} />;
+  }
+  const findings = validateScenario(scenario);
+  return (
+    <>
+      <Section title={t('inspector')} id="inspector-empty">
+        <p className="text-sm text-slate-700">
+          Select a line or station on the map or in the lists to edit it.
+        </p>
+      </Section>
+      <Section title="Display" id="display">
+        <Checkbox
+          label="Reduced motion"
+          checked={reducedMotion}
+          onChange={setReducedMotion}
+          hint="Vehicles move in steps instead of continuously."
+        />
+        <Checkbox
+          label="Imperial units"
+          checked={unitSystem === 'imperial'}
+          onChange={(v) => setUnitSystem(v ? 'imperial' : 'metric')}
+          hint="Metric is the default; calculations always use metric."
+        />
+      </Section>
+      <Section title={`${t('findings')} (${findings.length})`} id="all-findings">
+        <FindingsList findings={findings} />
+      </Section>
+    </>
+  );
+}
+
+export default function App() {
+  const project = useStore((s) => s.project);
+  const view = useStore((s) => s.view);
+  const announcement = useStore((s) => s.announcement);
+  const [dataOpen, setDataOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Autosave to this browser.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const r = saveToLocalStorage(project);
+      setSaveError(r.ok ? null : `Not saved in this browser: ${r.error}. Use “Save project” to keep a file.`);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [project]);
+
+  // Open a shared project from ?share=<id>.
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('share');
+    if (!id) return;
+    fetchSharedProject(id)
+      .then((p) => useStore.getState().loadProject(p))
+      .catch((e: Error) => useStore.getState().announce(`Could not open shared project: ${e.message}`));
+  }, []);
+
+  // Keyboard shortcuts.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const state = useStore.getState();
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z' && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        if (e.shiftKey) state.redo();
+        else state.undo();
+      } else if (mod && e.key.toLowerCase() === 'y' && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        state.redo();
+      } else if (e.key === 'Escape' && state.tool !== 'select') {
+        state.setTool('select');
+        state.announce('Tool cancelled');
+      } else if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        !isEditableTarget(e.target) &&
+        state.selection
+      ) {
+        const sc = activeScenario(state.project);
+        const sel = state.selection;
+        if (sel.kind === 'station') state.commitScenario(deleteStation(sc, sel.id), 'Station deleted');
+        else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        state.select(null);
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:z-50 focus:bg-white focus:p-2"
+      >
+        {t('skipToMain')}
+      </a>
+      <Header onOpenDataSources={() => setDataOpen(true)} />
+      {project.fictional && (
+        <div role="note" className="bg-fuchsia-800 px-3 py-1 text-sm font-semibold text-white">
+          Fictional demonstration project: the network, names and all figures are synthetic and describe no
+          real place.
+        </div>
+      )}
+      {saveError && (
+        <div role="alert" className="bg-amber-100 px-3 py-1 text-sm text-amber-950">
+          ⚠ {saveError}
+        </div>
+      )}
+      <div className="flex min-h-0 flex-1">
+        <aside
+          aria-label="Tools and network"
+          className="w-72 shrink-0 overflow-y-auto border-e border-slate-300 bg-white"
+        >
+          <SearchBox />
+          <ToolPanel />
+          <ScenarioPanel />
+          <NetworkLists />
+          <LayerPanel />
+        </aside>
+        <main id="main" className="relative min-w-0 flex-1" tabIndex={-1}>
+          {/* The map stays mounted so switching views keeps its state. */}
+          <div className={view === 'map' ? 'h-full' : 'hidden'}>
+            <Suspense fallback={<p className="p-4">Loading map…</p>}>
+              <MapView />
+            </Suspense>
+          </div>
+          {view === 'schematic' && <SchematicView />}
+          {view === 'dashboard' && <Dashboard />}
+          {view === 'table' && <TableView />}
+        </main>
+        <aside
+          aria-label={t('inspector')}
+          className="w-96 shrink-0 overflow-y-auto border-s border-slate-300 bg-white"
+        >
+          <Inspector />
+        </aside>
+      </div>
+      <footer className="border-t border-slate-400 bg-white px-3 py-1">
+        <SimulationControls />
+        <p className="text-xs text-slate-700">
+          {t('disclaimer')}{' '}
+          <button type="button" className="underline" onClick={() => setDataOpen(true)}>
+            {t('dataSources')}
+          </button>
+        </p>
+      </footer>
+      <div aria-live="polite" className="sr-only" data-testid="announcer">
+        {announcement}
+      </div>
+      <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
+    </div>
+  );
+}

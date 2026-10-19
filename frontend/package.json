@@ -1,0 +1,57 @@
+{
+  "name": "mobsimgame-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "check:secrets": "node scripts/check-bundle-secrets.mjs",
+    "licenses": "node scripts/license-report.mjs"
+  },
+  "dependencies": {
+    "@sakuzu/maplibre-gl-draw": "2.2.0",
+    "@turf/turf": "7.4.0",
+    "maplibre-gl": "6.11.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/geojson": "7946.0.16",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "jsdom": "26.1.0",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2",
+    "vite": "7.3.7",
+    "vitest": "5.0.5"
+  }
+}

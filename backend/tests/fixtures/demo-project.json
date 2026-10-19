@@ -1,0 +1,1188 @@
+{
+ "schemaVersion": 1,
+ "id": "prj-793868b96960",
+ "name": "Fictional demo city",
+ "description": "FICTIONAL demonstration project. The network, names, populations, traffic and every figure are synthetic and describe no real city.",
+ "fictional": true,
+ "mapView": {
+  "center": [
+   0.035,
+   0.02
+  ],
+  "zoom": 12.6,
+  "bearing": 0,
+  "pitch": 0
+ },
+ "scenarios": [
+  {
+   "id": "sc-2a020580d78e",
+   "name": "Demo scenario A (fictional)",
+   "description": "Fictional network: one metro line, one light-rail ring and one BRT line. Synthetic data only.",
+   "systems": [
+    {
+     "id": "sys-9e9622433476",
+     "name": "Network",
+     "color": "#0f766e",
+     "visible": true
+    }
+   ],
+   "lines": [
+    {
+     "id": "line-451dc97c3382",
+     "name": "Red Line (fictional)",
+     "shortName": "R",
+     "color": "#c81e3a",
+     "mode": "metro",
+     "customModeLabel": "",
+     "systemId": "sys-9e9622433476",
+     "direction": "bidirectional",
+     "runningSide": "right",
+     "coordinates": [
+      [
+       0,
+       0.026
+      ],
+      [
+       0.008,
+       0.022
+      ],
+      [
+       0.015,
+       0.02
+      ],
+      [
+       0.023,
+       0.02
+      ],
+      [
+       0.035,
+       0.02
+      ],
+      [
+       0.047,
+       0.02
+      ],
+      [
+       0.058,
+       0.021
+      ],
+      [
+       0.07,
+       0.024
+      ]
+     ],
+     "segments": [
+      {
+       "id": "seg-5d731cbb80b6",
+       "fromFraction": 0,
+       "toFraction": 0.25439169430806113,
+       "structure": "at_grade",
+       "rightOfWay": "dedicated_track",
+       "tracks": "double",
+       "speedLimitKmh": null,
+       "notes": ""
+      },
+      {
+       "id": "seg-ffca0e370707",
+       "fromFraction": 0.25439169430806113,
+       "toFraction": 0.7432972464195537,
+       "structure": "tunnel",
+       "rightOfWay": "dedicated_track",
+       "tracks": "double",
+       "speedLimitKmh": null,
+       "notes": "West portal near Millbrook; east ramp before Harbour Road (fictional)."
+      },
+      {
+       "id": "seg-60f94bd7dfd6",
+       "fromFraction": 0.7432972464195537,
+       "toFraction": 1,
+       "structure": "elevated",
+       "rightOfWay": "dedicated_track",
+       "tracks": "double",
+       "speedLimitKmh": null,
+       "notes": "Viaduct (fictional)."
+      }
+     ],
+     "stops": [
+      {
+       "stationId": "st-f40ee54c2c9d"
+      },
+      {
+       "stationId": "st-05523f37f480"
+      },
+      {
+       "stationId": "st-c9e93b296c5b"
+      },
+      {
+       "stationId": "st-47441a79d149"
+      },
+      {
+       "stationId": "st-551da2dc2e05"
+      },
+      {
+       "stationId": "st-95d35c29d681"
+      },
+      {
+       "stationId": "st-60eb069ea2ff"
+      }
+     ],
+     "termination": {
+      "kind": "ends",
+      "start": "terminal_station",
+      "end": "terminal_station"
+     },
+     "servicePatterns": [
+      {
+       "id": "sp-21c01706b19b",
+       "name": "All stops",
+       "kind": "all_stops",
+       "servedStationIds": [],
+       "peakHeadwayMin": 5,
+       "offPeakHeadwayMin": 10,
+       "serviceStart": "05:00",
+       "serviceEnd": "24:00"
+      }
+     ],
+     "vehicleTypeId": "vt-metro-100m",
+     "dwellTimeS": 30,
+     "maxSpeedKmh": 80,
+     "notes": ""
+    },
+    {
+     "id": "line-c7fa915e7828",
+     "name": "Blue Ring (fictional)",
+     "shortName": "B",
+     "color": "#1f5fbf",
+     "mode": "light_rail",
+     "customModeLabel": "",
+     "systemId": "sys-9e9622433476",
+     "direction": "bidirectional",
+     "runningSide": "right",
+     "coordinates": [
+      [
+       0.047,
+       0.02
+      ],
+      [
+       0.04539230484541327,
+       0.026
+      ],
+      [
+       0.04100000000000001,
+       0.030392304845413262
+      ],
+      [
+       0.035,
+       0.032
+      ],
+      [
+       0.029000000000000005,
+       0.030392304845413266
+      ],
+      [
+       0.024607695154586738,
+       0.026
+      ],
+      [
+       0.023000000000000003,
+       0.02
+      ],
+      [
+       0.024607695154586738,
+       0.014000000000000004
+      ],
+      [
+       0.028999999999999998,
+       0.009607695154586739
+      ],
+      [
+       0.035,
+       0.008
+      ],
+      [
+       0.04100000000000001,
+       0.009607695154586737
+      ],
+      [
+       0.04539230484541326,
+       0.013999999999999995
+      ]
+     ],
+     "segments": [
+      {
+       "id": "seg-124862f88434",
+       "fromFraction": 0,
+       "toFraction": 1,
+       "structure": "at_grade",
+       "rightOfWay": "dedicated_track",
+       "tracks": "double",
+       "speedLimitKmh": null,
+       "notes": ""
+      }
+     ],
+     "stops": [
+      {
+       "stationId": "st-551da2dc2e05"
+      },
+      {
+       "stationId": "st-792da0561776"
+      },
+      {
+       "stationId": "st-8cf5dfec7e89"
+      },
+      {
+       "stationId": "st-4b74dab89fca"
+      },
+      {
+       "stationId": "st-c9e93b296c5b"
+      },
+      {
+       "stationId": "st-feb2b0a32820"
+      },
+      {
+       "stationId": "st-cbaa8be7a402"
+      },
+      {
+       "stationId": "st-95ef531dcbfd"
+      }
+     ],
+     "termination": {
+      "kind": "ring"
+     },
+     "servicePatterns": [
+      {
+       "id": "sp-5e756e3bee68",
+       "name": "All stops",
+       "kind": "all_stops",
+       "servedStationIds": [],
+       "peakHeadwayMin": 10,
+       "offPeakHeadwayMin": 15,
+       "serviceStart": "05:30",
+       "serviceEnd": "23:30"
+      }
+     ],
+     "vehicleTypeId": "vt-lrv-40m",
+     "dwellTimeS": 30,
+     "maxSpeedKmh": 80,
+     "notes": ""
+    },
+    {
+     "id": "line-90ee8355158c",
+     "name": "Green BRT (fictional)",
+     "shortName": "G",
+     "color": "#13804a",
+     "mode": "brt",
+     "customModeLabel": "",
+     "systemId": "sys-9e9622433476",
+     "direction": "bidirectional",
+     "runningSide": "right",
+     "coordinates": [
+      [
+       0.0355,
+       0.045
+      ],
+      [
+       0.035,
+       0.032
+      ],
+      [
+       0.035,
+       0.02
+      ],
+      [
+       0.035,
+       0.008
+      ],
+      [
+       0.0345,
+       -0.005
+      ]
+     ],
+     "segments": [
+      {
+       "id": "seg-3f3da09887df",
+       "fromFraction": 0,
+       "toFraction": 0.5,
+       "structure": "at_grade",
+       "rightOfWay": "dedicated_lane",
+       "tracks": "double",
+       "speedLimitKmh": 50,
+       "notes": ""
+      },
+      {
+       "id": "seg-ac1711909df7",
+       "fromFraction": 0.5,
+       "toFraction": 1,
+       "structure": "at_grade",
+       "rightOfWay": "mixed_traffic",
+       "tracks": "double",
+       "speedLimitKmh": 50,
+       "notes": ""
+      }
+     ],
+     "stops": [
+      {
+       "stationId": "st-16db90e56a56"
+      },
+      {
+       "stationId": "st-8cf5dfec7e89"
+      },
+      {
+       "stationId": "st-47441a79d149"
+      },
+      {
+       "stationId": "st-cbaa8be7a402"
+      },
+      {
+       "stationId": "st-52630b7c4c7b"
+      }
+     ],
+     "termination": {
+      "kind": "ends",
+      "start": "terminal_station",
+      "end": "terminal_station"
+     },
+     "servicePatterns": [
+      {
+       "id": "sp-5245d64e8f7f",
+       "name": "All stops",
+       "kind": "all_stops",
+       "servedStationIds": [],
+       "peakHeadwayMin": 10,
+       "offPeakHeadwayMin": 15,
+       "serviceStart": "05:30",
+       "serviceEnd": "23:30"
+      }
+     ],
+     "vehicleTypeId": "vt-bus-18m",
+     "dwellTimeS": 25,
+     "maxSpeedKmh": 60,
+     "notes": ""
+    }
+   ],
+   "stations": [
+    {
+     "id": "st-f40ee54c2c9d",
+     "name": "Westend (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0,
+      0.026
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-05523f37f480",
+     "name": "Millbrook (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.011988679255531267,
+      0.020860377400153306
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-c9e93b296c5b",
+     "name": "Ring West (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.023,
+      0.02
+     ],
+     "construction": "underground",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-47441a79d149",
+     "name": "Central (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.035,
+      0.02
+     ],
+     "construction": "underground",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-551da2dc2e05",
+     "name": "University (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.047,
+      0.02
+     ],
+     "construction": "underground",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-95d35c29d681",
+     "name": "Harbour Road (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.058,
+      0.021
+     ],
+     "construction": "elevated",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-60eb069ea2ff",
+     "name": "Eastfield (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.07,
+      0.024
+     ],
+     "construction": "elevated",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-792da0561776",
+     "name": "Ring North-East (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.043196152418119,
+      0.028196152489432705
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-8cf5dfec7e89",
+     "name": "Ring North (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.035,
+      0.032
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-4b74dab89fca",
+     "name": "Ring North-West (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.026803847581880966,
+      0.028196152489432736
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-feb2b0a32820",
+     "name": "Ring South-West (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.02680384759631829,
+      0.011803847584281704
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-cbaa8be7a402",
+     "name": "Ring South (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.035,
+      0.008
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-95ef531dcbfd",
+     "name": "Ring South-East (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.043196152403681715,
+      0.011803847584281699
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 800,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-16db90e56a56",
+     "name": "North Park (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.0355,
+      0.045
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 600,
+     "notes": "",
+     "imageUrls": []
+    },
+    {
+     "id": "st-52630b7c4c7b",
+     "name": "South Gate (fictional)",
+     "nameSource": "user",
+     "nameSuggestion": null,
+     "position": [
+      0.0345,
+      -0.005
+     ],
+     "construction": "surface",
+     "platformType": "unknown",
+     "verticalOffsetM": null,
+     "entrances": [],
+     "accessibility": {
+      "stepFree": null,
+      "elevators": null,
+      "tactilePaving": null
+     },
+     "catchmentRadiusM": 600,
+     "notes": "",
+     "imageUrls": []
+    }
+   ],
+   "platforms": [],
+   "interchanges": [],
+   "depots": [
+    {
+     "id": "depot-fc9f99a56b79",
+     "name": "Westend depot (fictional)",
+     "position": [
+      -0.004,
+      0.027
+     ],
+     "lineIds": [
+      "line-451dc97c3382"
+     ]
+    }
+   ],
+   "sharedTracks": [],
+   "vehicleTypes": [
+    {
+     "id": "vt-bus-12m",
+     "name": "Generic 12 m bus (placeholder)",
+     "mode": "bus",
+     "capacity": 70,
+     "maxSpeedKmh": 70,
+     "lengthM": 12,
+     "status": "demonstration",
+     "source": "Editor placeholder, not a benchmark. Replace with local or manufacturer data."
+    },
+    {
+     "id": "vt-bus-18m",
+     "name": "Generic 18 m articulated bus (placeholder)",
+     "mode": "brt",
+     "capacity": 110,
+     "maxSpeedKmh": 70,
+     "lengthM": 18,
+     "status": "demonstration",
+     "source": "Editor placeholder, not a benchmark. Replace with local or manufacturer data."
+    },
+    {
+     "id": "vt-tram-30m",
+     "name": "Generic 30 m tram (placeholder)",
+     "mode": "tram",
+     "capacity": 180,
+     "maxSpeedKmh": 70,
+     "lengthM": 30,
+     "status": "demonstration",
+     "source": "Editor placeholder, not a benchmark. Replace with local or manufacturer data."
+    },
+    {
+     "id": "vt-lrv-40m",
+     "name": "Generic 40 m light-rail vehicle (placeholder)",
+     "mode": "light_rail",
+     "capacity": 250,
+     "maxSpeedKmh": 80,
+     "lengthM": 40,
+     "status": "demonstration",
+     "source": "Editor placeholder, not a benchmark. Replace with local or manufacturer data."
+    },
+    {
+     "id": "vt-metro-100m",
+     "name": "Generic 100 m metro train (placeholder)",
+     "mode": "metro",
+     "capacity": 900,
+     "maxSpeedKmh": 80,
+     "lengthM": 100,
+     "status": "demonstration",
+     "source": "Editor placeholder, not a benchmark. Replace with local or manufacturer data."
+    },
+    {
+     "id": "vt-emu-120m",
+     "name": "Generic 120 m commuter train (placeholder)",
+     "mode": "commuter_rail",
+     "capacity": 1000,
+     "maxSpeedKmh": 140,
+     "lengthM": 120,
+     "status": "demonstration",
+     "source": "Editor placeholder, not a benchmark. Replace with local or manufacturer data."
+    }
+   ],
+   "assumptionSetId": "demo-assumptions",
+   "schematicOffsets": {},
+   "createdAt": "2026-10-19T14:18:26.705Z",
+   "updatedAt": "2026-10-19T14:18:26.725Z"
+  }
+ ],
+ "activeScenarioId": "sc-2a020580d78e",
+ "assumptionSets": [
+  {
+   "id": "demo-assumptions",
+   "name": "Demonstration assumptions (synthetic)",
+   "version": "0.1.0-demo",
+   "assumptions": [
+    {
+     "id": "trips_per_person",
+     "label": "Trips per resident per weekday",
+     "unit": "trips/person/day",
+     "value": {
+      "low": 2,
+      "central": 2.5,
+      "high": 3
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "jobs_per_resident",
+     "label": "Jobs per resident in catchment",
+     "unit": "jobs/person",
+     "value": {
+      "low": 0.2,
+      "central": 0.4,
+      "high": 0.6
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "trips_per_job",
+     "label": "Trips attracted per job per weekday",
+     "unit": "trips/job/day",
+     "value": {
+      "low": 1,
+      "central": 1.5,
+      "high": 2
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "transit_share",
+     "label": "Share of catchment trips using the line",
+     "unit": "fraction",
+     "value": {
+      "low": 0.04,
+      "central": 0.08,
+      "high": 0.14
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "high"
+    },
+    {
+     "id": "annualisation",
+     "label": "Weekday-equivalent days per year",
+     "unit": "days/year",
+     "value": {
+      "low": 280,
+      "central": 300,
+      "high": 320
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "medium"
+    },
+    {
+     "id": "avg_trip_km",
+     "label": "Average passenger trip length on the line",
+     "unit": "km",
+     "value": {
+      "low": 3,
+      "central": 5,
+      "high": 7
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "medium"
+    },
+    {
+     "id": "previously_drove",
+     "label": "Share of riders who previously drove",
+     "unit": "fraction",
+     "value": {
+      "low": 0.1,
+      "central": 0.2,
+      "high": 0.3
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "high"
+    },
+    {
+     "id": "car_occupancy",
+     "label": "Average car occupancy",
+     "unit": "persons/vehicle",
+     "value": {
+      "low": 1.2,
+      "central": 1.3,
+      "high": 1.5
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "car_trip_km",
+     "label": "Average replaced car trip length",
+     "unit": "km",
+     "value": {
+      "low": 4,
+      "central": 6,
+      "high": 9
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "car_ef_co2e",
+     "label": "Car CO₂e emission factor",
+     "unit": "g/vehicle-km",
+     "value": {
+      "low": 120,
+      "central": 160,
+      "high": 210
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "medium"
+    },
+    {
+     "id": "transit_energy",
+     "label": "Transit energy use",
+     "unit": "kWh/vehicle-km",
+     "value": {
+      "low": 2,
+      "central": 4,
+      "high": 7
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "grid_intensity",
+     "label": "Electricity CO₂e intensity",
+     "unit": "g/kWh",
+     "value": {
+      "low": 50,
+      "central": 250,
+      "high": 500
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "high"
+    },
+    {
+     "id": "parking_area",
+     "label": "Area per parking space incl. access",
+     "unit": "m²/space",
+     "value": {
+      "low": 12,
+      "central": 20,
+      "high": 28
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "cars_per_shifted_trip",
+     "label": "Parked cars no longer needed per daily car round trip shifted",
+     "unit": "cars/trip",
+     "value": {
+      "low": 0.05,
+      "central": 0.15,
+      "high": 0.3
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "high"
+    },
+    {
+     "id": "capex_at_grade",
+     "label": "Surface alignment cost",
+     "unit": "DU/route-km",
+     "value": {
+      "low": 20,
+      "central": 30,
+      "high": 45
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "capex_elevated",
+     "label": "Elevated alignment cost",
+     "unit": "DU/route-km",
+     "value": {
+      "low": 60,
+      "central": 90,
+      "high": 130
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "capex_bridge",
+     "label": "Bridge cost",
+     "unit": "DU/route-km",
+     "value": {
+      "low": 80,
+      "central": 120,
+      "high": 180
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "capex_tunnel",
+     "label": "Bored tunnel / underground cost",
+     "unit": "DU/route-km",
+     "value": {
+      "low": 150,
+      "central": 220,
+      "high": 320
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "high"
+    },
+    {
+     "id": "capex_cut_cover",
+     "label": "Cut-and-cover cost",
+     "unit": "DU/route-km",
+     "value": {
+      "low": 100,
+      "central": 150,
+      "high": 220
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "station_surface",
+     "label": "Surface station / stop cost",
+     "unit": "DU/station",
+     "value": {
+      "low": 1,
+      "central": 3,
+      "high": 6
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "station_elevated",
+     "label": "Elevated station cost",
+     "unit": "DU/station",
+     "value": {
+      "low": 10,
+      "central": 15,
+      "high": 25
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "station_underground",
+     "label": "Underground station cost",
+     "unit": "DU/station",
+     "value": {
+      "low": 30,
+      "central": 50,
+      "high": 80
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "high"
+    },
+    {
+     "id": "contingency",
+     "label": "Contingency",
+     "unit": "fraction of base cost",
+     "value": {
+      "low": 0.2,
+      "central": 0.3,
+      "high": 0.5
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "opex_per_vkm",
+     "label": "Operating cost per vehicle-km",
+     "unit": "DU/vehicle-km",
+     "value": {
+      "low": 0.004,
+      "central": 0.006,
+      "high": 0.009
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    },
+    {
+     "id": "opex_per_vh",
+     "label": "Operating cost per vehicle-hour",
+     "unit": "DU/vehicle-hour",
+     "value": {
+      "low": 0.05,
+      "central": 0.08,
+      "high": 0.12
+     },
+     "status": "demonstration",
+     "source": "Synthetic demonstration value (MobSimGame Phase 1). Not derived from evidence.",
+     "sourceDate": null,
+     "notes": "",
+     "sensitivity": "unknown"
+    }
+   ]
+  }
+ ],
+ "datasetReferences": [
+  {
+   "id": "demo-data",
+   "provenance": {
+    "provider": "MobSimGame demonstration provider",
+    "dataset": "Fictional demo city (network, population, traffic)",
+    "sourceUrl": null,
+    "license": "MIT (synthetic data generated by MobSimGame)",
+    "attribution": "Synthetic demonstration data, not a real place or measurement",
+    "retrievedAt": "2026-10-19T14:18:26.725Z",
+    "coverage": "Anywhere (synthetic)",
+    "datasetDate": null,
+    "spatialResolution": null,
+    "status": "demonstration",
+    "limitations": [
+     "Synthetic values for demonstrating the interface. They describe no real place."
+    ],
+    "cacheExpiresAt": null,
+    "confidence": "unknown"
+   }
+  }
+ ],
+ "createdAt": "2026-10-19T14:18:26.725Z",
+ "updatedAt": "2026-10-19T14:18:26.725Z"
+}
