@@ -46,6 +46,9 @@ import {
   vehiclesCollection,
 } from './overlays';
 import { setMapInstance } from './mapInstance';
+import { createLogger, errorContext } from '../util/logger';
+
+const log = createLogger('map');
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -56,6 +59,8 @@ export default function MapView() {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const drawRef = useRef<Draw | null>(null);
+  /** Basemap currently applied to the map, so unchanged selections do not reload the style. */
+  const appliedBasemapRef = useRef<string | null>(null);
   const [styleVersion, setStyleVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +79,7 @@ export default function MapView() {
     if (!container.current) return;
     const options = basemapOptions();
     const initial = options.find((o) => o.id === useStore.getState().basemapId) ?? options[0]!;
+    appliedBasemapRef.current = initial.id;
     const view = useStore.getState().project.mapView;
     let map: maplibregl.Map;
     try {
@@ -93,6 +99,7 @@ export default function MapView() {
         },
       });
     } catch (e) {
+      log.error('map could not start (WebGL2 required)', errorContext(e));
       setError(
         `The map could not start: ${(e as Error).message}. WebGL2 is required; the list views still work.`,
       );
@@ -103,12 +110,19 @@ export default function MapView() {
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
     map.on('style.load', () => {
+      log.debug('map style loaded', () => ({
+        glyphs: !!map.getStyle().glyphs,
+        layers: map.getStyle().layers?.length,
+      }));
       ensureLayers(map, { labels: !!map.getStyle().glyphs });
       setStyleVersion((v) => v + 1);
     });
     map.on('error', (e) => {
-      // Tile and glyph failures are expected offline; keep them out of the UI.
-      if (import.meta.env.DEV) console.debug('map error', e.error?.message);
+      // Tile and glyph failures are expected offline: debug only. Anything else is a warning.
+      const message = e.error?.message ?? 'unknown map error';
+      const resource = /tile|glyph|sprite|fetch|AJAXError|\.pbf|\.png/i.test(message) || 'sourceId' in e;
+      if (resource) log.debug('map resource failed to load', { message });
+      else log.warn('map error', { message });
     });
 
     const draw = createDraw(map, {
@@ -136,6 +150,7 @@ export default function MapView() {
           id: feature.id,
         });
         state.commitScenario(next, `Line "${line.name}" created with ${coords.length} vertices`);
+        log.debug('line drawn', { lineId: line.id, mode: line.mode, vertices: coords.length });
         state.select({ kind: 'line', id: line.id });
         state.setTool('select');
       }),
@@ -259,7 +274,11 @@ export default function MapView() {
     const map = mapRef.current;
     if (!map) return;
     const opt = basemapOptions().find((o) => o.id === basemapId);
-    if (opt) map.setStyle(opt.style as maplibregl.StyleSpecification | string);
+    if (opt && opt.id !== appliedBasemapRef.current) {
+      appliedBasemapRef.current = opt.id;
+      log.debug('basemap switched', { basemap: opt.id });
+      map.setStyle(opt.style as maplibregl.StyleSpecification | string);
+    }
   }, [basemapId]);
 
   // --- Fly to the project's view when a different project is loaded ---------

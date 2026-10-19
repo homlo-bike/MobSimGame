@@ -17,6 +17,9 @@ import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { CommitField } from './CommitField';
 import { getMapInstance } from '../map/mapInstance';
 import { ProviderError } from '../providers/backend';
+import { createLogger } from '../util/logger';
+
+const log = createLogger('station-inspector');
 
 export function StationInspector({ station, scenario }: { station: Station; scenario: Scenario }) {
   const commit = useStore((s) => s.commitScenario);
@@ -43,6 +46,9 @@ export function StationInspector({ station, scenario }: { station: Station; scen
         `${list.length} suggestion(s) from ${res.provenance.provider}. ${res.provenance.attribution}.`,
       );
     } catch (e) {
+      log.warn('station name lookup failed; offering a generated name', {
+        state: e instanceof ProviderError ? e.state : 'unknown',
+      });
       setSuggestions(suggestStationNames(station.position, [], { provider: 'MobSimGame' }));
       setSuggestStatus(
         `${e instanceof ProviderError ? e.message : 'Lookup failed'}. Showing a generated fallback name only.`,

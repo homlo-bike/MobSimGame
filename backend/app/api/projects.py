@@ -16,12 +16,14 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ..geo import extent_ewkt
+from ..logging_config import get_logger
 from ..models import AuditLog, SharedProject
 from ..schemas import ProjectEnvelope, ShareCreated, SharedProjectOut
 from ..security import client_key
 from .deps import get_db
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
+log = get_logger(__name__)
 
 
 def _hash(token: str) -> str:
@@ -71,6 +73,10 @@ def create_project(
     db.flush()
     _audit(db, pid, "create", request)
     db.commit()
+    log.info(
+        "project shared",
+        extra={"project_id": pid, "size_bytes": row.size_bytes, "scenarios": len(envelope.project.scenarios)},
+    )
     return ShareCreated(
         id=pid, edit_token=token, created_at=row.created_at.isoformat(), updated_at=row.updated_at.isoformat()
     )
@@ -80,6 +86,7 @@ def create_project(
 def get_project(project_id: str, db: Annotated[Session, Depends(get_db)]) -> SharedProjectOut:
     row = db.get(SharedProject, project_id[:32])
     if row is None:
+        log.debug("shared project not found", extra={"project_id": project_id[:32]})
         raise HTTPException(status_code=404, detail="Not found")
     return _out(row)
 
@@ -88,6 +95,8 @@ def _authorise(row: SharedProject | None, token: str | None) -> SharedProject:
     if row is None:
         raise HTTPException(status_code=404, detail="Not found")
     if not token or not hmac.compare_digest(row.edit_token_hash, _hash(token)):
+        # Never log the token itself; only whether one was supplied.
+        log.warning("project edit refused", extra={"project_id": row.id, "token_supplied": bool(token)})
         raise HTTPException(status_code=403, detail="Edit token missing or invalid")
     return row
 
@@ -109,6 +118,7 @@ def update_project(
     row.size_bytes = len(json.dumps(document))
     _audit(db, row.id, "update", request)
     db.commit()
+    log.info("shared project updated", extra={"project_id": row.id, "size_bytes": row.size_bytes})
     return ShareCreated(id=row.id, created_at=row.created_at.isoformat(), updated_at=row.updated_at.isoformat())
 
 
@@ -124,3 +134,4 @@ def delete_project(
     db.flush()
     db.delete(row)
     db.commit()
+    log.info("shared project deleted", extra={"project_id": project_id[:32]})

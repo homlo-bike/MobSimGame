@@ -12,6 +12,7 @@ import httpx
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..logging_config import get_logger
 from .base import (
     Capability,
     CapabilityState,
@@ -23,6 +24,8 @@ from .base import (
     fetch_with_retry,
     now_iso,
 )
+
+log = get_logger(__name__)
 
 
 class GeocodeResult(BaseModel):
@@ -75,6 +78,8 @@ class NominatimProvider:
         key = query.lower()
         cached = self.cache.get(key)
         if cached is not None:
+            # The query text is user input: only its length is logged, never the text.
+            log.debug("geocoder cache hit", extra={"query_length": len(query), "results": len(cached)})
             return ProviderResponse[list[GeocodeResult]](
                 data=cached,
                 provenance=self._provenance(),
@@ -98,6 +103,7 @@ class NominatimProvider:
             )
             self._last = time.monotonic()
         if res.status_code != 200:
+            log.error("geocoder request failed", extra={"status": res.status_code})
             raise ProviderError(f"Geocoder returned HTTP {res.status_code}", CapabilityState.temporarily_unavailable)
         results: list[GeocodeResult] = []
         for item in res.json():
@@ -112,6 +118,7 @@ class NominatimProvider:
                 )
             )
         self.cache.set(key, results, self.settings.geocoder_cache_ttl_s)
+        log.info("geocoder search completed", extra={"query_length": len(query), "results": len(results)})
         return ProviderResponse[list[GeocodeResult]](
             data=results, provenance=self._provenance(), capability=self.capability()
         )

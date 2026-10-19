@@ -15,6 +15,9 @@ import { newId, nowIso } from '../util/id';
 import { loadFromLocalStorage } from './persistence';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock } from '../simulation/runtime';
+import { createLogger } from '../util/logger';
+
+const log = createLogger('store');
 
 export const HISTORY_LIMIT = 100;
 
@@ -114,6 +117,7 @@ function initialProject(): Project {
 export const useStore = create<AppState>()((set, get) => {
   const push = (project: Project, label?: string) => {
     const { project: current, past } = get();
+    log.debug('edit committed', { label: label ?? null, history: past.length + 1 });
     set({
       project,
       past: [...past, current].slice(-HISTORY_LIMIT),
@@ -150,7 +154,13 @@ export const useStore = create<AppState>()((set, get) => {
 
     commitScenario: (scenario, label) => push(replaceScenario(get().project, scenario), label),
     commitProject: (project, label) => push(project, label),
-    loadProject: (project) =>
+    loadProject: (project) => {
+      log.info('project loaded', {
+        projectId: project.id,
+        fictional: project.fictional,
+        scenarios: project.scenarios.length,
+        lines: project.scenarios.reduce((n, sc) => n + sc.lines.length, 0),
+      });
       set({
         project,
         past: [],
@@ -162,19 +172,22 @@ export const useStore = create<AppState>()((set, get) => {
             ? 'ofm-liberty'
             : get().basemapId,
         announcement: `Loaded project ${project.name}`,
-      }),
+      });
+    },
     newProject: () => get().loadProject(blankProject()),
     loadDemo: () => get().loadProject(buildDemoProject()),
     undo: () => {
       const { past, project, future } = get();
       const prev = past[past.length - 1];
       if (!prev) return;
+      log.debug('undo', { remaining: past.length - 1 });
       set({ project: prev, past: past.slice(0, -1), future: [project, ...future], announcement: 'Undone' });
     },
     redo: () => {
       const { past, project, future } = get();
       const next = future[0];
       if (!next) return;
+      log.debug('redo', { remaining: future.length - 1 });
       set({ project: next, past: [...past, project], future: future.slice(1), announcement: 'Redone' });
     },
     select: (selection) => set({ selection }),

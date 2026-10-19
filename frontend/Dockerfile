@@ -8,11 +8,15 @@ COPY . .
 ARG VITE_API_BASE_URL=""
 ARG VITE_EXTRA_BASEMAPS=""
 ARG VITE_SOURCE_URL=""
+ARG VITE_LOG_LEVEL="info"
 ARG VITE_TERRAIN_TILES_URL="https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png"
-ENV VITE_SOURCE_URL=$VITE_SOURCE_URL VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_EXTRA_BASEMAPS=$VITE_EXTRA_BASEMAPS VITE_TERRAIN_TILES_URL=$VITE_TERRAIN_TILES_URL
+ENV VITE_LOG_LEVEL=$VITE_LOG_LEVEL VITE_SOURCE_URL=$VITE_SOURCE_URL VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_EXTRA_BASEMAPS=$VITE_EXTRA_BASEMAPS VITE_TERRAIN_TILES_URL=$VITE_TERRAIN_TILES_URL
 RUN npm run build && node scripts/check-bundle-secrets.mjs
 
 FROM nginx:1.27-alpine AS web
+LABEL org.opencontainers.image.title="MobSimGame" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.source="https://github.com/homlo-bike/MobSimGame"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /src/dist /usr/share/nginx/html
 ENV MOBSIM_API_UPSTREAM=http://api:8000

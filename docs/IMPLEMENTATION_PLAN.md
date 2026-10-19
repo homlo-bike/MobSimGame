@@ -7,7 +7,8 @@ Status: Phase 1 implemented (this document reflects the repository as of v0.1.0)
 The repository contained only `README.md` (a short vision statement) and `LICENSE`
 (MIT, © 2026 Homlo-Bike). No technology stack existed, so the default stack from
 the project brief was adopted (see [ADR 0001](architecture/0001-technology-stack.md)).
-The MIT licence text is unchanged.
+The project was later relicensed by its owner to AGPL-3.0-only to match the bundled
+drawing library (see [ADR 0003](architecture/0003-drawing-library-licensing.md)).
 
 ## Guiding constraints
 

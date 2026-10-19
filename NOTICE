@@ -1,0 +1,33 @@
+MobSimGame
+Copyright (C) 2026 Homlo-Bike
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, version 3 of the License only
+(SPDX-License-Identifier: AGPL-3.0-only).
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program (see the file LICENSE). If not, see
+<https://www.gnu.org/licenses/>.
+
+Source code: https://github.com/homlo-bike/MobSimGame
+If you run a modified version of this program on a server and let users
+interact with it over a network, section 13 of the licence requires you to
+offer those users the Corresponding Source of your version. Set
+VITE_SOURCE_URL so the app's "Data & licences" dialog links to it.
+
+Licence history
+---------------
+Commits up to and including 20cce9e were published under the MIT License,
+"Copyright (c) 2026 Homlo-Bike". The copyright holder relicensed the project
+under AGPL-3.0-only so that its licence is compatible with the bundled
+@sakuzu/maplibre-gl-draw library (AGPL-3.0-only). Copies obtained from those
+earlier commits remain available under their original MIT terms.
+
+Third-party software and data are listed with their licences, licence links
+and source repositories in THIRD_PARTY_NOTICES.md and docs/licenses/.

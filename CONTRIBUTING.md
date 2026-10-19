@@ -25,10 +25,13 @@ docker compose config -q
   `backend/app/providers/` and return Provenance; credentials only on the backend.
 - Accessibility: labelled controls, keyboard operation, no colour-only status,
   text alternatives for maps and charts.
-- Dependencies: check licences (`npm run licenses`; `pip-licenses` for the backend)
+- Dependencies: check licences (`npm run licenses`; `backend/scripts/license_report.py`)
   and update `THIRD_PARTY_NOTICES.md` and `docs/licenses/`.
 
 ## Licence of contributions
 
-Contributions are accepted under the repository's MIT licence (see `LICENSE` and
-`docs/LICENSING_OPTIONS.md`).
+By submitting a contribution you agree to license it under the project's licence,
+GNU AGPL-3.0-only (see `LICENSE`, `NOTICE` and `docs/LICENSING_OPTIONS.md`), and you
+confirm you have the right to do so. New dependencies must have an AGPL-3.0-compatible
+licence; list them in `THIRD_PARTY_NOTICES.md` with licence link and repository and
+regenerate `docs/licenses/`.

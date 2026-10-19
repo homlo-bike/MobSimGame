@@ -5,6 +5,9 @@
 import type { Project } from '../domain/schema';
 import { parseProject } from '../domain/schema';
 import { apiFetch, ProviderError } from '../providers/backend';
+import { createLogger } from '../util/logger';
+
+const log = createLogger('share');
 
 export interface ShareResult {
   id: string;
@@ -40,11 +43,19 @@ export async function shareProject(project: Project, existingId?: string): Promi
       body: JSON.stringify({ project }),
     },
   );
-  if (res.status === 413) throw new ProviderError('Project is too large to share', 'temporarily_unavailable');
-  if (!res.ok) throw new ProviderError(`Share failed (HTTP ${res.status})`, 'temporarily_unavailable');
+  if (res.status === 413) {
+    log.warn('project too large to share', { status: 413 });
+    throw new ProviderError('Project is too large to share', 'temporarily_unavailable');
+  }
+  if (!res.ok) {
+    log.error('share failed', { status: res.status, update: !!(existingId && token) });
+    throw new ProviderError(`Share failed (HTTP ${res.status})`, 'temporarily_unavailable');
+  }
   const body = (await res.json()) as { id: string; edit_token?: string; created_at: string };
   const editToken = body.edit_token ?? token ?? '';
   if (editToken) rememberEditToken(body.id, editToken);
+  // The edit token is never logged.
+  log.info(existingId && token ? 'shared project updated' : 'project shared', { projectId: body.id });
   return { id: body.id, editToken, createdAt: body.created_at };
 }
 
@@ -55,8 +66,11 @@ export async function fetchSharedProject(id: string): Promise<Project> {
     throw new ProviderError(`Could not load shared project (HTTP ${res.status})`, 'temporarily_unavailable');
   const body = (await res.json()) as { project: unknown };
   const parsed = parseProject(body.project);
-  if (!parsed.ok)
+  if (!parsed.ok) {
+    log.error('shared project failed validation', { projectId: id, errors: parsed.errors.length });
     throw new ProviderError(`Shared project is invalid: ${parsed.errors[0]}`, 'temporarily_unavailable');
+  }
+  log.info('shared project opened', { projectId: id });
   return parsed.project;
 }
 
@@ -69,6 +83,7 @@ export async function openServerReport(project: Project) {
   if (!res.ok) throw new ProviderError(`Report failed (HTTP ${res.status})`, 'temporarily_unavailable');
   const html = await res.text();
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  log.info('server report opened', { bytes: html.length });
   window.open(url, '_blank', 'noopener');
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

@@ -10,17 +10,26 @@ from functools import lru_cache
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from .logging_config import LogFormat, LogLevelName, parse_level
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MOBSIM_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="MOBSIM_", env_file=".env", extra="ignore", populate_by_name=True)
 
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "sqlite+pysqlite:///./mobsim-dev.sqlite3"
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:5173"])
     public_base_url: str = "http://localhost:5173"
+
+    # Logging (see app/logging_config.py). Debug is never enabled in production.
+    log_level: LogLevelName = Field(
+        default="info",
+        validation_alias=AliasChoices("MOBSIM_LOG_LEVEL", "LOG_LEVEL"),
+    )
+    log_format: LogFormat = "auto"
 
     # Request limits
     max_request_bytes: int = 5 * 1024 * 1024
@@ -70,6 +79,16 @@ class Settings(BaseSettings):
     # transport.rest (disabled by default; best-effort community service)
     transport_rest_enabled: bool = False
     transport_rest_url: str = "https://v6.db.transport.rest"
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _level(cls, v: object) -> object:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return "info"
+        parsed = parse_level(str(v))
+        if parsed is None:
+            raise ValueError(f"Unknown log level {v!r}; use debug, info (log), warning (warn) or error")
+        return parsed
 
     @field_validator("cors_origins", "outbound_allowlist", mode="before")
     @classmethod

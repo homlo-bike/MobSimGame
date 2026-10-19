@@ -4,15 +4,26 @@
  */
 import type { Project } from '../domain/schema';
 import { parseProject } from '../domain/schema';
+import { createLogger, errorContext } from '../util/logger';
+
+const log = createLogger('persistence');
+/** Autosave runs after every edit; report a failing browser storage once, not per keystroke. */
+let saveFailureReported = false;
 
 export const STORAGE_KEY = 'mobsimgame.project.v1';
 export const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
 
 export function saveToLocalStorage(project: Project): { ok: boolean; error?: string } {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    const json = JSON.stringify(project);
+    localStorage.setItem(STORAGE_KEY, json);
+    if (saveFailureReported) log.info('autosave to browser storage works again');
+    saveFailureReported = false;
+    log.debug('project autosaved', { bytes: json.length });
     return { ok: true };
   } catch (e) {
+    if (!saveFailureReported) log.warn('autosave to browser storage failed', errorContext(e));
+    saveFailureReported = true;
     return { ok: false, error: e instanceof Error ? e.message : 'Local storage unavailable' };
   }
 }
@@ -22,8 +33,17 @@ export function loadFromLocalStorage(): Project | null {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
     if (!raw) return null;
     const parsed = parseProject(JSON.parse(raw));
-    return parsed.ok ? parsed.project : null;
-  } catch {
+    if (!parsed.ok) {
+      log.warn('stored project is invalid and was ignored', {
+        errors: parsed.errors.length,
+        first: parsed.errors[0],
+      });
+      return null;
+    }
+    log.info('project restored from browser storage', { scenarios: parsed.project.scenarios.length });
+    return parsed.project;
+  } catch (e) {
+    log.warn('could not read browser storage', errorContext(e));
     return null;
   }
 }

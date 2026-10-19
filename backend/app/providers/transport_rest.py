@@ -12,6 +12,7 @@ import httpx
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..logging_config import get_logger
 from .base import (
     Capability,
     CapabilityState,
@@ -21,6 +22,8 @@ from .base import (
     fetch_with_retry,
     now_iso,
 )
+
+log = get_logger(__name__)
 
 
 class TransitStop(BaseModel):
@@ -78,6 +81,7 @@ class TransportRestProvider:
                     modes=[k for k, v in products.items() if v],
                 )
             )
+        log.info("transport.rest stops retrieved", extra={"stops": len(stops)})
         return ProviderResponse[list[TransitStop]](
             data=stops,
             provenance=Provenance(

@@ -15,7 +15,13 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // Use the logger (src/util/logger.ts) instead of console.
+      'no-console': 'error',
     },
+  },
+  {
+    files: ['src/util/logger.ts', 'e2e/**', '*.config.ts'],
+    rules: { 'no-console': 'off' },
   },
   {
     files: ['scripts/**/*.mjs'],

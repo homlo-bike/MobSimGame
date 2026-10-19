@@ -6,6 +6,36 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Centralised logging (`docs/LOGGING.md`). Backend: `app/logging_config.py` configured
+  from `MOBSIM_LOG_LEVEL` (fallback `LOG_LEVEL`) and `MOBSIM_LOG_FORMAT`, JSON lines in
+  production and readable text in development, request logging with `X-Request-ID`,
+  contextual logs for provider calls, retries, caching and project changes. Frontend:
+  `src/util/logger.ts` configured from `VITE_LOG_LEVEL`. Levels debug < info (`log`) <
+  warning (`warn`) < error. Debug is always off in production; sensitive values are
+  redacted; query strings and user search text are never logged.
+- ESLint `no-console` rule for application code.
+
+### Fixed
+
+- The map no longer reloads the basemap style right after start-up (removes a MapLibre
+  "Unable to perform style diff" warning).
+
+### Changed
+
+- **Licence: the project is now GNU AGPL-3.0-only** (previously MIT), so that it fits
+  the bundled `@sakuzu/maplibre-gl-draw` (AGPL-3.0-only) and all other dependencies
+  without conflict. `LICENSE` holds the verbatim GNU text; `NOTICE` holds the copyright
+  and licence notice and the licence history. Versions up to `20cce9e` remain MIT.
+- `THIRD_PARTY_NOTICES.md` now lists every direct dependency, container image, CI
+  action, map style, font, dataset and service with licence link and repository URL,
+  plus a licence-compatibility table.
+- Generated licence reports in `docs/licenses/` now include licence links and
+  repository URLs for every production and development package
+  (`npm run licenses`, `backend/scripts/license_report.py`).
+- In-app "Data & licences" dialog and the server HTML report state the new licence.
+
 ## [0.1.0] — Phase 1 vertical slice
 
 ### Added

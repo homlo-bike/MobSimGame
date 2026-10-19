@@ -12,7 +12,10 @@ implements the proxy (docs/PROVIDER_CONFIGURATION.md, "Traffic").
 from __future__ import annotations
 
 from ..config import Settings
+from ..logging_config import get_logger
 from .base import Capability, CapabilityState
+
+log = get_logger(__name__)
 
 
 class ArcGisTrafficProvider:
@@ -23,6 +26,8 @@ class ArcGisTrafficProvider:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        if settings.arcgis_token is not None:
+            log.warning("ArcGIS token is set but the traffic adapter is disabled until its terms are verified")
 
     def capability(self) -> Capability:
         if self.settings.arcgis_token is None:

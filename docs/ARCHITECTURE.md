@@ -77,6 +77,14 @@ forwards edits; it does not decide domain rules.
 3. `?share=<id>` loads it read-only into a new browser session; the edit token
    (kept in the sharer's localStorage) allows updates.
 
+## Logging
+
+One logger per side, configured at start-up: `backend/app/logging_config.py`
+(`MOBSIM_LOG_LEVEL`, `MOBSIM_LOG_FORMAT`) and `frontend/src/util/logger.ts`
+(`VITE_LOG_LEVEL`). JSON in production, readable text in development, debug always
+off in production, sensitive keys redacted, request logs without query strings.
+See [LOGGING.md](LOGGING.md).
+
 ## Simulation
 
 `simulation/engine.ts` builds, per line, a cyclic list of phases (run, dwell,
