@@ -16,6 +16,9 @@ import { FindingsList } from './ui/FindingsList';
 import { Checkbox, Section } from './ui/primitives';
 import { validateScenario } from './validation/validate';
 import { t } from './i18n';
+import { createLogger, errorContext } from './util/logger';
+
+const log = createLogger('app');
 
 const MapView = lazy(() => import('./map/MapView'));
 
@@ -97,7 +100,10 @@ export default function App() {
     if (!id) return;
     fetchSharedProject(id)
       .then((p) => useStore.getState().loadProject(p))
-      .catch((e: Error) => useStore.getState().announce(`Could not open shared project: ${e.message}`));
+      .catch((e: Error) => {
+        log.error('could not open shared project', { projectId: id, ...errorContext(e) });
+        useStore.getState().announce(`Could not open shared project: ${e.message}`);
+      });
   }, []);
 
   // Keyboard shortcuts.

@@ -54,6 +54,12 @@ Run all relevant checks before committing. In this sandbox Playwright needs
   keyboard paths for every task (Table view, chainage inputs), status never by
   colour alone, chart data tables, reduced-motion support, logical CSS properties
   (`ms-`/`me-`/`start-`) for RTL readiness.
+- **Logging:** use `get_logger(__name__)` (backend) or `createLogger(scope)`
+  (frontend); never `print`/`console.*` in app code (ESLint `no-console`). Pick the
+  level by meaning (debug detail / info milestone / warning recoverable anomaly /
+  error failed operation), pass context as structured fields, and never log tokens,
+  credentials, query strings, request bodies or user-entered search text. See
+  `docs/LOGGING.md`.
 - **Wording:** findings are advisory; never call an alignment safe or
   construction-ready; emissions are "estimated under the selected assumptions".
 - **Licensing:** the project is AGPL-3.0-only. Do not edit `LICENSE` (verbatim GNU

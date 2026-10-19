@@ -23,4 +23,6 @@ Only the latest release on `main` receives fixes during the 0.x series.
 - Shared projects use unguessable ids; edit tokens are stored only as hashes;
   modifications are audit-logged with hashed client ids (no raw IPs).
 - No tracking or analytics. Projects stay in the browser unless shared.
+- Logging never records secrets, edit tokens, query strings or raw IPs; sensitive keys
+  are redacted and debug logging is disabled in production (`docs/LOGGING.md`).
 - Dependency audits in CI (`npm audit`, `pip-audit`).

@@ -112,8 +112,16 @@ coordinate parser; sharing and reports are unavailable).
 - Backend: `MOBSIM_*` — see [.env.example](.env.example) and
   [docs/PROVIDER_CONFIGURATION.md](docs/PROVIDER_CONFIGURATION.md).
 - Frontend build: `VITE_API_BASE_URL`, `VITE_EXTRA_BASEMAPS`,
-  `VITE_TERRAIN_TILES_URL`, `VITE_SOURCE_URL` — public values only
+  `VITE_TERRAIN_TILES_URL`, `VITE_SOURCE_URL`, `VITE_LOG_LEVEL` — public values only
   ([frontend/.env.example](frontend/.env.example)).
+
+## Logging
+
+Set the minimum level with `MOBSIM_LOG_LEVEL` (or `LOG_LEVEL`) for the API and
+`VITE_LOG_LEVEL` for the browser: `debug` < `info` (alias `log`) < `warning`
+(alias `warn`) < `error`. Production output is structured JSON; development output
+is readable and timestamped. Debug logging is always off in production, and
+sensitive values are redacted. Details: [docs/LOGGING.md](docs/LOGGING.md).
 
 ## Database initialisation
 

@@ -37,6 +37,17 @@ TLS proxy. If you add basemap hosts, extend the CSP in `frontend/nginx.conf`.
 See `.env.example` and `docs/PROVIDER_CONFIGURATION.md`. Secrets are read from the
 environment only; never bake them into images or `VITE_*` variables.
 
+## Logs
+
+```sh
+docker compose logs -f api     # JSON lines (MOBSIM_LOG_FORMAT=auto in production)
+docker compose logs -f web     # nginx access/error log
+```
+
+Set `MOBSIM_LOG_LEVEL` (`debug`, `info`, `warning`, `error`) in `.env`; debug is
+ignored when `MOBSIM_ENVIRONMENT=production`. Each API response carries an
+`X-Request-ID` that also appears in its log line. See `docs/LOGGING.md`.
+
 ## Database initialisation and migrations
 
 Migrations run automatically when `api` starts. Manually:

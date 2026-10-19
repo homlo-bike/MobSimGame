@@ -19,6 +19,7 @@ import httpx
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..logging_config import get_logger
 from .base import (
     Capability,
     CapabilityState,
@@ -28,6 +29,8 @@ from .base import (
     fetch_with_retry,
     now_iso,
 )
+
+log = get_logger(__name__)
 
 _BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
 
@@ -153,9 +156,11 @@ class CamaraPopulationProvider:
             retries=1,
         )
         if res.status_code != 200:
+            log.error("CAMARA token request failed", extra={"status": res.status_code})
             raise ProviderError("Token request failed", CapabilityState.authentication_required, 502)
         body = res.json()
         self._token = (str(body["access_token"]), time.monotonic() + float(body.get("expires_in", 300)))
+        log.debug("CAMARA access token refreshed", extra={"expires_in_s": float(body.get("expires_in", 300))})
         return self._token[0]
 
     async def density(
@@ -184,6 +189,7 @@ class CamaraPopulationProvider:
         if res.status_code != 200:
             raise ProviderError(f"Operator returned HTTP {res.status_code}", CapabilityState.temporarily_unavailable)
         cells = parse_response(res.json())
+        log.info("CAMARA density retrieved", extra={"cells": len(cells), "precision": precision})
         partial = res.json().get("status") == "PART_OF_AREA_NOT_SUPPORTED"
         return ProviderResponse[list[PopulationCell]](
             data=cells,

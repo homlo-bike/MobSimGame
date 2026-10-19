@@ -16,9 +16,11 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from .. import METHODOLOGY_VERSION, __version__
 from ..geo import path_length_m
+from ..logging_config import get_logger
 from ..schemas import ProjectEnvelope
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+log = get_logger(__name__)
 
 DISCLAIMER = (
     "MobSimGame is an exploratory sketch tool. This report is not transport-demand modelling, civil or railway "
@@ -139,12 +141,15 @@ def render_html(doc: dict[str, Any]) -> str:
 
 @router.post("/html", response_class=HTMLResponse)
 def html_report(envelope: ProjectEnvelope) -> HTMLResponse:
-    return HTMLResponse(render_html(envelope.project.model_dump(mode="json")))
+    html = render_html(envelope.project.model_dump(mode="json"))
+    log.info("HTML report generated", extra={"scenarios": len(envelope.project.scenarios), "bytes": len(html)})
+    return HTMLResponse(html)
 
 
 @router.post("/pdf")
 def pdf_report(envelope: ProjectEnvelope) -> JSONResponse:
     """Contract: POST {project} → application/pdf. Not implemented until Phase 5."""
+    log.info("PDF report requested but not implemented (Phase 5)")
     return JSONResponse(
         {
             "detail": "PDF rendering is not implemented yet (Phase 5). Use /api/v1/reports/html and print to PDF.",

@@ -16,6 +16,7 @@ import httpx
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..logging_config import get_logger
 from .base import (
     Capability,
     CapabilityState,
@@ -29,6 +30,8 @@ from .base import (
 )
 
 OSM_ATTRIBUTION = "© OpenStreetMap contributors (ODbL)"
+
+log = get_logger(__name__)
 
 # OSM tag filters per category. Order matters only for readability.
 CATEGORY_FILTERS: dict[str, list[str]] = {
@@ -174,6 +177,7 @@ class OverpassProvider:
             raise ProviderError("Overpass disabled", CapabilityState.not_configured)
         cached = self.cache.get(cache_key)
         if cached is not None:
+            log.debug("overpass cache hit", extra={"cache_key": cache_key, "features": len(cached)})
             return ProviderResponse[list[OsmFeature]](
                 data=cached,
                 provenance=self._provenance(True),
@@ -188,8 +192,10 @@ class OverpassProvider:
             timeout=self.settings.overpass_timeout_s + 5,
         )
         if res.status_code != 200:
+            log.error("overpass query failed", extra={"status": res.status_code, "cache_key": cache_key})
             raise ProviderError(f"Overpass returned HTTP {res.status_code}", CapabilityState.temporarily_unavailable)
         features = parse_elements(res.json())
+        log.info("overpass query completed", extra={"cache_key": cache_key, "features": len(features)})
         self.cache.set(cache_key, features, self.settings.overpass_cache_ttl_s)
         return ProviderResponse[list[OsmFeature]](
             data=features, provenance=self._provenance(False), capability=self.capability()

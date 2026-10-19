@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import type { LngLat } from '../domain/schema';
+import { createLogger } from '../util/logger';
 import { ProvenanceSchema } from '../domain/schema';
 import type {
   BBox,
@@ -16,6 +17,8 @@ import type {
   OsmFeatureProvider,
   ProviderResponse,
 } from './types';
+
+const log = createLogger('api');
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
 
@@ -37,17 +40,35 @@ export class ProviderError extends Error {
 export async function apiFetch(path: string, init?: RequestInit, timeoutMs = 20000): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // Query strings can hold search text or coordinates: log the path only.
+  const route = path.split('?')[0];
+  const method = init?.method ?? 'GET';
+  const started = performance.now();
   try {
     const res = await fetch(`${API_BASE}${path}`, { ...init, signal: ctrl.signal });
-    if (res.status === 429) throw new ProviderError('Rate limit reached, try again shortly', 'rate_limited');
-    if (res.status === 401 || res.status === 403)
+    const ctx = { method, route, status: res.status, ms: Math.round(performance.now() - started) };
+    log.debug('api response', ctx);
+    if (res.status === 429) {
+      log.warn('api rate limit reached', ctx);
+      throw new ProviderError('Rate limit reached, try again shortly', 'rate_limited');
+    }
+    if (res.status === 401 || res.status === 403) {
+      log.warn('api refused the request', ctx);
       throw new ProviderError('Authentication required', 'authentication_required');
+    }
     if (res.status === 503 || res.status === 502 || res.status === 504) {
+      log.warn('provider temporarily unavailable', ctx);
       throw new ProviderError('Provider temporarily unavailable', 'temporarily_unavailable');
     }
+    if (res.status >= 500) log.error('api server error', ctx);
     return res;
   } catch (e) {
     if (e instanceof ProviderError) throw e;
+    log.warn('backend not reachable', {
+      method,
+      route,
+      reason: (e as Error)?.name === 'AbortError' ? 'timeout' : 'network',
+    });
     throw new ProviderError(
       'Backend not reachable (the app keeps working offline)',
       'temporarily_unavailable',
@@ -72,7 +93,13 @@ const OsmFeatureSchema = z.object({
 async function parse<T>(res: Response, schema: z.ZodType<T>): Promise<T> {
   if (!res.ok) throw new ProviderError(`Provider error (HTTP ${res.status})`, 'temporarily_unavailable');
   const parsed = schema.safeParse(await res.json());
-  if (!parsed.success) throw new ProviderError('Unexpected provider response', 'temporarily_unavailable');
+  if (!parsed.success) {
+    log.error('unexpected provider response shape', {
+      issues: parsed.error.issues.length,
+      url: res.url.split('?')[0],
+    });
+    throw new ProviderError('Unexpected provider response', 'temporarily_unavailable');
+  }
   return parsed.data;
 }
 

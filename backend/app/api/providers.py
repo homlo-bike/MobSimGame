@@ -5,12 +5,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
+from ..logging_config import get_logger
 from ..providers.base import ProviderError
 from ..providers.registry import Providers
 from ..security import RateLimiter, client_key
 from .deps import get_provider_limiter, get_providers
 
 router = APIRouter(prefix="/api/v1", tags=["providers"])
+log = get_logger(__name__)
 
 
 def _limit(request: Request, limiter: RateLimiter) -> None:
@@ -19,6 +21,9 @@ def _limit(request: Request, limiter: RateLimiter) -> None:
 
 
 def provider_error_response(e: ProviderError) -> JSONResponse:
+    log.warning(
+        "provider request not served", extra={"state": e.state.value, "status": e.status_code, "reason": str(e)}
+    )
     return JSONResponse(
         {"detail": str(e), "capability": {"state": e.state.value, "message": str(e)}},
         status_code=e.status_code,

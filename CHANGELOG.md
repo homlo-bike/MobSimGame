@@ -6,6 +6,22 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Centralised logging (`docs/LOGGING.md`). Backend: `app/logging_config.py` configured
+  from `MOBSIM_LOG_LEVEL` (fallback `LOG_LEVEL`) and `MOBSIM_LOG_FORMAT`, JSON lines in
+  production and readable text in development, request logging with `X-Request-ID`,
+  contextual logs for provider calls, retries, caching and project changes. Frontend:
+  `src/util/logger.ts` configured from `VITE_LOG_LEVEL`. Levels debug < info (`log`) <
+  warning (`warn`) < error. Debug is always off in production; sensitive values are
+  redacted; query strings and user search text are never logged.
+- ESLint `no-console` rule for application code.
+
+### Fixed
+
+- The map no longer reloads the basemap style right after start-up (removes a MapLibre
+  "Unable to perform style diff" warning).
+
 ### Changed
 
 - **Licence: the project is now GNU AGPL-3.0-only** (previously MIT), so that it fits

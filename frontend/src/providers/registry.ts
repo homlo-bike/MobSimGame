@@ -16,6 +16,9 @@ import {
   MockTransitProvider,
 } from './mock';
 import { BackendGeocoderProvider, BackendOsmFeatureProvider, ProviderError } from './backend';
+import { createLogger } from '../util/logger';
+
+const log = createLogger('providers');
 
 export const mockProviders = {
   geocoder: new MockGeocoderProvider(),
@@ -166,9 +169,13 @@ export async function geocode(query: string) {
   try {
     const res = await backendProviders.geocoder.search(query);
     if (res.data.length) return res;
+    log.debug('geocoder returned no results; trying the offline coordinate parser');
     const offline = await mockProviders.geocoder.search(query);
     return offline.data.length ? offline : res;
   } catch (e) {
+    log.warn('geocoder unavailable; using the offline coordinate parser', {
+      state: e instanceof ProviderError ? e.state : 'unknown',
+    });
     const offline = await mockProviders.geocoder.search(query);
     return {
       ...offline,

@@ -7,6 +7,9 @@ import { ProviderError } from '../providers/backend';
 import { Badge, Button } from './primitives';
 import { CommitField } from './CommitField';
 import { t } from '../i18n';
+import { createLogger } from '../util/logger';
+
+const log = createLogger('files');
 import type { View } from '../store/projectStore';
 
 export function Header({ onOpenDataSources }: { onOpenDataSources: () => void }) {
@@ -30,7 +33,10 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
 
+  // Every user-visible outcome of a file/share action is also logged (failures as warnings).
   const report = (text: string, error = false) => {
+    if (error) log.warn('project file action failed', { message: text });
+    else log.debug('project file action completed', { message: text });
     setMessage({ text, error });
     announce(text);
   };
