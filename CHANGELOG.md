@@ -6,17 +6,50 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Smooth track alignments:** tram, light rail, metro and rail lines are centripetal
+  Catmull–Rom curves through the points you place (schema v2 `alignment`).
+- **Cited curve radii** per mode (TCRP 155; Mumbai Metro Line 12 DPR; RSSB GCRT5021;
+  EBO §6): below the minimum blocks, below the recommended value warns
+  (`docs/CURVE_RADII.md`).
+- **Street routing for bus and BRT** through waypoints with a self-hosted Valhalla
+  server (optional Compose profile `routing`, `POST /api/v1/routing/route`); unrouted
+  sections block completion until routed or marked manual; separate return paths
+  where one-way streets differ (`docs/ROUTING.md`).
+- **Directional tracks:** double-track segments drawn as two parallel tracks with
+  direction arrows; swap track sides per segment; reverse a line.
+- **Crossovers** before/after stations (map, schematic, text alternative) and a
+  **disruption simulation** (close a section: turn back at crossovers or single-track
+  working).
+- **Traffic signals** from OpenStreetMap with simulated cycles (placeholder timings,
+  editable) and per-line **transit signal priority**.
+- **Real-city networks** (Berlin, Paris, London, New York City, Los Angeles, Bogotá;
+  tram, metro, bus where they exist) loaded live from OpenStreetMap
+  (`/api/v1/examples`), cached for a week; Bogotá Metro Line 1 labelled under
+  construction.
+- **Login for saving and sharing** (`MOBSIM_ADMIN_USERNAME`, `MOBSIM_ADMIN_PASSWORD`,
+  default admin/admin; production refuses the default password).
+- Start card for empty projects; "input required" dashboard for real places.
+- Phase 2 plan (`docs/PHASE_2_PLAN.md`).
+
 ### Changed
 
+- **Schema v2.** v1 projects migrate on open: track lines become curves through their
+  old vertices; bus/BRT lines become street-routed lines with unrouted sections.
+- The OpenStreetMap vector map (OpenFreeMap Liberty) is the default background.
+- Findings on unedited lines imported from OpenStreetMap are informational.
+- The simulation builds each trip in time order (needed for signal waits); still a
+  pure function of simulated time.
+- File menu: "Save to server and share…", "Sign in…/Sign out", "Open real network…".
 - Minimal interface: single-row header with an inline project name, a segmented view
   switcher, icon undo/redo and one **File** menu holding project, import/export and
   share actions; toast messages; segmented tool switcher; collapsible Scenario,
   Map layers and Display panels; slimmer notices and footer.
 
-### Added
+### Removed
 
-- Phase 2 plan (`docs/PHASE_2_PLAN.md`): street-following bus lines, spline
-  alignments for rail modes, schema v2 alignments, UI next steps, geospatial validation.
+- The fictional demo project is no longer offered in the app (kept as a test fixture).
 
 ### Fixed
 

@@ -56,7 +56,18 @@ export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: (
             Alignments are conceptual sketches. Validation findings are advisory; nothing here is declared
             safe, buildable or construction-ready.
           </li>
-          <li>All Phase 1 analysis uses a synthetic demonstration assumption set and is labelled as such.</li>
+          <li>
+            Real places show no estimated ridership, cost or emission figures (input required); fictional
+            projects use a synthetic demonstration assumption set, labelled as such.
+          </li>
+          <li>
+            Curve radii are checked against cited documented defaults; other thresholds and signal timings are
+            placeholders and say so.
+          </li>
+          <li>
+            Example networks come from OpenStreetMap as mapped today and may be incomplete; their findings are
+            informational until you edit a line.
+          </li>
           <li>Distances use a spherical-earth approximation (sketch accuracy).</li>
           <li>Missing OpenStreetMap tags do not mean a feature does not exist.</li>
         </ul>

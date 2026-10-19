@@ -1,7 +1,8 @@
 # Phase 2 plan — alignments, geospatial validation and a minimal UI
 
-Status: **planning** (2026-10-19). Workstream C1 (minimal header and File menu) is
-implemented; everything else below is planned and not yet available.
+Status (2026-10-19): milestones **2.0–2.3 implemented**, plus the owner's additional
+requirements (see "Owner decisions" below). Workstreams C2 (further UI) and D
+(geospatial validation) remain planned and are not available yet.
 
 Phase 1 delivered a working editor in which every line is a straight-segment
 polyline. Phase 2 makes the drawn geometry fit its mode, validates it against real
@@ -176,7 +177,7 @@ control points.
 
 ## Workstream C — Minimal UI
 
-### C1. Done in this PR
+### C1. Done
 
 - Single-row header: app name, inline project name, fictional badge, segmented
   view switcher, icon undo/redo, one **File ▾** menu (Project · Import/export ·
@@ -222,10 +223,10 @@ control points.
 
 | # | Milestone | Contents | Exit criteria |
 | --- | --- | --- | --- |
-| 2.0 | Minimal UI (C1) | This PR | Tests and E2E green; keyboard paths unchanged |
-| 2.1 | Schema v2 + spline alignments | A2 (model + migration), B1–B5, B7 | Rail lines drawn as smooth curves; old projects open unchanged; curvature checks per sample |
-| 2.2 | Routing provider | A1, Compose `routing` profile, docs | `/api/v1/routing/route` with provenance; disabled cleanly when not configured |
-| 2.3 | Street-following bus lines | A3–A5 | Bus/BRT lines routed while drawing; unrouted legs blocked or flagged; works offline with clear state |
+| 2.0 ✓ | Minimal UI (C1) | Done | Tests and E2E green; keyboard paths unchanged |
+| 2.1 ✓ | Schema v2 + spline alignments | A2 (model + migration), B1–B5, B7 | Rail lines drawn as smooth curves; old projects open unchanged; curvature checks per sample |
+| 2.2 ✓ | Routing provider | A1, Compose `routing` profile, docs | `/api/v1/routing/route` with provenance; disabled cleanly when not configured |
+| 2.3 ✓ | Street-following bus lines | A3–A5 | Bus/BRT lines routed while drawing; unrouted legs blocked or flagged; works offline with clear state |
 | 2.4 | UI next (C2) | Collapsible panels, on-map toolbar, command palette, responsive | Lighthouse/axe checks pass; E2E covers the new paths |
 | 2.5 | Geospatial validation (D) | PostGIS checks, elevation, cited profiles, entrances | Findings carry provenance; profiles cite sources |
 
@@ -243,12 +244,21 @@ hosting a routing engine.
 - **Routing coverage gaps** (missing or wrong OSM data). Manual legs stay available
   and are clearly marked.
 
-## Open questions for the project owner
+## Owner decisions (2026-10-19)
 
-1. **Routing engine and hosting:** Valhalla in an optional Compose profile (the
-   recommendation), or another engine or an external service?
-2. **Trams:** smooth curve by default, or follow streets by default?
-3. **Existing lines:** keep them as straight segments (recommended), or convert rail
-   lines to curves automatically?
-4. **Unrouted bus legs:** blocking (the recommendation, matching "never present an
-   unrouted straight line as drivable") or warning only?
+The open questions were answered by the project owner, and further requirements
+were added. All of the following are implemented:
+
+| Topic | Decision |
+| --- | --- |
+| Routing engine | Valhalla, self-hosted, optional Compose profile ([ROUTING.md](ROUTING.md)) |
+| Trams | Run on tracks: smooth curves |
+| Existing lines | Converted: rail and tram lines become curves through their old vertices |
+| Unrouted bus sections | Blocking ("incomplete") until routed or marked manual |
+| Curve radii | Published values researched with citations, reviewed by the owner before use ([CURVE_RADII.md](CURVE_RADII.md)); imported lines report information only |
+| Direction | Each track carries one direction; double track drawn automatically in parallel; per-segment side swap; single track option |
+| Crossovers | Before/after stations, on map and schematic, used by the disruption simulation |
+| Default background | OpenStreetMap vector map (OpenFreeMap Liberty) |
+| Examples | Real cities only (Berlin, Paris, London, New York City, Los Angeles, Bogotá), full networks loaded live from OSM, one city and network at a time; fictional demo removed |
+| Saving | Server save/share behind a login (admin/admin by default, set in .env; refused in production) |
+| Traffic signals | OSM signal positions with simulated cycles (assumed timings) and per-line transit signal priority |

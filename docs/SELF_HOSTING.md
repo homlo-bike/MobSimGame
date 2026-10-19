@@ -15,7 +15,7 @@ docker network create public
 ```
 
 ```sh
-cp .env.example .env          # set POSTGRES_PASSWORD (long random value)
+cp .env.example .env          # set POSTGRES_PASSWORD and MOBSIM_ADMIN_PASSWORD (long random values)
 docker compose up -d --build  # http://localhost:8080
 docker compose ps             # db, api, web should be "healthy"
 curl http://localhost:8080/api/health
@@ -29,6 +29,18 @@ Services:
 | `api` | `./backend` | FastAPI; runs `alembic upgrade head` on start |
 | `web` | `./frontend` | nginx: static app + `/api` reverse proxy, CSP and security headers |
 | `frontend-dev` | `node:22-alpine` | Profile `dev`: Vite with hot reload on :5173 |
+| `valhalla` | `ghcr.io/valhalla/valhalla-scripted` | Profile `routing`: street routing for bus/BRT ([ROUTING.md](ROUTING.md)) |
+
+## Login for saving and sharing
+
+Saving and sharing projects on the server needs a login; the editor itself and
+shared links do not. Set `MOBSIM_ADMIN_USERNAME` and `MOBSIM_ADMIN_PASSWORD` in `.env`
+(default `admin` / `admin`). With `MOBSIM_ENVIRONMENT=production` (the Compose
+default) the API **refuses to start while the password is `admin`**; on a test machine
+you can set `MOBSIM_ENVIRONMENT=development` instead. Set `MOBSIM_SESSION_SECRET` to
+a long random value so logins survive API restarts. Sessions last
+`MOBSIM_SESSION_TTL_S` (8 h); login attempts are limited to
+`MOBSIM_LOGIN_ATTEMPTS_PER_MINUTE` (10) per client.
 
 Development profile: `docker compose --profile dev up --build`.
 

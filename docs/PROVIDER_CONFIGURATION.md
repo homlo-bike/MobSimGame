@@ -47,6 +47,33 @@ count, caches results and retries with exponential backoff honouring
 `Retry-After`. For regular or heavy use, self-host Overpass or wait for the PBF
 import (Phase 3). The main OSM editing API is never used for reads.
 
+### Example city networks
+
+`GET /api/v1/examples` lists the cities; `GET /api/v1/examples/{city}/{tram|metro|bus}`
+loads one network from Overpass: public-transport route relations with their ways
+(`out geom`) and stop nodes, in the city's query extent. Full bus networks are large
+(London has several hundred routes): a first load can take minutes and may hit the
+public instance's limits; results are cached for a week. Only the city and network
+are sent. Please keep this to occasional use on the public instance, or self-host
+Overpass.
+
+| Variable | Default |
+| --- | --- |
+| `MOBSIM_EXAMPLES_TIMEOUT_S` | `180` (declared in the query) |
+| `MOBSIM_EXAMPLES_CACHE_TTL_S` | `604800` |
+
+### Traffic signals
+
+`POST /api/v1/osm/traffic-signals` with `{"paths": [[[lon, lat], …]], "radius_m": 15}`
+returns `highway=traffic_signals` nodes near the paths (Overpass `around` a
+linestring). It runs only when the user presses *Find signals*, sends the
+street-level tram and bus line geometry to Overpass (disclosed in the panel), and
+caches results like the example networks. OSM has no signal timings.
+
+## Street routing (Valhalla, self-hosted)
+
+See [ROUTING.md](ROUTING.md). Disabled unless `MOBSIM_VALHALLA_URL` is set.
+
 ## Geocoding (Nominatim)
 
 `MOBSIM_GEOCODER_ENABLED`, `MOBSIM_NOMINATIM_URL`, `MOBSIM_CONTACT_EMAIL`.

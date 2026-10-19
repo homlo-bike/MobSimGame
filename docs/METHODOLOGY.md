@@ -25,9 +25,14 @@ convention, **not** a probabilistic confidence interval. The relative spread
   6 371 008.8 m).
 - Station snapping: nearest point on the polyline; a click within 60 m of an
   existing station reuses it (shared station).
-- Curvature: radius of the circle through three consecutive vertices
-  (local equirectangular projection). A sketched polyline has no transition
-  curves, so this is an indication only.
+- Alignments: track modes use a **centripetal Catmull–Rom spline** through the
+  user's control points (Yuksel, Schaefer & Keyser 2011, *Computer-Aided Design*
+  43(7)), sampled about every 10 m; bus/BRT lines are street-routed sections
+  (see [ROUTING.md](ROUTING.md)); other modes use straight segments.
+- Curvature: on curves, the radius of the circle through samples about 20 m apart;
+  on straight-segment lines, through three consecutive vertices (local
+  equirectangular projection). Sketches have no transition curves or cant, so this
+  is an estimate.
 - Grades: `(Δ elevation / Δ chainage) × 100` between samples of ground elevation.
   Not a vertical alignment.
 - Shared track detection: sample one line every 25 m and test distance to the
@@ -44,11 +49,17 @@ A line is **complete** only without blocking findings:
   closes implicitly; a user-defined loop must return within 60 m to a part of the
   alignment at least 150 m earlier.
 
-Threshold checks (curve radius, grade, stop spacing, short structure segments)
-use versioned mode profiles in `domain/modeProfiles.ts`. **Phase 1 profiles are
-uncited placeholders**; findings say so, and `absoluteLimit` is always `null`
-(no blocking threshold without a cited standard). Bus/BRT alignments always carry
-a warning that they are not routed on the street network.
+Threshold checks use versioned mode profiles in `domain/modeProfiles.ts`:
+
+- **Curve radius**: cited documented defaults per mode (below the minimum blocks,
+  below the recommended value warns). Values, quotes and caveats:
+  [CURVE_RADII.md](CURVE_RADII.md).
+- Grade, stop spacing and short structure segments: still **uncited placeholders**;
+  findings say so and never block.
+- Street routing: an unrouted bus/BRT section blocks completion until it is routed or
+  marked manual; manual sections are reported as information.
+- Lines imported from OpenStreetMap and not edited describe existing
+  infrastructure: all their findings are reported as information.
 
 ## Operations
 
@@ -104,9 +115,25 @@ recommended fare.
 ## Simulation
 
 Illustrative only: constant speed per segment (no acceleration), fixed dwell,
-2-minute layover at terminals, vehicles spaced by the peak headway, positions a
-pure function of simulated time. Rings circulate; one-way lines return out of
-service; bidirectional lines reverse at terminals.
+2-minute layover at terminals, one trip departing per peak headway, positions a
+pure function of simulated time (each trip is built in time order from its
+departure time). Rings circulate; one-way lines return out of service;
+bidirectional lines reverse at terminals.
+
+- **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a
+  vehicle reaching a signal on red waits until the next green. Signals come from
+  OSM (`highway=traffic_signals` within 15 m of the line); timings are assumptions
+  (placeholder cycle 90 s, green 45 s, uncited) and offsets are spread
+  deterministically from the signal id. **Transit signal priority** per line: green
+  extended or red shortened by an editable number of seconds (placeholder 10 s).
+- **Closures**: closing a section between two stations either splits the service at
+  the nearest crossovers outside it (trains turn back; a side without a crossover has
+  no service), or, for a one-track closure with crossovers on both sides, keeps the
+  through service and holds each train at the first crossover for the time to run the
+  single-track section (a worst-case wait for an opposing train). There is no train
+  protection or vehicle interaction model.
+- Crossovers are drawn up to 80 m before or after their station (a display position,
+  not a design).
 
 ## Schematic
 
