@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDemoScenario } from '../domain/demo';
+import { buildDemoScenario } from '../test/fixtures/demoProject';
 import { emptyScenario, isInterchange } from '../domain/network';
 import { importGeoJSON, sampledCoordinatesCsv, scenarioToGeoJSON } from './geojson';
 

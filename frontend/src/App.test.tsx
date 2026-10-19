@@ -9,7 +9,7 @@ vi.mock('./map/MapView', () => ({ default: () => <div data-testid="map">map</div
 
 import App from './App';
 import { useStore } from './store/projectStore';
-import { buildDemoProject } from './domain/demo';
+import { buildDemoProject } from './test/fixtures/demoProject';
 import { loadFromLocalStorage, parseProjectText, serializeProject, STORAGE_KEY } from './store/persistence';
 import { geocode } from './providers/registry';
 import { parseCoordinateList } from './ui/TableView';
@@ -141,7 +141,7 @@ describe('File menu', () => {
       .map((el) => el.textContent);
     expect(labels).toEqual([
       'New project',
-      'Load demo',
+      'Open real network…OSM',
       'Open project….json',
       'Save project.json',
       'Import GeoJSON…',
@@ -175,7 +175,7 @@ describe('File menu', () => {
     await user.keyboard('{Enter}');
     expect(screen.getByRole('menuitem', { name: 'New project' })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: 'Load demo' })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: /Open real network/ })).toHaveFocus();
     await user.keyboard('{End}');
     expect(screen.getByRole('menuitem', { name: /Sign in/ })).toHaveFocus();
     await user.keyboard('{ArrowDown}');

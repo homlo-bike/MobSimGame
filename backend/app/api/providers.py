@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
 from ..providers.base import ProviderError
+from ..providers.networks import CITIES
 from ..providers.registry import Providers
 from ..security import RateLimiter, client_key
 from .deps import get_provider_limiter, get_providers
@@ -135,6 +136,41 @@ async def route(
             raise HTTPException(status_code=422, detail="Waypoints must be [longitude, latitude] in WGS84")
     try:
         res = await providers.routing.route_legs(list(body.waypoints))
+    except ProviderError as e:
+        return provider_error_response(e)
+    return res.model_dump()
+
+
+@router.get("/examples")
+def list_examples() -> dict[str, object]:
+    """Cities and networks that can be loaded as examples from OpenStreetMap."""
+    return {
+        "cities": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "country": c.country,
+                "center": c.center,
+                "zoom": c.zoom,
+                "networks": [{"kind": n.kind, "label": n.label, "note": n.note} for n in c.networks],
+            }
+            for c in CITIES.values()
+        ]
+    }
+
+
+@router.get("/examples/{city}/{kind}", response_model=None)
+async def load_example(
+    city: str,
+    kind: str,
+    request: Request,
+    providers: Annotated[Providers, Depends(get_providers)],
+    limiter: Annotated[RateLimiter, Depends(get_provider_limiter)],
+) -> dict[str, object] | JSONResponse:
+    """One city's tram, metro or bus network, loaded live from OpenStreetMap (cached)."""
+    _limit(request, limiter)
+    try:
+        res = await providers.networks.load(city[:40], kind[:20])
     except ProviderError as e:
         return provider_error_response(e)
     return res.model_dump()

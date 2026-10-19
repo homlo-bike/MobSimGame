@@ -28,7 +28,7 @@ import {
   updateLine,
   updateLineGeometry,
 } from './network';
-import { buildDemoProject } from './demo';
+import { buildDemoProject } from '../test/fixtures/demoProject';
 import { validateSegments } from '../geo/segments';
 
 function twoCrossingLines() {

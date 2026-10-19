@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseProject, SCHEMA_VERSION } from './schema';
-import { buildDemoProject } from './demo';
+import { buildDemoProject } from '../test/fixtures/demoProject';
 
 /** A v1 document: lines without alignment, origin, crossovers or signals. */
 function v1Project() {

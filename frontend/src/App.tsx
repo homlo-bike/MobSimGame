@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
 import { saveToLocalStorage } from './store/persistence';
 import { activeScenario, deleteLine, deleteStation } from './domain/network';
@@ -12,8 +12,9 @@ import { SchematicView } from './ui/SchematicView';
 import { Dashboard } from './ui/Dashboard';
 import { TableView } from './ui/TableView';
 import { DataSourcesDialog } from './ui/DataSourcesDialog';
+import { ExampleDialog } from './ui/ExampleDialog';
 import { FindingsList } from './ui/FindingsList';
-import { Checkbox, Section } from './ui/primitives';
+import { Button, Checkbox, Section } from './ui/primitives';
 import { validateScenario } from './validation/validate';
 import { t } from './i18n';
 import { createLogger, errorContext } from './util/logger';
@@ -40,6 +41,8 @@ function Inspector() {
   const setReducedMotion = useStore((s) => s.setReducedMotion);
   const unitSystem = useStore((s) => s.unitSystem);
   const setUnitSystem = useStore((s) => s.setUnitSystem);
+  // Real networks can have hundreds of lines: validate only when the scenario changes.
+  const findings = useMemo(() => validateScenario(scenario), [scenario]);
   if (selection?.kind === 'line' || selection?.kind === 'segment') {
     const id = selection.kind === 'line' ? selection.id : selection.lineId;
     const line = scenario.lines.find((l) => l.id === id);
@@ -49,7 +52,6 @@ function Inspector() {
     const station = scenario.stations.find((s) => s.id === selection.id);
     if (station) return <StationInspector key={station.id} station={station} scenario={scenario} />;
   }
-  const findings = validateScenario(scenario);
   return (
     <>
       <Section title={t('inspector')} id="inspector-empty">
@@ -83,6 +85,9 @@ export default function App() {
   const view = useStore((s) => s.view);
   const announcement = useStore((s) => s.announcement);
   const [dataOpen, setDataOpen] = useState(false);
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  const scenario = useScenario();
+  const setTool = useStore((s) => s.setTool);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Autosave to this browser.
@@ -148,7 +153,7 @@ export default function App() {
       >
         {t('skipToMain')}
       </a>
-      <Header onOpenDataSources={() => setDataOpen(true)} />
+      <Header onOpenDataSources={() => setDataOpen(true)} onOpenExamples={() => setExamplesOpen(true)} />
       {project.fictional && (
         <div
           role="note"
@@ -184,6 +189,26 @@ export default function App() {
               <MapView />
             </Suspense>
           </div>
+          {view === 'map' && scenario.lines.length === 0 && (
+            <section
+              aria-labelledby="start-title"
+              className="absolute start-1/2 top-1/2 z-10 w-[min(26rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white/95 p-4 shadow-lg"
+            >
+              <h2 id="start-title" className="mb-1 text-base font-semibold">
+                Start a network
+              </h2>
+              <p className="mb-3 text-sm text-slate-700">
+                Open a city’s existing tram, metro or bus network, or search for a place and draw your own
+                lines.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="primary" onClick={() => setExamplesOpen(true)}>
+                  Open a real network…
+                </Button>
+                <Button onClick={() => setTool('draw_line')}>Draw a line</Button>
+              </div>
+            </section>
+          )}
           {view === 'schematic' && <SchematicView />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'table' && <TableView />}
@@ -208,6 +233,7 @@ export default function App() {
         {announcement}
       </div>
       <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
+      {examplesOpen && <ExampleDialog open={examplesOpen} onClose={() => setExamplesOpen(false)} />}
     </div>
   );
 }

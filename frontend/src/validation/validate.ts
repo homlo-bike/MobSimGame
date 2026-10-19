@@ -84,6 +84,23 @@ export function validateLine(
   scenario: Scenario,
   options: ValidationOptions = {},
 ): Finding[] {
+  const findings = checkLine(line, scenario, options);
+  if (!existingInfrastructure(line)) return findings;
+  // Imported, unedited lines describe what exists: report, but do not block or warn.
+  return findings.map((f) =>
+    f.severity === 'info'
+      ? f
+      : {
+          ...f,
+          severity: 'info',
+          message: f.message.startsWith('Existing infrastructure')
+            ? f.message
+            : `Existing infrastructure: ${f.message}`,
+        },
+  );
+}
+
+function checkLine(line: TransportLine, scenario: Scenario, options: ValidationOptions): Finding[] {
   const findings: Finding[] = [];
   const profile = options.profiles?.[line.mode] ?? MODE_PROFILES[line.mode];
   const terminalTol = options.terminalToleranceM ?? 60;

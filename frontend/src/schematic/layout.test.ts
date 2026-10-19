@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDemoScenario } from '../domain/demo';
+import { buildDemoScenario } from '../test/fixtures/demoProject';
 import { computeSchematic, describeSchematic, isOctilinear, snapAngle } from './layout';
 import { orderedStops } from '../domain/network';
 

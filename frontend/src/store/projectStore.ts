@@ -10,7 +10,6 @@ import { create } from 'zustand';
 import type { Project, Scenario, TransportMode } from '../domain/schema';
 import { activeScenario, duplicateScenario, emptyScenario, replaceScenario } from '../domain/network';
 import { SCHEMA_VERSION } from '../domain/schema';
-import { buildDemoProject } from '../domain/demo';
 import { newId, nowIso } from '../util/id';
 import { loadFromLocalStorage } from './persistence';
 import type { UnitSystem } from '../analysis/units';
@@ -78,7 +77,6 @@ export interface AppState {
   commitProject: (project: Project, label?: string) => void;
   loadProject: (project: Project) => void;
   newProject: () => void;
-  loadDemo: () => void;
   undo: () => void;
   redo: () => void;
   select: (s: Selection) => void;
@@ -125,7 +123,7 @@ const prefersReducedMotion = () =>
     : false;
 
 function initialProject(): Project {
-  return loadFromLocalStorage() ?? buildDemoProject();
+  return loadFromLocalStorage() ?? blankProject();
 }
 
 export const useStore = create<AppState>()((set, get) => {
@@ -188,7 +186,6 @@ export const useStore = create<AppState>()((set, get) => {
       });
     },
     newProject: () => get().loadProject(blankProject()),
-    loadDemo: () => get().loadProject(buildDemoProject()),
     undo: () => {
       const { past, project, future } = get();
       const prev = past[past.length - 1];

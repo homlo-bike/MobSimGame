@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     overpass_max_bbox_km2: float = 25.0
     overpass_max_radius_m: int = 1000
     overpass_cache_ttl_s: int = 24 * 3600
+    # Example city networks (full tram/metro/bus networks) are large queries: cache them long.
+    examples_timeout_s: int = 180
+    examples_cache_ttl_s: int = 7 * 24 * 3600
 
     # Nominatim
     geocoder_enabled: bool = True

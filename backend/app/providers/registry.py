@@ -10,6 +10,7 @@ from ..config import Settings
 from .arcgis_traffic import ArcGisTrafficProvider
 from .base import TTLCache
 from .camara_population import CamaraPopulationProvider
+from .networks import OsmNetworkProvider
 from .nominatim import NominatimProvider
 from .overpass import OverpassProvider
 from .transport_rest import TransportRestProvider
@@ -24,6 +25,7 @@ class Providers:
     traffic: ArcGisTrafficProvider
     transit: TransportRestProvider
     routing: ValhallaRoutingProvider
+    networks: OsmNetworkProvider
 
     def all(
         self,
@@ -34,8 +36,17 @@ class Providers:
         | ArcGisTrafficProvider
         | TransportRestProvider
         | ValhallaRoutingProvider
+        | OsmNetworkProvider
     ]:
-        return [self.overpass, self.nominatim, self.population, self.traffic, self.transit, self.routing]
+        return [
+            self.overpass,
+            self.nominatim,
+            self.population,
+            self.traffic,
+            self.transit,
+            self.routing,
+            self.networks,
+        ]
 
 
 def build_providers(settings: Settings, client: httpx.AsyncClient) -> Providers:
@@ -46,4 +57,6 @@ def build_providers(settings: Settings, client: httpx.AsyncClient) -> Providers:
         traffic=ArcGisTrafficProvider(settings),
         transit=TransportRestProvider(settings, client),
         routing=ValhallaRoutingProvider(settings, client, TTLCache()),
+        # Few, large entries: one per city and network.
+        networks=OsmNetworkProvider(settings, client, TTLCache(max_items=40)),
     )

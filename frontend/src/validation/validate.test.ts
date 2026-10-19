@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LngLat, Scenario, TransportLine } from '../domain/schema';
 import { addStationOnLine, createLine, emptyScenario, updateLine } from '../domain/network';
-import { buildDemoScenario } from '../domain/demo';
+import { buildDemoScenario } from '../test/fixtures/demoProject';
 import { MODE_PROFILES } from '../domain/modeProfiles';
 import type { AlignmentKind } from '../domain/alignment';
 import {

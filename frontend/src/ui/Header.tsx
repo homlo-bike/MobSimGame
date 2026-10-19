@@ -15,7 +15,13 @@ import { createLogger } from '../util/logger';
 const log = createLogger('files');
 import type { View } from '../store/projectStore';
 
-export function Header({ onOpenDataSources }: { onOpenDataSources: () => void }) {
+export function Header({
+  onOpenDataSources,
+  onOpenExamples,
+}: {
+  onOpenDataSources: () => void;
+  onOpenExamples: () => void;
+}) {
   const project = useStore((s) => s.project);
   const scenario = useScenario();
   const past = useStore((s) => s.past.length);
@@ -28,7 +34,6 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
   const commitScenario = useStore((s) => s.commitScenario);
   const loadProject = useStore((s) => s.loadProject);
   const newProject = useStore((s) => s.newProject);
-  const loadDemo = useStore((s) => s.loadDemo);
   const announce = useStore((s) => s.announce);
   const mode = useStore((s) => s.newLineMode);
   const projectInput = useRef<HTMLInputElement>(null);
@@ -134,7 +139,7 @@ export function Header({ onOpenDataSources }: { onOpenDataSources: () => void })
   const fileMenu: MenuEntry[] = [
     { kind: 'heading', label: 'Project' },
     { kind: 'item', label: 'New project', onSelect: newProject },
-    { kind: 'item', label: 'Load demo', onSelect: loadDemo },
+    { kind: 'item', label: 'Open real network…', hint: 'OSM', onSelect: onOpenExamples },
     { kind: 'item', label: 'Open project…', hint: '.json', onSelect: () => projectInput.current?.click() },
     {
       kind: 'item',

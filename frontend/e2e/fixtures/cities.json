@@ -1,0 +1,18 @@
+{
+  "cities": [
+    {
+      "id": "test",
+      "name": "Testville",
+      "country": "Testland",
+      "center": [13.418, 52.502],
+      "zoom": 13.5,
+      "networks": [
+        {
+          "kind": "tram",
+          "label": "Tram",
+          "note": ""
+        }
+      ]
+    }
+  ]
+}
