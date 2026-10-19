@@ -248,7 +248,7 @@ export function NetworkLists() {
         {scenario.lines.length === 0 && (
           <p className="text-sm text-slate-600">No lines yet. Choose “Draw line” or use the Table view.</p>
         )}
-        <ul className="space-y-0.5" aria-label="Lines">
+        <ul className="max-h-72 space-y-0.5 overflow-auto" aria-label="Lines">
           {scenario.lines.map((l) => (
             <li key={l.id}>
               <button

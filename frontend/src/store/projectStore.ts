@@ -27,6 +27,7 @@ export type Selection =
   | { kind: 'line'; id: string }
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
+  | { kind: 'signal'; id: string }
   | null;
 
 export interface LayerToggles {

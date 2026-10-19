@@ -13,6 +13,7 @@ import { Dashboard } from './ui/Dashboard';
 import { TableView } from './ui/TableView';
 import { DataSourcesDialog } from './ui/DataSourcesDialog';
 import { ExampleDialog } from './ui/ExampleDialog';
+import { SignalInspector, SignalsPanel } from './ui/SignalsPanel';
 import { FindingsList } from './ui/FindingsList';
 import { Button, Checkbox, Section } from './ui/primitives';
 import { validateScenario } from './validation/validate';
@@ -47,6 +48,10 @@ function Inspector() {
     const id = selection.kind === 'line' ? selection.id : selection.lineId;
     const line = scenario.lines.find((l) => l.id === id);
     if (line) return <LineInspector key={line.id} line={line} scenario={scenario} />;
+  }
+  if (selection?.kind === 'signal') {
+    const signal = scenario.trafficSignals.find((s) => s.id === selection.id);
+    if (signal) return <SignalInspector key={signal.id} signal={signal} scenario={scenario} />;
   }
   if (selection?.kind === 'station') {
     const station = scenario.stations.find((s) => s.id === selection.id);
@@ -179,6 +184,7 @@ export default function App() {
           <SearchBox />
           <ToolPanel />
           <NetworkLists />
+          <SignalsPanel />
           <ScenarioPanel />
           <LayerPanel />
         </aside>

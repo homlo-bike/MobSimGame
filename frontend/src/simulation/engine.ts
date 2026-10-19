@@ -15,6 +15,7 @@ import type { LngLat, Scenario, TransportLine } from '../domain/schema';
 import { isRing, orderedStops, placedCrossovers } from '../domain/network';
 import { pathCoordinates, snapToPath } from '../geo/geometry';
 import { segmentSpeedKmh } from './speeds';
+import { SIGNAL_MODES } from '../domain/signals';
 
 const R = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -159,9 +160,6 @@ export interface SimulationOptions {
   signalMatchToleranceM?: number;
 }
 
-/** Modes that stop at road traffic signals. */
-const SIGNAL_MODES = ['tram', 'bus', 'brt', 'light_rail'];
-
 export function buildLineModel(
   line: TransportLine,
   scenario: Scenario,
@@ -187,8 +185,11 @@ export function buildLineModel(
     const tol = options.signalMatchToleranceM ?? 20;
     for (const sig of options.signals ?? []) {
       const snap = snapToPath(line.coordinates, ring, sig.position);
-      if (snap && snap.offsetM <= tol)
-        events.push({ chainageM: snap.fraction * path.lengthM, kind: 'signal', direction: 0, signal: sig });
+      if (!snap || snap.offsetM > tol) continue;
+      // Road signals apply on street-level track only, not in tunnels or on viaducts.
+      const seg = line.segments.find((x) => snap.fraction >= x.fromFraction && snap.fraction <= x.toFraction);
+      if (seg && seg.structure !== 'at_grade') continue;
+      events.push({ chainageM: snap.fraction * path.lengthM, kind: 'signal', direction: 0, signal: sig });
     }
   }
   const signalCount = events.filter((e) => e.kind === 'signal').length;

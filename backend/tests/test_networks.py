@@ -188,3 +188,20 @@ def test_example_endpoints(client: TestClient, upstream: Upstream) -> None:
 def test_every_city_has_a_metro_or_bus_network(city: str) -> None:
     kinds = {n.kind for n in CITIES[city].networks}
     assert "bus" in kinds and "metro" in kinds
+
+
+def test_traffic_signals_along_lines(client: TestClient, upstream: Upstream) -> None:
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.content.decode())
+        return httpx.Response(200, json={"elements": [node(7, 13.401, 52.5001, highway="traffic_signals")]})
+
+    upstream.handlers["overpass-api.de"] = handler
+    body = {"paths": [[[13.40, 52.50], [13.41, 52.50]]], "radius_m": 15}
+    res = client.post("/api/v1/osm/traffic-signals", json=body)
+    assert res.status_code == 200
+    assert res.json()["data"] == [{"id": "node/7", "position": [13.401, 52.5001]}]
+    assert "around%3A15%2C52.500000%2C13.400000" in queries[0]
+    assert "no signal timings" in " ".join(res.json()["provenance"]["limitations"])
+    assert client.post("/api/v1/osm/traffic-signals", json={"paths": [[[13.4, 52.5]]]}).status_code == 422

@@ -34,6 +34,27 @@ test('opens a real network as existing infrastructure without synthetic figures'
   await page.getByRole('list', { name: 'Lines' }).getByRole('button').first().click();
   await expect(page.getByText('Existing (OpenStreetMap)')).toBeVisible();
   await expect(page.getByLabel('Alignment')).toHaveValue('spline');
+  await expect(page.getByLabel('Transit signal priority')).not.toBeChecked();
+
+  // Traffic signals along the tram lines (mocked OSM response; test data).
+  await page.route('**/api/v1/osm/traffic-signals', (r) =>
+    r.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          { id: 'node/1', position: [13.409, 52.5003] },
+          { id: 'node/2', position: [13.421, 52.5029] },
+        ],
+        provenance: JSON.parse(network).provenance,
+        capability: { state: 'available', message: 'test', checkedAt: '2026-10-19T00:00:00Z' },
+      }),
+    }),
+  );
+  await page.getByText(/^Traffic signals/).click();
+  await page.getByRole('button', { name: 'Find signals along tram and bus lines' }).click();
+  await expect(page.getByText('Traffic signals (2)')).toBeVisible();
+  await expect(page.getByText('Placeholder timing (assumed, uncited)')).toBeVisible();
+
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await expect(page.getByText(/Input required: no figures are estimated/)).toBeVisible();
   await expect(page.getByText(/DEMONSTRATION DATA/)).toHaveCount(0);

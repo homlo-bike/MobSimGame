@@ -10,6 +10,7 @@ import {
   placedCrossovers,
 } from '../domain/network';
 import { slicePath } from '../geo/geometry';
+import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 
@@ -158,6 +159,22 @@ export function arrowsCollection(segments: FeatureCollection): FeatureCollection
 function bearingDeg(a: LngLat, b: LngLat): number {
   const k = Math.cos((a[1] * Math.PI) / 180);
   return ((Math.atan2((b[0] - a[0]) * k, b[1] - a[1]) * 180) / Math.PI + 360) % 360;
+}
+
+/** Traffic signals with their simulated state at time tS (green/red). */
+export function signalsCollection(
+  scenario: Scenario,
+  tS: number,
+  selectedId: string | null,
+): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: scenario.trafficSignals.map((s) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: s.position },
+      properties: { signalId: s.id, state: isGreen(s, tS) ? 'green' : 'red', selected: s.id === selectedId },
+    })),
+  };
 }
 
 export function crossoversCollection(scenario: Scenario): FeatureCollection {

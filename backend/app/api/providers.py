@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ..logging_config import get_logger
 from ..providers.base import ProviderError
 from ..providers.networks import CITIES
+from ..providers.overpass import traffic_signals_along
 from ..providers.registry import Providers
 from ..security import RateLimiter, client_key
 from .deps import get_provider_limiter, get_providers
@@ -136,6 +137,38 @@ async def route(
             raise HTTPException(status_code=422, detail="Waypoints must be [longitude, latitude] in WGS84")
     try:
         res = await providers.routing.route_legs(list(body.waypoints))
+    except ProviderError as e:
+        return provider_error_response(e)
+    return res.model_dump()
+
+
+class SignalsRequest(BaseModel):
+    paths: list[list[tuple[float, float]]] = Field(min_length=1, max_length=2000)
+    radius_m: int = Field(default=15, ge=1, le=50)
+
+
+#: Upper bound of coordinates per request, to keep Overpass queries reasonable.
+MAX_SIGNAL_PATH_POINTS = 20000
+
+
+@router.post("/osm/traffic-signals", response_model=None)
+async def traffic_signals(
+    body: SignalsRequest,
+    request: Request,
+    providers: Annotated[Providers, Depends(get_providers)],
+    limiter: Annotated[RateLimiter, Depends(get_provider_limiter)],
+) -> dict[str, object] | JSONResponse:
+    """Road traffic signals along tram and bus lines ([lon, lat] paths), from OpenStreetMap."""
+    _limit(request, limiter)
+    points = sum(len(p) for p in body.paths)
+    if points > MAX_SIGNAL_PATH_POINTS or any(len(p) < 2 for p in body.paths):
+        raise HTTPException(status_code=422, detail=f"Send 2 to {MAX_SIGNAL_PATH_POINTS} points per request")
+    for path in body.paths:
+        for lon, lat in path:
+            if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+                raise HTTPException(status_code=422, detail="Coordinates must be [longitude, latitude] in WGS84")
+    try:
+        res = await traffic_signals_along(providers.overpass, [list(p) for p in body.paths], body.radius_m)
     except ProviderError as e:
         return provider_error_response(e)
     return res.model_dump()

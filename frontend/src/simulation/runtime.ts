@@ -16,6 +16,7 @@ export function formatSimTime(seconds: number): string {
 export function simulationOptions(scenario: Scenario, closures: readonly ClosureInput[]): SimulationOptions {
   return {
     closures,
+    signalPriorityS: scenario.signalSettings.priorityAdjustmentS,
     signals: scenario.trafficSignals.map((sig) => ({
       position: sig.position,
       cycleS: sig.cycleS,

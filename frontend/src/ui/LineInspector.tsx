@@ -36,6 +36,7 @@ import { getMapInstance } from '../map/mapInstance';
 import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { DisruptionPanel } from './DisruptionPanel';
 import { RoutePanel } from './RoutePanel';
+import { SIGNAL_MODES } from '../domain/signals';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { validateLine } from '../validation/validate';
@@ -292,6 +293,19 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             onCommit={(v) => patch({ maxSpeedKmh: Number(v) })}
           />
         </div>
+        {SIGNAL_MODES.includes(line.mode) && (
+          <Checkbox
+            label="Transit signal priority"
+            checked={line.transitSignalPriority}
+            onChange={(v) =>
+              patch(
+                { transitSignalPriority: v },
+                v ? 'Signal priority switched on' : 'Signal priority switched off',
+              )
+            }
+            hint={`At traffic signals green is extended or red shortened by up to ${scenario.signalSettings.priorityAdjustmentS} s (set under Traffic signals).`}
+          />
+        )}
         <SelectField
           label="Vehicle type"
           value={line.vehicleTypeId ?? ''}

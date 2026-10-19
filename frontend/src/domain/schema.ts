@@ -351,6 +351,26 @@ export const TrafficSignalSchema = z.object({
 });
 export type TrafficSignal = z.infer<typeof TrafficSignalSchema>;
 
+/**
+ * Assumed signal timings for the simulation. Real signal plans are rarely
+ * published, so these are PLACEHOLDERS (uncited) until the user enters local values.
+ */
+export const SignalSettingsSchema = z.object({
+  defaultCycleS: z.number().positive(),
+  defaultGreenS: z.number().positive(),
+  /** Seconds by which transit signal priority shortens a red wait or extends green. */
+  priorityAdjustmentS: z.number().nonnegative(),
+  status: z.enum(['documented_default', 'user_override', 'calibrated', 'demonstration']),
+});
+export type SignalSettings = z.infer<typeof SignalSettingsSchema>;
+
+export const PLACEHOLDER_SIGNAL_SETTINGS: SignalSettings = {
+  defaultCycleS: 90,
+  defaultGreenS: 45,
+  priorityAdjustmentS: 10,
+  status: 'demonstration',
+};
+
 export const AnalysisResultSchema = z.object({
   id: z.string(),
   scenarioId: z.string(),
@@ -379,6 +399,7 @@ export const ScenarioSchema = z.object({
   depots: z.array(DepotSchema).default([]),
   sharedTracks: z.array(SharedTrackSchema).default([]),
   trafficSignals: z.array(TrafficSignalSchema).default([]),
+  signalSettings: SignalSettingsSchema.default(PLACEHOLDER_SIGNAL_SETTINGS),
   vehicleTypes: z.array(VehicleTypeSchema),
   assumptionSetId: z.string().nullable(),
   /** Manual corrections to the generated schematic, in schematic pixels per station id. */

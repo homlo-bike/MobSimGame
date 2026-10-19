@@ -225,3 +225,23 @@ export async function backendCapability(id: string): Promise<Capability> {
     };
   }
 }
+
+const SignalSchema = z.object({ id: z.string(), position: z.tuple([z.number(), z.number()]) });
+
+/** Road traffic signals along the given paths, from OpenStreetMap (sends the paths to Overpass). */
+export async function fetchTrafficSignals(
+  paths: readonly LngLat[][],
+): Promise<ProviderResponse<{ id: string; position: LngLat }[]>> {
+  const res = await apiFetch(
+    '/api/v1/osm/traffic-signals',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths, radius_m: 15 }),
+    },
+    240000,
+  );
+  return (await parse(res, ResponseSchema(z.array(SignalSchema)))) as ProviderResponse<
+    { id: string; position: LngLat }[]
+  >;
+}

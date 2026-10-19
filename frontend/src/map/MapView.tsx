@@ -32,6 +32,7 @@ import {
   setBasemapSourceLayersVisible,
   setData,
   setVisible,
+  SIGNAL_LAYER,
   SRC,
   STATION_LAYER,
 } from './layers';
@@ -41,6 +42,7 @@ import {
   closuresCollection,
   crossoversCollection,
   EMPTY,
+  signalsCollection,
   populationCollection,
   segmentsCollection,
   stationsCollection,
@@ -223,8 +225,10 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station!.id });
         return;
       }
-      const hit = map.queryRenderedFeatures(e.point, { layers: [STATION_LAYER] })[0];
+      const hit = map.queryRenderedFeatures(e.point, { layers: [STATION_LAYER, SIGNAL_LAYER] })[0];
       if (hit?.properties?.stationId) state.select({ kind: 'station', id: String(hit.properties.stationId) });
+      else if (hit?.properties?.signalId)
+        state.select({ kind: 'signal', id: String(hit.properties.signalId) });
     };
     map.on('click', onClick);
 
@@ -320,6 +324,7 @@ export default function MapView() {
   const selectedLineId =
     selection?.kind === 'line' ? selection.id : selection?.kind === 'segment' ? selection.lineId : null;
   const selectedStationId = selection?.kind === 'station' ? selection.id : null;
+  const selectedSignalId = selection?.kind === 'signal' ? selection.id : null;
   useEffect(() => {
     const map = mapRef.current;
     const draw = drawRef.current;
@@ -329,10 +334,19 @@ export default function MapView() {
     setData(map, SRC.arrows, arrowsCollection(segments));
     setData(map, SRC.crossovers, crossoversCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
+    setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
     reconcileDraw(draw, scenario, selectedLineId);
-  }, [scenario, selectedLineId, selectedStationId, styleVersion, layers.catchments, closures]);
+  }, [
+    scenario,
+    selectedLineId,
+    selectedStationId,
+    selectedSignalId,
+    styleVersion,
+    layers.catchments,
+    closures,
+  ]);
 
   // --- Context layers --------------------------------------------------------------
   useEffect(() => {
@@ -406,6 +420,7 @@ export default function MapView() {
     let models: LineSimulationModel[] = buildScenarioModels(scenario, simOptions);
     let frame = 0;
     let lastDraw = 0;
+    let lastSignals = 0;
     const render = () => {
       const t = simulationClock.tick();
       const now = performance.now();
@@ -413,6 +428,11 @@ export default function MapView() {
       if (!reducedMotion || now - lastDraw > 2000) {
         setData(map, SRC.vehicles, vehiclesCollection(models.flatMap((m) => vehicleStates(m, t))));
         lastDraw = now;
+      }
+      // Signal states change every few simulated seconds: refresh them a few times per second.
+      if (scenario.trafficSignals.length && now - lastSignals > 300) {
+        setData(map, SRC.signals, signalsCollection(scenario, t, null));
+        lastSignals = now;
       }
       if (simulationClock.running) frame = requestAnimationFrame(render);
     };

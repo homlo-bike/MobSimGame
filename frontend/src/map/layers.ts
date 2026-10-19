@@ -14,6 +14,7 @@ export const SRC = {
   arrows: 'msg-arrows',
   crossovers: 'msg-crossovers',
   closures: 'msg-closures',
+  signals: 'msg-signals',
   stations: 'msg-stations',
   catchments: 'msg-catchments',
   vehicles: 'msg-vehicles',
@@ -25,6 +26,7 @@ export const SRC = {
 
 export const STATION_LAYER = 'msg-stations-circle';
 export const CROSSOVER_LAYER = 'msg-crossovers-circle';
+export const SIGNAL_LAYER = 'msg-signals-circle';
 
 const ARROW_IMAGE = 'msg-arrow';
 
@@ -220,6 +222,27 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-color': '#ffffff',
       'circle-stroke-color': '#111827',
       'circle-stroke-width': 2,
+    },
+  });
+  // Traffic signals: colour shows the simulated state; red also has a heavier ring (not colour alone).
+  add({
+    id: SIGNAL_LAYER,
+    type: 'circle',
+    source: SRC.signals,
+    minzoom: 12,
+    paint: {
+      'circle-radius': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        12,
+        2.5,
+        16,
+        ['case', ['get', 'selected'], 8, 5],
+      ],
+      'circle-color': ['case', ['==', ['get', 'state'], 'green'], '#16a34a', '#dc2626'],
+      'circle-stroke-color': '#111827',
+      'circle-stroke-width': ['case', ['==', ['get', 'state'], 'green'], 1, 2.5],
     },
   });
   add({
