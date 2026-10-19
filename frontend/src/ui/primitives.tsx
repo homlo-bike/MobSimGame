@@ -34,13 +34,42 @@ export function Button({
   );
 }
 
-export function Section({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
+export function Section({
+  title,
+  children,
+  id,
+  collapsible = false,
+  defaultOpen = true,
+  hideTitle = false,
+}: {
+  title: string;
+  children: ReactNode;
+  id?: string;
+  /** Render as a native disclosure (<details>), keyboard- and screen-reader-accessible. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  /** Keep the heading for assistive technology only. */
+  hideTitle?: boolean;
+}) {
+  const headingClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500';
+  if (collapsible) {
+    return (
+      <details open={defaultOpen} className="group border-b border-slate-200 px-3 py-2" id={id}>
+        <summary
+          className={`flex cursor-pointer list-none items-center justify-between py-0.5 ${headingClass}`}
+        >
+          <h2 className="inline">{title}</h2>
+          <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-90">
+            ›
+          </span>
+        </summary>
+        <div className="pt-2">{children}</div>
+      </details>
+    );
+  }
   return (
-    <section aria-labelledby={id ? `${id}-h` : undefined} className="border-b border-slate-300 p-3">
-      <h2
-        id={id ? `${id}-h` : undefined}
-        className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-700"
-      >
+    <section aria-labelledby={id ? `${id}-h` : undefined} className="border-b border-slate-200 px-3 py-3">
+      <h2 id={id ? `${id}-h` : undefined} className={hideTitle ? 'sr-only' : `mb-2 ${headingClass}`}>
         {title}
       </h2>
       {children}

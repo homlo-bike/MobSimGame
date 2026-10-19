@@ -70,7 +70,7 @@ forwards edits; it does not decide domain rules.
 
 ## Data flow for sharing
 
-1. User clicks **Share**. The browser POSTs the project JSON.
+1. User chooses **File › Share link**. The browser POSTs the project JSON.
 2. The API validates identity, geometry ranges and sizes (unknown fields are kept),
    stores it with an unguessable id and returns a separate edit token (only its
    SHA-256 hash is stored). An audit entry with a hashed client id is written.

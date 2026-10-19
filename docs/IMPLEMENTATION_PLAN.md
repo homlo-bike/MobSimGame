@@ -50,15 +50,20 @@ Vertical slice:
 | HTML report endpoint; PDF contract (501) | `backend/app/api/reports.py` |
 | Tests and CI | `**/*.test.ts(x)`, `e2e/`, `backend/tests/`, `.github/workflows/ci.yml` |
 
-### Phase 2 — Geospatial validation
+### Phase 2 — Alignments, geospatial validation and a minimal UI (planning)
 
-- Street routing for bus/BRT (RoutingProvider; self-hosted OSRM/Valhalla or GraphHopper).
-- Projected-CRS measures in PostGIS (local UTM) and a validation endpoint.
-- Building, water, railway and protected-area conflict checks from OSM/PostGIS.
-- Elevation profiles from a real ElevationProvider (DEM / COG upload, configurable API).
-- Cited mode profiles (replace placeholders with standards-backed values).
-- Entrances, platforms and portals as editable map features.
-- Station-platform curvature check; structure transition lengths.
+Detailed plan: [PHASE_2_PLAN.md](PHASE_2_PLAN.md).
+
+- Bus and BRT lines follow streets (RoutingProvider; self-hosted Valhalla recommended).
+- Metro, rail, light-rail and tram lines as smooth centripetal Catmull–Rom splines through
+  control points; curvature checks on the smooth curve.
+- Schema v2 with an explicit `alignment` (polyline / spline / routed); v1 projects
+  migrate unchanged.
+- Minimal UI: single-row header with a File menu for import/export (done), then
+  collapsible panels, an on-map toolbar, a command palette and a responsive layout.
+- Geospatial validation: projected-CRS measures in PostGIS, conflict checks
+  (buildings, water, railways, protected areas), real elevation, cited mode profiles,
+  editable entrances, platforms and portals.
 
 ### Phase 3 — Data-provider integrations
 

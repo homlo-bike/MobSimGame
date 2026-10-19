@@ -6,6 +6,24 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Minimal interface: single-row header with an inline project name, a segmented view
+  switcher, icon undo/redo and one **File** menu holding project, import/export and
+  share actions; toast messages; segmented tool switcher; collapsible Scenario,
+  Map layers and Display panels; slimmer notices and footer.
+
+### Added
+
+- Phase 2 plan (`docs/PHASE_2_PLAN.md`): street-following bus lines, spline
+  alignments for rail modes, schema v2 alignments, UI next steps, geospatial validation.
+
+### Fixed
+
+- CI creates the external `public` Docker network now declared in `docker-compose.yml`;
+  setup documented in README and SELF_HOSTING.
+
+
 ### Added
 
 - Centralised logging (`docs/LOGGING.md`). Backend: `app/logging_config.py` configured

@@ -5,10 +5,10 @@ import { getMapInstance } from '../map/mapInstance';
 
 const ORDER = { blocking: 0, warning: 1, recommendation: 2, info: 3 } as const;
 const TONE = {
-  blocking: 'border-red-700 bg-red-50 text-red-950',
-  warning: 'border-amber-700 bg-amber-50 text-amber-950',
-  recommendation: 'border-sky-700 bg-sky-50 text-sky-950',
-  info: 'border-slate-400 bg-slate-50 text-slate-900',
+  blocking: 'border-red-700 bg-red-50/60 text-red-950',
+  warning: 'border-amber-600 bg-amber-50/60 text-amber-950',
+  recommendation: 'border-sky-600 bg-sky-50/50 text-slate-900',
+  info: 'border-slate-300 text-slate-700',
 };
 
 export function FindingsList({ findings }: { findings: Finding[] }) {
@@ -28,7 +28,7 @@ export function FindingsList({ findings }: { findings: Finding[] }) {
       </p>
       <ul className="space-y-1">
         {sorted.map((f) => (
-          <li key={f.id} className={`rounded border-s-4 border px-2 py-1 text-sm ${TONE[f.severity]}`}>
+          <li key={f.id} className={`border-s-[3px] px-2 py-1 text-[13px] leading-snug ${TONE[f.severity]}`}>
             <span className="font-semibold">
               {SEVERITY_SYMBOLS[f.severity]} {SEVERITY_LABELS[f.severity]}:
             </span>{' '}

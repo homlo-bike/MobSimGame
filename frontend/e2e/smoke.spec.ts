@@ -14,7 +14,9 @@ test('demo loads with fictional labelling and visible attribution', async ({ pag
 });
 
 test('draw a line, add terminal stations, share a station and validate', async ({ page }) => {
-  await page.getByRole('button', { name: 'New' }).click();
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'New project' }).click();
+  await page.getByText('Map layers').click();
   await page.getByLabel('Basemap', { exact: true }).selectOption('plain');
   await page.waitForTimeout(500);
   const box = (await page.getByTestId('map').boundingBox())!;
@@ -83,16 +85,19 @@ test('animation, schematic, dashboard and exports work', async ({ page }) => {
   await expect(page.getByText(/DEMONSTRATION DATA/)).toBeVisible();
 
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export GeoJSON' }).click();
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'Export GeoJSON' }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/\.geojson$/);
 
   const dl2 = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save project' }).click();
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: /Save project/ }).click();
   expect((await dl2).suggestedFilename()).toMatch(/\.mobsim\.json$/);
 });
 
 test('project persists across reloads', async ({ page }) => {
+  await page.getByText('Scenario', { exact: true }).click();
   await page.getByRole('button', { name: 'Duplicate' }).click();
   await page.waitForTimeout(800);
   await page.reload();

@@ -7,6 +7,13 @@ terrain, Overpass and Nominatim hosts you use.
 
 ## Start
 
+The services join an existing Docker network named `public` (declared `external` in
+`docker-compose.yml`, e.g. shared with a reverse proxy). Create it once per host:
+
+```sh
+docker network create public
+```
+
 ```sh
 cp .env.example .env          # set POSTGRES_PASSWORD (long random value)
 docker compose up -d --build  # http://localhost:8080
@@ -67,7 +74,7 @@ docker compose exec -T db pg_restore -U mobsim -d mobsim --clean --if-exists < m
 ```
 
 Users' unshared projects live only in their browsers; ask them to use
-**Save project** for file backups.
+**File › Save project** for file backups.
 
 ## Scaling notes
 

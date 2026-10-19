@@ -28,7 +28,7 @@ export function SimulationControls() {
       role="group"
       aria-label="Vehicle animation controls"
     >
-      <strong className="text-slate-800">Animation</strong>
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Animation</span>
       <Button
         variant={running ? 'secondary' : 'primary'}
         onClick={() => setRunning(!running)}
@@ -59,12 +59,15 @@ export function SimulationControls() {
           </option>
         ))}
       </select>
-      <span aria-live="off" className="font-mono" data-testid="sim-time">
-        Simulated time {formatSimTime(time)}
+      <span aria-live="off" className="font-mono text-xs text-slate-700" data-testid="sim-time">
+        <span className="sr-only">Simulated time </span>
+        {formatSimTime(time)}
       </span>
-      <span className="text-xs text-slate-600">
-        Illustrative animation (constant segment speeds, fixed dwell); not an operational simulation.
-        {reducedMotion ? ' Reduced motion: positions update every 2 s.' : ''}
+      <span
+        className="text-xs text-slate-500"
+        title="Constant segment speeds and fixed dwell times; not an operational simulation."
+      >
+        Illustrative only{reducedMotion ? ' · reduced motion (updates every 2 s)' : ''}
       </span>
     </div>
   );

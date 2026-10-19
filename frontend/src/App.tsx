@@ -57,7 +57,7 @@ function Inspector() {
           Select a line or station on the map or in the lists to edit it.
         </p>
       </Section>
-      <Section title="Display" id="display">
+      <Section title="Display" id="display" collapsible defaultOpen={false}>
         <Checkbox
           label="Reduced motion"
           checked={reducedMotion}
@@ -89,7 +89,9 @@ export default function App() {
   useEffect(() => {
     const id = setTimeout(() => {
       const r = saveToLocalStorage(project);
-      setSaveError(r.ok ? null : `Not saved in this browser: ${r.error}. Use “Save project” to keep a file.`);
+      setSaveError(
+        r.ok ? null : `Not saved in this browser: ${r.error}. Use File › Save project to keep a file.`,
+      );
     }, 400);
     return () => clearTimeout(id);
   }, [project]);
@@ -139,7 +141,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
+    <div className="flex h-screen flex-col bg-white text-slate-900">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:z-50 focus:bg-white focus:p-2"
@@ -148,25 +150,31 @@ export default function App() {
       </a>
       <Header onOpenDataSources={() => setDataOpen(true)} />
       {project.fictional && (
-        <div role="note" className="bg-fuchsia-800 px-3 py-1 text-sm font-semibold text-white">
-          Fictional demonstration project: the network, names and all figures are synthetic and describe no
-          real place.
+        <div
+          role="note"
+          className="border-b border-fuchsia-200 bg-fuchsia-50 px-3 py-0.5 text-xs text-fuchsia-950"
+        >
+          <strong>Fictional demonstration project:</strong> the network, names and all figures are synthetic
+          and describe no real place.
         </div>
       )}
       {saveError && (
-        <div role="alert" className="bg-amber-100 px-3 py-1 text-sm text-amber-950">
+        <div
+          role="alert"
+          className="border-b border-amber-200 bg-amber-50 px-3 py-0.5 text-xs text-amber-950"
+        >
           ⚠ {saveError}
         </div>
       )}
       <div className="flex min-h-0 flex-1">
         <aside
           aria-label="Tools and network"
-          className="w-72 shrink-0 overflow-y-auto border-e border-slate-300 bg-white"
+          className="w-72 shrink-0 overflow-y-auto border-e border-slate-200 bg-white"
         >
           <SearchBox />
           <ToolPanel />
-          <ScenarioPanel />
           <NetworkLists />
+          <ScenarioPanel />
           <LayerPanel />
         </aside>
         <main id="main" className="relative min-w-0 flex-1" tabIndex={-1}>
@@ -182,17 +190,17 @@ export default function App() {
         </main>
         <aside
           aria-label={t('inspector')}
-          className="w-96 shrink-0 overflow-y-auto border-s border-slate-300 bg-white"
+          className="w-80 shrink-0 overflow-y-auto border-s border-slate-200 bg-white"
         >
           <Inspector />
         </aside>
       </div>
-      <footer className="border-t border-slate-400 bg-white px-3 py-1">
+      <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 bg-white px-3 py-1.5">
         <SimulationControls />
-        <p className="text-xs text-slate-700">
-          {t('disclaimer')}{' '}
+        <p className="ms-auto text-xs text-slate-600">
+          {t('disclaimerShort')}{' '}
           <button type="button" className="underline" onClick={() => setDataOpen(true)}>
-            {t('dataSources')}
+            {t('limitationsLink')}
           </button>
         </p>
       </footer>

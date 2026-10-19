@@ -80,6 +80,7 @@ GeoJSON coordinates are always **`[longitude, latitude]`** (WGS84).
 
 ```sh
 cp .env.example .env     # set POSTGRES_PASSWORD
+docker network create public   # once per host: the stack joins this external network
 docker compose up -d --build
 open http://localhost:8080
 ```
@@ -188,7 +189,8 @@ their own licences. Background: [docs/LICENSING_OPTIONS.md](docs/LICENSING_OPTIO
 ## Roadmap
 
 1. **Phase 1 — map and network editor** (this release)
-2. Phase 2 — geospatial validation (routing, PostGIS checks, real elevation, cited profiles)
+2. Phase 2 — street-following bus lines, smooth spline alignments for rail, minimal UI,
+   geospatial validation ([plan](docs/PHASE_2_PLAN.md))
 3. Phase 3 — data-provider integrations (population, transit, traffic, OSM extracts)
 4. Phase 4 — analysis and estimates (editable assumptions, costs, emissions, fares)
 5. Phase 5 — simulation and publishing (richer simulation, schematic optimisation, PDF, accounts)
