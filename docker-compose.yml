@@ -21,6 +21,8 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
+    networks:
+      - public
 
   api:
     build: ./backend
@@ -46,6 +48,8 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - public
 
   web:
     build:
@@ -58,6 +62,8 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - public
 
   # --- Development profile -----------------------------------------------------
   frontend-dev:
@@ -76,7 +82,13 @@ services:
     depends_on:
       api:
         condition: service_healthy
-
+    networks:
+      - public
+      
 volumes:
   db-data:
   frontend-node-modules:
+
+networks:
+  public:
+    external: true
