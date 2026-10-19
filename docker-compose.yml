@@ -1,0 +1,74 @@
+# MobSimGame — self-hosted stack.
+#
+#   Production-like:  docker compose up -d --build            → http://localhost:8080
+#   Development:      docker compose --profile dev up --build → http://localhost:5173 (hot reload)
+#
+# Secrets come from .env (copy .env.example). Nothing secret is baked into images.
+name: mobsimgame
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mobsim}
+      POSTGRES_USER: ${POSTGRES_USER:-mobsim}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    environment:
+      MOBSIM_ENVIRONMENT: ${MOBSIM_ENVIRONMENT:-production}
+      MOBSIM_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mobsim}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mobsim}
+      MOBSIM_CORS_ORIGINS: ${MOBSIM_CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      MOBSIM_PUBLIC_BASE_URL: ${MOBSIM_PUBLIC_BASE_URL:-http://localhost:8080}
+      MOBSIM_CONTACT_EMAIL: ${MOBSIM_CONTACT_EMAIL:-}
+      MOBSIM_OVERPASS_URL: ${MOBSIM_OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      MOBSIM_OUTBOUND_DNS_CHECK: ${MOBSIM_OUTBOUND_DNS_CHECK:-true}
+      MOBSIM_ARCGIS_TOKEN: ${MOBSIM_ARCGIS_TOKEN:-}
+      MOBSIM_CAMARA_POPULATION_URL: ${MOBSIM_CAMARA_POPULATION_URL:-}
+      MOBSIM_CAMARA_TOKEN_URL: ${MOBSIM_CAMARA_TOKEN_URL:-}
+      MOBSIM_CAMARA_CLIENT_ID: ${MOBSIM_CAMARA_CLIENT_ID:-}
+      MOBSIM_CAMARA_CLIENT_SECRET: ${MOBSIM_CAMARA_CLIENT_SECRET:-}
+      MOBSIM_TRANSPORT_REST_ENABLED: ${MOBSIM_TRANSPORT_REST_ENABLED:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports:
+      - "${MOBSIM_WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- Development profile -----------------------------------------------------
+  frontend-dev:
+    profiles: ["dev"]
+    image: node:22-alpine
+    working_dir: /src
+    command: sh -c "npm ci --ignore-scripts && npx vite --host 0.0.0.0 --port 5173"
+    environment:
+      MOBSIM_API_PROXY_TARGET: http://api:8000
+    volumes:
+      - ./frontend:/src
+      - frontend-node-modules:/src/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  frontend-node-modules:

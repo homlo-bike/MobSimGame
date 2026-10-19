@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+backend/build/
+backend/*.sqlite3
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

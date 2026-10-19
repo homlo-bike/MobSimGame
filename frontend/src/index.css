@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/* Visible focus for every interactive element (WCAG 2.4.7 / 2.4.11). */
+:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Forced-colors (Windows high contrast) keeps borders visible. */
+@media (forced-colors: active) {
+  button,
+  input,
+  select {
+    border: 1px solid ButtonText;
+  }
+}
+
+.maplibregl-ctrl-attrib {
+  font-size: 11px;
+}
