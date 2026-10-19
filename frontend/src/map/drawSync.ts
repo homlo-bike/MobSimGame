@@ -11,6 +11,7 @@ import type { Draw, Feature } from '@sakuzu/maplibre-gl-draw';
 import type { LineString } from 'geojson';
 import type { LngLat, Scenario } from '../domain/schema';
 import { isRing } from '../domain/network';
+import { editablePoints } from '../domain/alignment';
 import { pathCoordinates } from '../geo/geometry';
 
 export const REMOTE = 'remote';
@@ -19,8 +20,11 @@ const sameCoords = (a: number[][], b: number[][]) =>
   a.length === b.length &&
   a.every((p, i) => Math.abs(p[0]! - b[i]![0]!) < 1e-10 && Math.abs(p[1]! - b[i]![1]!) < 1e-10);
 
-export function lineStyle(color: string, selected: boolean) {
+export function lineStyle(color: string, selected: boolean, straight: boolean) {
   // The draw layer is the editing handle; the structure-styled MapLibre layers draw the line itself.
+  // For curves and routes the handle polygon differs from the line, so it is drawn thin and faint.
+  if (!straight)
+    return { strokeColor: color, strokeWidth: selected ? 2 : 1, strokeOpacity: selected ? 0.6 : 0 };
   return { strokeColor: color, strokeWidth: selected ? 14 : 10, strokeOpacity: selected ? 0.35 : 0.18 };
 }
 
@@ -32,10 +36,11 @@ export function reconcileDraw(draw: Draw, scenario: Scenario, selectedLineId: st
         if (!wanted.has(f.id)) draw.features.delete(f.id);
       }
       for (const line of scenario.lines) {
-        const coordinates = pathCoordinates(line.coordinates, isRing(line));
+        // The handles are what the user edits: spline control points, route waypoints or vertices.
+        const coordinates = pathCoordinates(editablePoints(line), isRing(line));
         if (coordinates.length < 2) continue;
         const geometry: LineString = { type: 'LineString', coordinates };
-        const style = lineStyle(line.color, line.id === selectedLineId);
+        const style = lineStyle(line.color, line.id === selectedLineId, line.alignment.kind === 'polyline');
         const existing = draw.features.get(line.id);
         if (!existing) {
           draw.features.create({

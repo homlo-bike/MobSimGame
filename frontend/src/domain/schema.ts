@@ -8,8 +8,11 @@
  * (import, load, local storage) and the TypeScript types used in the app.
  */
 import { z } from 'zod';
+import { migrateProjectData } from './migrate';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+/** Older versions that `domain/migrate.ts` can upgrade. */
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const;
 
 /** [longitude, latitude] with range checks. */
 export const LngLatSchema = z
@@ -132,6 +135,12 @@ export const TrackSegmentSchema = z.object({
   speedLimitKmh: z.number().positive().nullable().default(null),
   /** Portal or transition notes for structure changes. */
   notes: z.string().default(''),
+  /**
+   * Double track: swap which track carries which direction on this segment
+   * (e.g. left-hand running through a flying junction). Single track: the
+   * one-way service runs against the line's drawn direction here.
+   */
+  flipped: z.boolean().default(false),
 });
 export type TrackSegment = z.infer<typeof TrackSegmentSchema>;
 
@@ -170,6 +179,58 @@ export const LineTerminationSchema = z.discriminatedUnion('kind', [
 ]);
 export type LineTermination = z.infer<typeof LineTerminationSchema>;
 
+/** Status of one street-routed leg between two consecutive waypoints. */
+export const RouteLegSchema = z.object({
+  /** routed: follows the street network; manual: the user accepts a sketched leg; unrouted: incomplete. */
+  status: z.enum(['routed', 'manual', 'unrouted']),
+  provider: z.string().nullable().default(null),
+  routedAt: z.string().nullable().default(null),
+  message: z.string().default(''),
+  /** Leg geometry from its start to its end waypoint; a straight sketch unless routed. */
+  geometry: z.array(LngLatSchema).default([]),
+});
+export type RouteLeg = z.infer<typeof RouteLegSchema>;
+
+/**
+ * How a line's geometry is produced. `coordinates` always holds the resulting
+ * geometry that every measurement uses; the alignment keeps what the user edits.
+ */
+export const AlignmentSchema = z.discriminatedUnion('kind', [
+  /** Straight segments between the vertices in `coordinates` (cycling, walking, custom). */
+  z.object({ kind: z.literal('polyline') }),
+  /** Smooth curve (centripetal Catmull–Rom) through the control points; for track-guided modes. */
+  z.object({ kind: z.literal('spline'), controlPoints: z.array(LngLatSchema) }),
+  /** Street-following route through waypoints; one leg per pair of consecutive waypoints. */
+  z.object({
+    kind: z.literal('routed'),
+    waypoints: z.array(LngLatSchema),
+    legs: z.array(RouteLegSchema),
+    /** Return direction where one-way streets force a different path; null = same streets. */
+    returnCoordinates: z.array(LngLatSchema).nullable().default(null),
+  }),
+]);
+export type Alignment = z.infer<typeof AlignmentSchema>;
+
+/** Where a line came from. Imported existing infrastructure is reported differently until edited. */
+export const LineOriginSchema = z.object({
+  source: z.enum(['user', 'osm']),
+  /** e.g. "relation/123456" for OpenStreetMap. */
+  ref: z.string().nullable().default(null),
+  /** True once the user changed the geometry of an imported line. */
+  edited: z.boolean().default(false),
+  /** Free-text status shown in the inspector, e.g. "Under construction". */
+  status: z.string().default(''),
+});
+export type LineOrigin = z.infer<typeof LineOriginSchema>;
+
+/** A crossover just before or after a station (in line direction), used for turnbacks and single-track working. */
+export const CrossoverSchema = z.object({
+  id: z.string(),
+  stationId: z.string(),
+  side: z.enum(['before', 'after']),
+});
+export type Crossover = z.infer<typeof CrossoverSchema>;
+
 export const LineStopSchema = z.object({
   stationId: z.string(),
 });
@@ -185,8 +246,13 @@ export const TransportLineSchema = z.object({
   systemId: z.string().nullable(),
   direction: DirectionSchema,
   runningSide: z.enum(['right', 'left']),
-  /** Alignment coordinates, [lng, lat]. For rings the first coordinate is NOT repeated. */
+  /** Resulting geometry, [lng, lat]. For rings the first coordinate is NOT repeated. */
   coordinates: z.array(LngLatSchema),
+  alignment: AlignmentSchema.default({ kind: 'polyline' }),
+  origin: LineOriginSchema.default({ source: 'user', ref: null, edited: false, status: '' }),
+  crossovers: z.array(CrossoverSchema).default([]),
+  /** Transit signal priority at traffic signals (tram, bus, BRT). */
+  transitSignalPriority: z.boolean().default(false),
   segments: z.array(TrackSegmentSchema),
   /** Stops in line order (ordering is re-derived from chainage by geo/stations.ts). */
   stops: z.array(LineStopSchema),
@@ -269,6 +335,22 @@ export const TransportSystemSchema = z.object({
 });
 export type TransportSystem = z.infer<typeof TransportSystemSchema>;
 
+/**
+ * A road traffic signal that trams and buses must obey in the simulation.
+ * Timings are assumptions (real signal plans are rarely published) and say so.
+ */
+export const TrafficSignalSchema = z.object({
+  id: z.string(),
+  position: LngLatSchema,
+  /** e.g. "node/123" when imported from OpenStreetMap. */
+  ref: z.string().nullable().default(null),
+  cycleS: z.number().positive(),
+  greenS: z.number().positive(),
+  offsetS: z.number().nonnegative().default(0),
+  timingStatus: z.enum(['documented_default', 'user_override', 'calibrated', 'demonstration']),
+});
+export type TrafficSignal = z.infer<typeof TrafficSignalSchema>;
+
 export const AnalysisResultSchema = z.object({
   id: z.string(),
   scenarioId: z.string(),
@@ -296,6 +378,7 @@ export const ScenarioSchema = z.object({
   interchanges: z.array(InterchangeSchema).default([]),
   depots: z.array(DepotSchema).default([]),
   sharedTracks: z.array(SharedTrackSchema).default([]),
+  trafficSignals: z.array(TrafficSignalSchema).default([]),
   vehicleTypes: z.array(VehicleTypeSchema),
   assumptionSetId: z.string().nullable(),
   /** Manual corrections to the generated schematic, in schematic pixels per station id. */
@@ -326,7 +409,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export function parseProject(
   data: unknown,
 ): { ok: true; project: Project } | { ok: false; errors: string[] } {
-  const result = ProjectSchema.safeParse(data);
+  const result = ProjectSchema.safeParse(migrateProjectData(data));
   if (result.success) {
     const refErrors = checkReferences(result.data);
     if (refErrors.length) return { ok: false, errors: refErrors };

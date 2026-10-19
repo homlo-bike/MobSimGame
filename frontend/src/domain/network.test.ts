@@ -66,7 +66,10 @@ describe('lines', () => {
       mode: 'light_rail',
     });
     expect(line.termination.kind).toBe('ring');
-    expect(line.coordinates).toHaveLength(3);
+    expect(line.alignment.kind).toBe('spline');
+    if (line.alignment.kind === 'spline') expect(line.alignment.controlPoints).toHaveLength(3);
+    // The smooth ring is stored open (first coordinate not repeated).
+    expect(line.coordinates[0]).not.toEqual(line.coordinates[line.coordinates.length - 1]);
   });
 
   it('supports one-way configuration', () => {
@@ -226,8 +229,10 @@ describe('editing operations', () => {
       [0.01, 0],
       [0.03, 0],
     ] as LngLat[]);
-    expect(updated.lines[0]!.coordinates).toHaveLength(3);
-    expect(updated.lines[0]!.segments[0]!.toFraction).toBe(1);
+    const edited = updated.lines[0]!;
+    expect(edited.alignment.kind === 'spline' && edited.alignment.controlPoints).toHaveLength(3);
+    expect(edited.coordinates.length).toBeGreaterThan(3);
+    expect(edited.segments[0]!.toFraction).toBe(1);
   });
 
   it('deleting a line removes shared-track references', () => {

@@ -3,6 +3,7 @@ import type { LngLat, Scenario, TransportLine } from '../domain/schema';
 import { addStationOnLine, createLine, emptyScenario, updateLine } from '../domain/network';
 import { buildDemoScenario } from '../domain/demo';
 import { MODE_PROFILES } from '../domain/modeProfiles';
+import type { AlignmentKind } from '../domain/alignment';
 import {
   gradeSummary,
   isLineComplete,
@@ -12,9 +13,14 @@ import {
   type Finding,
 } from './validate';
 
-function lineWith(coords: LngLat[], mode: TransportLine['mode'] = 'tram', stations: LngLat[] = []) {
+function lineWith(
+  coords: LngLat[],
+  mode: TransportLine['mode'] = 'tram',
+  stations: LngLat[] = [],
+  alignment?: AlignmentKind,
+) {
   let s: Scenario = emptyScenario();
-  const r = createLine(s, { coordinates: coords, mode });
+  const r = createLine(s, { coordinates: coords, mode, alignment });
   s = r.scenario;
   for (const p of stations) s = addStationOnLine(s, r.line.id, p).scenario;
   return { s, line: s.lines.find((l) => l.id === r.line.id)! };
@@ -96,10 +102,15 @@ describe('terminal and loop validation', () => {
       [0.015, 0.004],
       [0.015, 0],
     ];
-    const { s, line } = lineWith(coords, 'tram', [
-      [0, 0],
-      [0.02, 0],
-    ]);
+    const { s, line } = lineWith(
+      coords,
+      'tram',
+      [
+        [0, 0],
+        [0.02, 0],
+      ],
+      'polyline',
+    );
     const looped = updateLine(s, line.id, { termination: { kind: 'loop', note: '' } });
     const l = looped.lines[0]!;
     expect(blocking(validateLine(l, looped))).toEqual([]);
@@ -126,12 +137,63 @@ describe('terminal and loop validation', () => {
 });
 
 describe('mode profile validation', () => {
-  it('profiles are versioned and flagged as uncited placeholders', () => {
+  it('profiles are versioned; curve radii carry a cited source, other thresholds are placeholders', () => {
     for (const p of Object.values(MODE_PROFILES)) {
       expect(p.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(p.cited).toBe(false);
-      expect(p.minCurveRadiusM.absoluteLimit).toBeNull();
+      if (p.curveRadius) {
+        expect(p.curveRadius.status).toBe('documented_default');
+        expect(p.curveRadius.sources.length).toBeGreaterThan(0);
+        for (const src of p.curveRadius.sources) expect(src.url).toMatch(/^https:\/\//);
+      }
     }
+    expect(MODE_PROFILES.tram.curveRadius?.minimumM).toBe(25);
+    expect(MODE_PROFILES.metro.curveRadius?.recommendedM).toBe(200);
+    expect(MODE_PROFILES.bus.curveRadius).toBeNull();
+  });
+
+  it('reports curves below the minimum as blocking and below the recommended value as warnings', () => {
+    // Metro: minimum 120 m, recommended 200 m. Control points placed on circles of radius r
+    // give a smooth curve whose sampled radius is close to r.
+    const m = 1 / 111320;
+    // 200 m straight, a quarter circle of radius r, 200 m straight.
+    const arc = (r: number): LngLat[] => [
+      [-200 * m, 0],
+      ...[...Array(7).keys()].map((i) => {
+        const a = (i * Math.PI) / 12;
+        return [r * Math.sin(a) * m, (r - r * Math.cos(a)) * m] as LngLat;
+      }),
+      [r * m, (r + 200) * m],
+    ];
+    const tight = lineWith(arc(90), 'metro');
+    const fTight = validateLine(tight.line, tight.s).filter((x) => x.category === 'curve_radius');
+    expect(fTight.some((x) => x.severity === 'blocking')).toBe(true);
+    expect(fTight[0]!.message).toMatch(/MMRDA/);
+    const medium = lineWith(arc(160), 'metro');
+    const fMed = validateLine(medium.line, medium.s).filter((x) => x.category === 'curve_radius');
+    expect(fMed.map((x) => x.severity)).toContain('warning');
+    expect(fMed.some((x) => x.severity === 'blocking')).toBe(false);
+    const wide = lineWith(arc(400), 'metro');
+    expect(validateLine(wide.line, wide.s).filter((x) => x.category === 'curve_radius')).toEqual([]);
+  });
+
+  it('reports curves on unedited imported lines as information only', () => {
+    const { s, line } = lineWith(
+      [
+        [0, 0],
+        [0.001, 0],
+        [0.001, 0.001],
+      ],
+      'metro',
+    );
+    const imported = {
+      ...line,
+      origin: { source: 'osm' as const, ref: 'relation/1', edited: false, status: '' },
+    };
+    const f = validateLine(imported, s).filter((x) => x.category === 'curve_radius');
+    expect(f.length).toBeGreaterThan(0);
+    expect(f.every((x) => x.severity === 'info')).toBe(true);
+    expect(f[0]!.message).toMatch(/Existing infrastructure/);
   });
 
   it('warns about sharp curves for rail modes', () => {
@@ -149,8 +211,8 @@ describe('mode profile validation', () => {
       ],
     );
     const f = validateLine(line, s).filter((x) => x.category === 'curve_radius');
-    expect(f.some((x) => x.severity === 'warning')).toBe(true);
-    expect(f[0]!.message).toMatch(/placeholder/);
+    expect(f.some((x) => x.severity === 'blocking')).toBe(true);
+    expect(f[0]!.message).toMatch(/documented default/);
   });
 
   it('does not warn about curves on a straight line', () => {
@@ -207,7 +269,7 @@ describe('mode profile validation', () => {
     expect(validateLine(line, s).some((x) => x.category === 'grade' && x.severity === 'info')).toBe(true);
   });
 
-  it('warns that bus alignments are not routed', () => {
+  it('blocks bus lines whose sections are not routed on streets', () => {
     const { s, line } = lineWith(
       [
         [0, 0],
@@ -221,7 +283,8 @@ describe('mode profile validation', () => {
     );
     expect(
       validateLine(line, s).some(
-        (x) => x.category === 'road_compatibility' && /not been routed/.test(x.message),
+        (x) =>
+          x.category === 'road_compatibility' && x.severity === 'blocking' && /not routed/.test(x.message),
       ),
     ).toBe(true);
   });

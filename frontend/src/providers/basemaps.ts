@@ -28,25 +28,28 @@ export function plainStyle(highContrast: boolean): StyleSpecification {
   };
 }
 
+/** Default background: OpenStreetMap data in the OpenFreeMap Liberty vector style. */
+export const DEFAULT_BASEMAP_ID = 'ofm-liberty';
+
 export function basemapOptions(): BasemapOption[] {
   const options: BasemapOption[] = [
     {
       id: 'ofm-liberty',
-      label: 'OpenFreeMap Liberty',
+      label: 'OpenStreetMap (OpenFreeMap Liberty)',
       style: 'https://tiles.openfreemap.org/styles/liberty',
       attribution: OFM_ATTRIBUTION,
       requiresNetwork: true,
     },
     {
       id: 'ofm-positron',
-      label: 'OpenFreeMap Positron (light)',
+      label: 'OpenStreetMap light (OpenFreeMap Positron)',
       style: 'https://tiles.openfreemap.org/styles/positron',
       attribution: OFM_ATTRIBUTION,
       requiresNetwork: true,
     },
     {
       id: 'ofm-bright',
-      label: 'OpenFreeMap Bright',
+      label: 'OpenStreetMap bright (OpenFreeMap Bright)',
       style: 'https://tiles.openfreemap.org/styles/bright',
       attribution: OFM_ATTRIBUTION,
       requiresNetwork: true,

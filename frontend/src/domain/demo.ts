@@ -65,6 +65,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: null,
         notes: '',
+        flipped: false,
       },
       {
         id: newId('seg'),
@@ -75,6 +76,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: null,
         notes: 'West portal near Millbrook; east ramp before Harbour Road (fictional).',
+        flipped: false,
       },
       {
         id: newId('seg'),
@@ -85,6 +87,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: null,
         notes: 'Viaduct (fictional).',
+        flipped: false,
       },
     ],
     servicePatterns: [
@@ -153,7 +156,13 @@ export function buildDemoScenario(): Scenario {
     [0.035, 0.008],
     [0.0345, -0.005],
   ];
-  r = createLine(s, { coordinates: brtCoords, mode: 'brt', name: 'Green BRT (fictional)', color: '#13804a' });
+  r = createLine(s, {
+    coordinates: brtCoords,
+    mode: 'brt',
+    name: 'Green BRT (fictional)',
+    color: '#13804a',
+    alignment: 'polyline',
+  });
   s = r.scenario;
   const brt = r.line;
   s = updateLine(s, brt.id, {
@@ -168,6 +177,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: 50,
         notes: '',
+        flipped: false,
       },
       {
         id: newId('seg'),
@@ -178,6 +188,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: 50,
         notes: '',
+        flipped: false,
       },
     ],
   });

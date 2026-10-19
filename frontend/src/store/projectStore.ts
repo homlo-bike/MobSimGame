@@ -16,6 +16,7 @@ import { loadFromLocalStorage } from './persistence';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock } from '../simulation/runtime';
 import { createLogger } from '../util/logger';
+import { DEFAULT_BASEMAP_ID } from '../providers/basemaps';
 
 const log = createLogger('store');
 
@@ -134,7 +135,7 @@ export const useStore = create<AppState>()((set, get) => {
     tool: 'select',
     newLineMode: 'tram',
     stationTargetLineId: null,
-    basemapId: initial.fictional ? 'plain' : 'ofm-liberty',
+    basemapId: DEFAULT_BASEMAP_ID,
     layers: {
       terrain: false,
       buildings: true,
@@ -166,11 +167,8 @@ export const useStore = create<AppState>()((set, get) => {
         past: [],
         future: [],
         selection: null,
-        basemapId: project.fictional
-          ? 'plain'
-          : get().basemapId === 'plain'
-            ? 'ofm-liberty'
-            : get().basemapId,
+        // Keep the user's basemap choice across projects; the OSM map is the default.
+        basemapId: get().basemapId,
         announcement: `Loaded project ${project.name}`,
       });
     },
