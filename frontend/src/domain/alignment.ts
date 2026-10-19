@@ -9,6 +9,7 @@
  */
 import type { Alignment, LngLat, RouteLeg, TransportLine, TransportMode } from './schema';
 import { sampleSpline } from '../geo/spline';
+import { snapToPath } from '../geo/geometry';
 
 export type AlignmentKind = Alignment['kind'];
 
@@ -125,4 +126,87 @@ export function routeStatus(line: Pick<TransportLine, 'alignment'>) {
     manual: legs.filter((l) => l.status === 'manual').length,
     unrouted: legs.filter((l) => l.status === 'unrouted').length,
   };
+}
+
+export interface LegRouteResult {
+  status: 'routed' | 'failed';
+  coordinates: LngLat[];
+  message: string;
+}
+
+/**
+ * Apply street-routing results to a routed line. Legs the user marked manual
+ * stay manual; failed legs stay unrouted with the router's message.
+ */
+export function applyRouteResults<T extends TransportLine>(
+  line: T,
+  results: readonly LegRouteResult[],
+  provider: string,
+  ring: boolean,
+  at = new Date().toISOString(),
+): T {
+  if (line.alignment.kind !== 'routed') return line;
+  const a = line.alignment;
+  const legs: RouteLeg[] = a.legs.map((leg, i) => {
+    const r = results[i];
+    if (!r || leg.status === 'manual') return leg;
+    const from = a.waypoints[i]!;
+    const to = a.waypoints[(i + 1) % a.waypoints.length]!;
+    if (r.status !== 'routed' || r.coordinates.length < 2)
+      return unroutedLeg(from, to, r.message || 'No route found');
+    // Start and end exactly at the waypoints so legs join without gaps.
+    const geometry = [from, ...r.coordinates.slice(1, -1), to];
+    return { status: 'routed', provider, routedAt: at, message: '', geometry };
+  });
+  const coords = legsGeometry(legs, a.waypoints);
+  return {
+    ...line,
+    alignment: { ...a, legs },
+    coordinates: ring ? coords.slice(0, -1) : coords,
+  };
+}
+
+/** Mark one leg as an accepted manual sketch (or back to unrouted). */
+export function setLegManual<T extends TransportLine>(
+  line: T,
+  index: number,
+  manual: boolean,
+  ring: boolean,
+): T {
+  if (line.alignment.kind !== 'routed') return line;
+  const a = line.alignment;
+  const from = a.waypoints[index]!;
+  const to = a.waypoints[(index + 1) % a.waypoints.length]!;
+  const legs = a.legs.map((leg, i) =>
+    i !== index
+      ? leg
+      : manual
+        ? { status: 'manual' as const, provider: null, routedAt: null, message: '', geometry: [from, to] }
+        : unroutedLeg(from, to),
+  );
+  const coords = legsGeometry(legs, a.waypoints);
+  return { ...line, alignment: { ...a, legs }, coordinates: ring ? coords.slice(0, -1) : coords };
+}
+
+/** Return trips that leave the outbound streets by more than this are drawn as their own path. */
+export const RETURN_PATH_TOLERANCE_M = 25;
+
+/**
+ * Store the return direction's route when one-way streets make it differ from
+ * the outbound route; otherwise the return uses the same streets (null).
+ * `results` are legs routed through the waypoints in reverse order.
+ */
+export function applyReturnRoute<T extends TransportLine>(line: T, results: readonly LegRouteResult[]): T {
+  if (line.alignment.kind !== 'routed') return line;
+  const ok = results.length > 0 && results.every((r) => r.status === 'routed' && r.coordinates.length >= 2);
+  let returnCoordinates: LngLat[] | null = null;
+  if (ok) {
+    const path: LngLat[] = [];
+    for (const r of results) path.push(...(path.length ? r.coordinates.slice(1) : r.coordinates));
+    const differs = path.some(
+      (p) => (snapToPath(line.coordinates, false, p)?.offsetM ?? 0) > RETURN_PATH_TOLERANCE_M,
+    );
+    returnCoordinates = differs ? path : null;
+  }
+  return { ...line, alignment: { ...line.alignment, returnCoordinates } };
 }

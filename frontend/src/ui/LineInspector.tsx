@@ -35,6 +35,7 @@ import { useStore } from '../store/projectStore';
 import { getMapInstance } from '../map/mapInstance';
 import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { DisruptionPanel } from './DisruptionPanel';
+import { RoutePanel } from './RoutePanel';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { validateLine } from '../validation/validate';
@@ -237,6 +238,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
         </p>
       </Section>
 
+      <RoutePanel line={line} scenario={scenario} />
       <Section title="Service (illustrative)" id="line-service">
         <div className="grid grid-cols-2 gap-2">
           <CommitField

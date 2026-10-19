@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     camara_client_id: str | None = None
     camara_client_secret: SecretStr | None = None
 
+    # Street routing for bus and BRT: a self-hosted Valhalla on the private network
+    # (Compose profile "routing"), e.g. http://valhalla:8002. Disabled when unset.
+    valhalla_url: str | None = None
+    valhalla_timeout_s: int = 20
+    routing_max_waypoints: int = 50
+    routing_cache_ttl_s: int = 7 * 24 * 3600
+
     # transport.rest (disabled by default; best-effort community service)
     transport_rest_enabled: bool = False
     transport_rest_url: str = "https://v6.db.transport.rest"
@@ -109,6 +116,7 @@ class Settings(BaseSettings):
     @field_validator(
         "contact_email",
         "session_secret",
+        "valhalla_url",
         "arcgis_token",
         "camara_population_url",
         "camara_token_url",
@@ -132,6 +140,8 @@ class Settings(BaseSettings):
                 raise ValueError(f"{name} must use https")
             if parsed.hostname not in self.outbound_allowlist:
                 raise ValueError(f"{name} host {parsed.hostname!r} is not in MOBSIM_OUTBOUND_ALLOWLIST")
+        if self.valhalla_url and urlparse(self.valhalla_url).scheme not in ("http", "https"):
+            raise ValueError("valhalla_url must be an http(s) URL")
         if self.environment == "production" and self.admin_password.get_secret_value() == "admin":
             raise ValueError("Set MOBSIM_ADMIN_PASSWORD: the default password is not allowed in production")
         if not self.admin_username.strip() or not self.admin_password.get_secret_value():

@@ -120,3 +120,12 @@ def check_outbound_url(url: str, allowlist: list[str], resolve: bool = True) -> 
             ip = ipaddress.ip_address(info[4][0])
             if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
                 raise OutboundUrlError(f"{host} resolves to a non-public address")
+
+
+def check_internal_url(url: str, base: str) -> None:
+    """Allow only URLs on the same scheme, host and port as an operator-configured internal service."""
+    parsed, allowed = urlparse(url), urlparse(base)
+    if parsed.scheme not in ("http", "https") or parsed.username or parsed.password:
+        raise OutboundUrlError("Invalid internal service URL")
+    if (parsed.scheme, parsed.hostname, parsed.port) != (allowed.scheme, allowed.hostname, allowed.port):
+        raise OutboundUrlError("URL is not on the configured internal service")

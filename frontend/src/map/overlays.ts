@@ -24,6 +24,29 @@ export function segmentsCollection(scenario: Scenario, selectedLineId: string | 
   const features: Feature[] = [];
   for (const line of scenario.lines) {
     const guidedOrRoad = !['cycling', 'pedestrian'].includes(line.mode);
+    // A bus return that uses other streets (one-way streets) is drawn as its own path.
+    const ownReturn =
+      line.alignment.kind === 'routed' && line.direction === 'bidirectional'
+        ? line.alignment.returnCoordinates
+        : null;
+    if (ownReturn && ownReturn.length >= 2) {
+      const seg = line.segments[0]!;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: ownReturn },
+        properties: {
+          lineId: line.id,
+          segmentId: seg.id,
+          color: line.color,
+          structure: seg.structure,
+          tracks: seg.tracks,
+          selected: line.id === selectedLineId,
+          track: 'return',
+          offsetSign: line.runningSide === 'right' ? 1 : -1,
+          arrow: '›',
+        },
+      });
+    }
     for (const seg of line.segments) {
       const coords = slicePath(line.coordinates, isRing(line), seg.fromFraction, seg.toFraction);
       if (coords.length < 2) continue;
@@ -36,7 +59,13 @@ export function segmentsCollection(scenario: Scenario, selectedLineId: string | 
         selected: line.id === selectedLineId,
       };
       const sideSign = (line.runningSide === 'right' ? 1 : -1) * (seg.flipped ? -1 : 1);
-      if (seg.tracks === 'double' && line.direction === 'bidirectional' && guidedOrRoad) {
+      if (ownReturn && ownReturn.length >= 2) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: coords },
+          properties: { ...base, track: 'forward', offsetSign: sideSign, arrow: '›' },
+        });
+      } else if (seg.tracks === 'double' && line.direction === 'bidirectional' && guidedOrRoad) {
         features.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: coords },

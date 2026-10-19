@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
 from ..providers.base import ProviderError
@@ -110,6 +111,30 @@ async def transit_stops_near(
     _limit(request, limiter)
     try:
         res = await providers.transit.stops_near(lon, lat)
+    except ProviderError as e:
+        return provider_error_response(e)
+    return res.model_dump()
+
+
+class RouteRequest(BaseModel):
+    waypoints: list[tuple[float, float]] = Field(min_length=2, max_length=200)
+    mode: Literal["bus", "brt"] = "bus"
+
+
+@router.post("/routing/route", response_model=None)
+async def route(
+    body: RouteRequest,
+    request: Request,
+    providers: Annotated[Providers, Depends(get_providers)],
+    limiter: Annotated[RateLimiter, Depends(get_provider_limiter)],
+) -> dict[str, object] | JSONResponse:
+    """Route each leg between consecutive [lon, lat] waypoints on the street network."""
+    _limit(request, limiter)
+    for lon, lat in body.waypoints:
+        if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+            raise HTTPException(status_code=422, detail="Waypoints must be [longitude, latitude] in WGS84")
+    try:
+        res = await providers.routing.route_legs(list(body.waypoints))
     except ProviderError as e:
         return provider_error_response(e)
     return res.model_dump()

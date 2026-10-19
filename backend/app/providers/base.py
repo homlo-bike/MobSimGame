@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from ..config import Settings
 from ..logging_config import get_logger
-from ..security import OutboundUrlError, check_outbound_url
+from ..security import OutboundUrlError, check_internal_url, check_outbound_url
 
 T = TypeVar("T")
 
@@ -118,15 +118,21 @@ async def fetch_with_retry(
     *,
     retries: int = 3,
     base_delay_s: float = 1.0,
+    internal_base: str | None = None,
     **kwargs: Any,
 ) -> httpx.Response:
     """Outbound request with allowlist check, timeout and exponential backoff.
 
     Retries on network errors, 429 and 5xx. 429 honours Retry-After (capped).
+    `internal_base` is an operator-configured service on the private network
+    (e.g. a self-hosted router): only URLs under exactly that origin are allowed.
     """
     host = urlparse(url).hostname
     try:
-        check_outbound_url(url, settings.outbound_allowlist, resolve=settings.outbound_dns_check)
+        if internal_base is not None:
+            check_internal_url(url, internal_base)
+        else:
+            check_outbound_url(url, settings.outbound_allowlist, resolve=settings.outbound_dns_check)
     except OutboundUrlError as e:
         log.warning("outbound request blocked", extra={"host": host, "reason": str(e)})
         raise ProviderError(str(e), CapabilityState.not_configured, 502) from e

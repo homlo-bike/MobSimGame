@@ -2,6 +2,7 @@
 #
 #   Production-like:  docker compose up -d --build            → http://localhost:8080
 #   Development:      docker compose --profile dev up --build → http://localhost:5173 (hot reload)
+#   Street routing:   docker compose --profile routing up -d   (bus/BRT routing, see docs/ROUTING.md)
 #
 # Secrets come from .env (copy .env.example). Nothing secret is baked into images.
 name: mobsimgame
@@ -47,6 +48,8 @@ services:
       MOBSIM_CAMARA_CLIENT_ID: ${MOBSIM_CAMARA_CLIENT_ID:-}
       MOBSIM_CAMARA_CLIENT_SECRET: ${MOBSIM_CAMARA_CLIENT_SECRET:-}
       MOBSIM_TRANSPORT_REST_ENABLED: ${MOBSIM_TRANSPORT_REST_ENABLED:-false}
+      # Set to http://valhalla:8002 when the "routing" profile runs.
+      MOBSIM_VALHALLA_URL: ${MOBSIM_VALHALLA_URL:-}
     depends_on:
       db:
         condition: service_healthy
@@ -64,6 +67,26 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - public
+
+  # --- Street routing profile (optional) -----------------------------------------
+  # Valhalla (MIT) builds routing tiles from the OSM extracts in VALHALLA_TILE_URLS on
+  # first start (minutes for a city, hours and much memory for large countries) and
+  # keeps them in the valhalla-data volume. It is reachable only inside this network.
+  valhalla:
+    profiles: ["routing"]
+    image: ${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:latest}
+    environment:
+      tile_urls: ${VALHALLA_TILE_URLS:-https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf}
+      serve_tiles: "True"
+      build_admins: "True"
+      build_time_zones: "False"
+      use_tiles_ignore_pbf: "True"
+      force_rebuild: "False"
+    volumes:
+      - valhalla-data:/custom_files
     restart: unless-stopped
     networks:
       - public
@@ -90,6 +113,7 @@ services:
       
 volumes:
   db-data:
+  valhalla-data:
   frontend-node-modules:
 
 networks:

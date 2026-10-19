@@ -50,6 +50,7 @@ import {
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { createLogger, errorContext } from '../util/logger';
+import { autoRoute } from '../routing/autoRoute';
 
 const log = createLogger('map');
 
@@ -157,6 +158,7 @@ export default function MapView() {
         log.debug('line drawn', { lineId: line.id, mode: line.mode, vertices: coords.length });
         state.select({ kind: 'line', id: line.id });
         state.setTool('select');
+        if (line.alignment.kind === 'routed') void autoRoute(line.id);
       }),
       draw.on('feature.updated', ({ feature, source, intermediate }) => {
         if (source === REMOTE || intermediate) return;
@@ -165,8 +167,10 @@ export default function MapView() {
         const line = sc.lines.find((l) => l.id === feature.id);
         if (!line) return;
         const coords = featureLineCoords(feature, isRing(line));
-        if (coords && coords.length >= 2)
+        if (coords && coords.length >= 2) {
           state.commitScenario(updateLineGeometry(sc, line.id, coords), `Line "${line.name}" edited`);
+          if (line.alignment.kind === 'routed') void autoRoute(line.id);
+        }
       }),
       draw.on('feature.deleted', ({ feature, source }) => {
         if (source === REMOTE) return;

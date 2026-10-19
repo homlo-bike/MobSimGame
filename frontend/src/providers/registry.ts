@@ -41,6 +41,8 @@ export interface ProviderStatusRow {
   phase: number;
   state: CapabilityState;
   note: string;
+  /** Backend provider id whose live capability replaces `state` when the backend answers. */
+  backendId?: string;
 }
 
 const cap = (state: CapabilityState, message: string): Capability => ({
@@ -124,10 +126,11 @@ export function providerStatusRows(fictional: boolean): ProviderStatusRow[] {
     {
       kind: 'routing',
       label: 'Street routing',
-      implementation: 'Interface only',
+      implementation: 'Valhalla, self-hosted (optional Compose profile) via backend',
       phase: 2,
       state: 'not_configured',
-      note: 'Bus/BRT alignments are not routed in Phase 1',
+      note: 'Bus/BRT lines follow streets when the routing service runs',
+      backendId: 'valhalla',
     },
     {
       kind: 'air_quality',
