@@ -36,7 +36,7 @@ with each one.
 | R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines merged (#21); trolleybus wire (follows the lines) and rail overhead-line crossing warning: this PR |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | planned |
-| R7 | Trains drawn to scale (length, width, units per consist) | planned |
+| R7 | Trains drawn to scale (length, width, units per consist) | this PR (vehicles at scale from zoom 15.5; waiting shown by outline) |
 | R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | planned |
 | R9 | `.env` examples for development, test and production (including `MOBSIM_VALHALLA_URL=http://valhalla:8002`); full export with every calculated value and all metadata | planned |
 | R10 | Read-only demo viewer (Cloudflare Pages) | planned |

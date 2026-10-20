@@ -32,6 +32,7 @@ export const SRC = {
   stations: 'msg-stations',
   catchments: 'msg-catchments',
   vehicles: 'msg-vehicles',
+  vehicleBodies: 'msg-vehicle-bodies',
   population: 'msg-population',
   traffic: 'msg-traffic',
   transit: 'msg-transit',
@@ -40,6 +41,8 @@ export const SRC = {
 } as const;
 
 export const STATION_LAYER = 'msg-stations-circle';
+/** From this zoom on vehicles are drawn to scale instead of as dots. */
+export const VEHICLE_SCALE_ZOOM = 15.5;
 export const STATION_HANDLE_LAYER = 'msg-station-handle';
 export const CONFLICT_LAYER = 'msg-conflict';
 export const PLATFORM_LAYER = 'msg-platform-fill';
@@ -673,10 +676,33 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'symbol-sort-key': ['-', 0, ['get', 'rank']],
     },
   });
+  // Close up, vehicles are drawn to scale (length, width, units per consist); a waiting
+  // vehicle has a thick dashed outline, so the state does not rely on colour.
+  add({
+    id: 'msg-vehicle-body',
+    type: 'fill',
+    source: SRC.vehicleBodies,
+    minzoom: VEHICLE_SCALE_ZOOM,
+    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.9 },
+  });
+  for (const waiting of [false, true])
+    add({
+      id: waiting ? 'msg-vehicle-body-waiting' : 'msg-vehicle-body-outline',
+      type: 'line',
+      source: SRC.vehicleBodies,
+      minzoom: VEHICLE_SCALE_ZOOM,
+      filter: waiting ? ['!=', ['get', 'state'], 'running'] : ['==', ['get', 'state'], 'running'],
+      paint: {
+        'line-color': '#111827',
+        'line-width': waiting ? 2.5 : 1,
+        ...(waiting ? { 'line-dasharray': [2, 1] } : {}),
+      },
+    });
   add({
     id: 'msg-vehicles-circle',
     type: 'circle',
     source: SRC.vehicles,
+    maxzoom: VEHICLE_SCALE_ZOOM,
     paint: {
       'circle-radius': 5,
       'circle-color': ['get', 'color'],

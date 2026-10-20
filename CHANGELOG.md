@@ -8,6 +8,10 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Vehicles drawn to scale** in the animation when zoomed in (from zoom 15.5):
+  one outline per unit of the consist, with the vehicle profile's length and width,
+  following curves. Waiting and dwelling vehicles have a thick dashed outline. A new
+  placeholder parameter gives the width when a vehicle profile has none.
 - **Trolleybus overhead wire** follows every trolleybus line (owner decision: not
   drawn separately). It is shown on the map, shared where trolleybus lines use the
   same street, and summarised in the line inspector. A trolleybus line crossing rail

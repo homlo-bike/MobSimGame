@@ -94,6 +94,7 @@ import {
   trafficCollection,
   transitCollection,
   vehiclesCollection,
+  vehicleBodiesCollection,
   stopDraftCollection,
   wiresCollection,
 } from './overlays';
@@ -1105,7 +1106,9 @@ export default function MapView() {
       const now = performance.now();
       // Reduced motion: update in discrete steps every 2 s instead of continuous movement.
       if (!reducedMotion || now - lastDraw > 2000) {
-        setData(map, SRC.vehicles, vehiclesCollection(models.flatMap((m) => vehicleStates(m, t))));
+        const states = models.flatMap((m) => vehicleStates(m, t));
+        setData(map, SRC.vehicles, vehiclesCollection(states));
+        setData(map, SRC.vehicleBodies, vehicleBodiesCollection(states));
         lastDraw = now;
       }
       // Signal states change every few simulated seconds: refresh them a few times per second.
@@ -1123,11 +1126,9 @@ export default function MapView() {
       models = buildScenarioModels(scenario, simOptions);
       if (map.getSource(SRC.vehicles)) {
         const t = simulationClock.timeS;
-        setData(
-          map,
-          SRC.vehicles,
-          t > 0 ? vehiclesCollection(models.flatMap((m) => vehicleStates(m, t))) : EMPTY,
-        );
+        const states = t > 0 ? models.flatMap((m) => vehicleStates(m, t)) : [];
+        setData(map, SRC.vehicles, states.length ? vehiclesCollection(states) : EMPTY);
+        setData(map, SRC.vehicleBodies, states.length ? vehicleBodiesCollection(states) : EMPTY);
       }
     }
     return () => cancelAnimationFrame(frame);
