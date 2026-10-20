@@ -17,6 +17,8 @@ export interface ResourceSpan {
   sign: 1 | -1;
   /** True for single-track blocks: vehicles of the other direction must wait. */
   opposing: boolean;
+  /** True for crossings: only one vehicle at a time, whatever its line or direction. */
+  exclusive?: boolean;
 }
 
 interface Reservation {
@@ -42,12 +44,21 @@ export class OccupancyLedger {
     durationS: number,
     separationS: number,
     queue = '',
+    exclusive = false,
   ): number {
     const list = this.byResource.get(resourceId) ?? [];
     let s = arriveS;
     for (let guard = 0; guard < 10000; guard++) {
       let moved = false;
       for (const r of list) {
+        if (exclusive) {
+          // A crossing holds one vehicle at a time: wait until the one inside has left.
+          if (s < r.exit && s + durationS > r.enter) {
+            s = r.exit;
+            moved = true;
+          }
+          continue;
+        }
         if (r.sign !== sign) {
           if (opposing && s < r.exit && s + durationS > r.enter) {
             s = r.exit;

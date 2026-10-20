@@ -216,12 +216,12 @@ export function validateTrackNetwork(scenario: Scenario): Finding[] {
         const position: LngLat = frame.toLngLat(hit);
         add(
           {
-            severity: 'warning',
+            severity: 'info',
             category: 'connectivity',
             trackId: A.t.id,
             position,
             message:
-              'Two tracks cross on the same level without a connection. Trains cannot change track here; add a crossing, or put one track on another level (bridge or tunnel).',
+              'Two tracks cross on the same level (a level crossing). Trains cannot change track here; in the simulation one vehicle at a time uses the crossing, by priority. For a bridge or tunnel, put one track on another level.',
           },
           existing(A.t) && existing(B.t) ? A.t : undefined,
         );

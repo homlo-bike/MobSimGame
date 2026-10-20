@@ -17,6 +17,7 @@ export const SRC = {
   segments: 'msg-segments',
   arrows: 'msg-arrows',
   crossovers: 'msg-crossovers',
+  conflicts: 'msg-conflicts',
   closures: 'msg-closures',
   signals: 'msg-signals',
   routeStatus: 'msg-route-status',
@@ -37,6 +38,7 @@ export const SRC = {
 
 export const STATION_LAYER = 'msg-stations-circle';
 export const STATION_HANDLE_LAYER = 'msg-station-handle';
+export const CONFLICT_LAYER = 'msg-conflict';
 export const PLATFORM_LAYER = 'msg-platform-fill';
 export const CROSSOVER_LAYER = 'msg-crossovers-circle';
 export const SIGNAL_LAYER = 'msg-signals-circle';
@@ -340,6 +342,19 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-stroke-width': ['case', ['==', ['get', 'kind'], 'junction'], 2.5, 1.5],
       'circle-opacity': ['case', ['get', 'dim'], 0.3, 1],
       'circle-stroke-opacity': ['case', ['get', 'dim'], 0.3, 1],
+    },
+  });
+  // Crossings between lines (any modes): a diamond with the priority shown on hover/label.
+  add({
+    id: CONFLICT_LAYER,
+    type: 'circle',
+    source: SRC.conflicts,
+    minzoom: 13,
+    paint: {
+      'circle-radius': 5,
+      'circle-color': '#fde047',
+      'circle-stroke-color': '#713f12',
+      'circle-stroke-width': 1.5,
     },
   });
   // Rotation handles at the ends of the selected station object.

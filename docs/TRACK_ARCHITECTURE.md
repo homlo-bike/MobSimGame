@@ -200,6 +200,11 @@ Limitations, also listed in [METHODOLOGY.md](METHODOLOGY.md):
 
 Waits longer than the headway are reported as a capacity problem.
 
+**Crossings** between lines on the same level (also between tracks of different
+modes, which never connect) are found automatically and shown on the map. One
+vehicle at a time uses a crossing; priority follows the project's mode order, and
+within a mode the first to arrive goes first. See METHODOLOGY.md.
+
 A service that cannot be routed is not drawn as a service: its stops are linked by
 red dashed "not routed" lines. A two-way service with no track path back is an
 error (missing return track, crossover or turning loop).

@@ -760,6 +760,11 @@ export const ScenarioSchema = z.object({
   description: z.string().default(''),
   systems: z.array(TransportSystemSchema),
   trackNetwork: TrackNetworkSchema.default(EMPTY_TRACK_NETWORK),
+  /**
+   * Priority at crossings and merges, highest first (simulation/conflicts.ts). Modes not
+   * listed rank last. Same rank: the vehicle reaching the conflict first goes first.
+   */
+  modePriority: z.array(TransportModeSchema).optional(),
   regions: z.array(RegionSchema).default([]),
   lines: z.array(TransportLineSchema),
   stations: z.array(StationSchema),

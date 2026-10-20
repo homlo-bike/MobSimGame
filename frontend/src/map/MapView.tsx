@@ -63,6 +63,7 @@ import {
   CURVE_LABEL_LAYER,
   STATION_HANDLE_LAYER,
   PLATFORM_LAYER,
+  CONFLICT_LAYER,
   REGION_FILL_LAYER,
 } from './layers';
 import {
@@ -81,6 +82,7 @@ import {
   regionsCollection,
   regionLabelsCollection,
   curveLabelsCollection,
+  conflictsCollection,
   dimOtherModes,
   platformsCollection,
   stationHandlesCollection,
@@ -92,6 +94,7 @@ import {
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
+import { findConflicts } from '../simulation/conflicts';
 import { stationMode } from '../domain/modeSeparation';
 import {
   nearbyTrackBearing,
@@ -652,6 +655,18 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station!.id });
         return;
       }
+      // A crossing marker says who has priority there.
+      if (map.getLayer(CONFLICT_LAYER)) {
+        const x = map.queryRenderedFeatures(e.point, { layers: [CONFLICT_LAYER] })[0];
+        if (x?.properties?.label) {
+          new maplibregl.Popup({ closeButton: true })
+            .setLngLat(e.lngLat)
+            .setText(`Crossing: ${String(x.properties.label)}`)
+            .addTo(map);
+          state.announce(`Crossing: ${String(x.properties.label)}`);
+          return;
+        }
+      }
       // A curve label of the selected track opens its radius editor.
       if (state.tool === 'select' && map.getLayer(CURVE_LABEL_LAYER)) {
         const c = map.queryRenderedFeatures(e.point, { layers: [CURVE_LABEL_LAYER] })[0];
@@ -910,6 +925,8 @@ export default function MapView() {
   const selectedStationId = selection?.kind === 'station' ? selection.id : null;
   const selectedSignalId = selection?.kind === 'signal' ? selection.id : null;
   const selectedTrackId = selection?.kind === 'track' ? selection.id : null;
+  // Crossings between lines, for the map (the simulation computes its own).
+  const conflicts = useMemo(() => findConflicts(scenario), [scenario]);
   const selectedNodeId = selection?.kind === 'node' ? selection.id : null;
   const selectedRegionId = selection?.kind === 'region' ? selection.id : null;
   useEffect(() => {
@@ -943,6 +960,7 @@ export default function MapView() {
       ),
     );
     setData(map, SRC.crossovers, crossoversCollection(scenario));
+    setData(map, SRC.conflicts, conflictsCollection(scenario, conflicts));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
@@ -975,6 +993,7 @@ export default function MapView() {
     layers.catchments,
     closures,
     newLineMode,
+    conflicts,
   ]);
 
   // --- Context layers --------------------------------------------------------------

@@ -165,6 +165,24 @@ other track.
   through service and holds each train at the first crossover for the time to run the
   single-track section (a worst-case wait for an opposing train). There is no train
   protection or vehicle interaction model.
+- **Crossings and shared streets** (`simulation/conflicts.ts`): where two lines'
+  paths intersect on the same level without sharing track, of any modes (also two
+  bus lines or two tram lines on unconnected track), the crossing is a zone from the
+  clearance plus one vehicle length before it to the same distance after it
+  (placeholders: clearance 5 m, 20 m for a line without a vehicle type). Only one
+  vehicle is in a zone at a time. Street-routed lines (bus, BRT, trolleybus) on the
+  same street (paths within 4 m for at least 30 m) share it: in the same direction
+  they keep the minimum separation and wait where they merge; opposite directions
+  use their own lanes. Rail lines that merge onto the same track already share the
+  track. **Priority**: the mode order (default commuter rail, metro, elevated
+  metro, light rail, tram, trolleybus, BRT, bus; editable per project); the lower
+  mode waits until the crossing is clear. Within one mode the vehicle that arrives
+  first goes first. Trips of higher-priority lines are scheduled first (up to one
+  trip length ahead), so a lower-priority vehicle that arrives first can still be
+  held for one that arrives just after it; a higher-priority vehicle waits only when
+  a lower one is already inside the zone. Positions stay a pure function of
+  simulated time. Lane-level geometry, turning conflicts inside junctions and
+  signal-controlled priority are not modelled.
 - Crossovers are drawn up to 80 m before or after their station (a display position,
   not a design).
 - **Track occupancy** (services on tracks): a single-track block, meaning a chain of
