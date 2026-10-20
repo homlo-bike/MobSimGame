@@ -9,7 +9,7 @@
  */
 import type { Draw, Feature } from '@sakuzu/maplibre-gl-draw';
 import type { LineString } from 'geojson';
-import type { LngLat, Scenario } from '../domain/schema';
+import type { LngLat, Scenario, TransportMode } from '../domain/schema';
 import { isRing } from '../domain/network';
 import { editablePoints } from '../domain/alignment';
 import { pathCoordinates } from '../geo/geometry';
@@ -35,19 +35,23 @@ export function reconcileDraw(
   selectedLineId: string | null,
   selectedTrackId: string | null = null,
   selectedRegionId: string | null = null,
+  /** Only tracks and lines of this mode get editing handles; other modes are locked. */
+  activeMode: TransportMode | null = null,
 ) {
+  const tracks = scenario.trackNetwork.tracks.filter((t) => !activeMode || t.designMode === activeMode);
+  const lines = scenario.lines.filter((l) => !activeMode || l.mode === activeMode);
   draw.transact(
     () => {
       const wanted = new Set([
-        ...scenario.lines.map((l) => l.id),
-        ...scenario.trackNetwork.tracks.map((t) => t.id),
+        ...lines.map((l) => l.id),
+        ...tracks.map((t) => t.id),
         ...scenario.regions.filter((r) => r.visible).map((r) => r.id),
       ]);
       for (const f of draw.features.list()) {
         if (!wanted.has(f.id)) draw.features.delete(f.id);
       }
       // Tracks: the handles are the PI polygon (ends are the nodes); the track itself is drawn by MapLibre.
-      for (const track of scenario.trackNetwork.tracks) {
+      for (const track of tracks) {
         const coordinates = trackHandles(scenario.trackNetwork, track);
         const geometry: LineString = { type: 'LineString', coordinates };
         const style = lineStyle('#0f766e', track.id === selectedTrackId, false);
@@ -88,7 +92,7 @@ export function reconcileDraw(
             });
         }
       }
-      for (const line of scenario.lines) {
+      for (const line of lines) {
         // The handles are what the user edits: route waypoints or vertices (track services have none).
         const coordinates = pathCoordinates(editablePoints(line), isRing(line));
         if (coordinates.length < 2) continue;

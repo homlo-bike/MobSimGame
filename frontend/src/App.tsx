@@ -1,5 +1,7 @@
+import { stationMode } from './domain/modeSeparation';
+import { MODES } from './domain/modes';
+import type { TransportMode } from './domain/schema';
 import { deleteStationObject } from './domain/stationLayout';
-import { CompatibilityPanel } from './ui/CompatibilityPanel';
 import { deleteLineWithNotice, finishServiceDraft, requestTrackDeletion } from './store/trackActions';
 import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
@@ -53,6 +55,29 @@ function isEditableTarget(el: EventTarget | null) {
   );
 }
 
+/**
+ * Objects of another mode than the active tab are shown read-only: every control inside is
+ * disabled, with a button to switch to that mode's tab.
+ */
+function ModeLock({ mode, children }: { mode: TransportMode | null; children: React.ReactNode }) {
+  const active = useStore((s) => s.newLineMode);
+  const setMode = useStore((s) => s.setNewLineMode);
+  if (!mode || mode === active) return <>{children}</>;
+  return (
+    <>
+      <div role="note" className="m-2 rounded border border-amber-400 bg-amber-50 p-2 text-sm">
+        This belongs to <strong>{MODES[mode].label}</strong>. Modes are edited separately.{' '}
+        <button type="button" className="underline" onClick={() => setMode(mode)}>
+          Switch to {MODES[mode].label}
+        </button>
+      </div>
+      <fieldset disabled aria-label={`${MODES[mode].label}, read-only`} className="opacity-80">
+        {children}
+      </fieldset>
+    </>
+  );
+}
+
 function Inspector() {
   const scenario = useScenario();
   const selection = useStore((s) => s.selection);
@@ -65,11 +90,21 @@ function Inspector() {
   if (selection?.kind === 'line' || selection?.kind === 'segment') {
     const id = selection.kind === 'line' ? selection.id : selection.lineId;
     const line = scenario.lines.find((l) => l.id === id);
-    if (line) return <LineInspector key={line.id} line={line} scenario={scenario} />;
+    if (line)
+      return (
+        <ModeLock mode={line.mode}>
+          <LineInspector key={line.id} line={line} scenario={scenario} />
+        </ModeLock>
+      );
   }
   if (selection?.kind === 'track') {
     const track = scenario.trackNetwork.tracks.find((t) => t.id === selection.id);
-    if (track) return <TrackInspector key={track.id} track={track} scenario={scenario} />;
+    if (track)
+      return (
+        <ModeLock mode={track.designMode}>
+          <TrackInspector key={track.id} track={track} scenario={scenario} />
+        </ModeLock>
+      );
   }
   if (selection?.kind === 'region') {
     const region = scenario.regions.find((r) => r.id === selection.id);
@@ -85,7 +120,12 @@ function Inspector() {
   }
   if (selection?.kind === 'station') {
     const station = scenario.stations.find((s) => s.id === selection.id);
-    if (station) return <StationInspector key={station.id} station={station} scenario={scenario} />;
+    if (station)
+      return (
+        <ModeLock mode={stationMode(scenario, station)}>
+          <StationInspector key={station.id} station={station} scenario={scenario} />
+        </ModeLock>
+      );
   }
   return (
     <>
@@ -264,7 +304,6 @@ export default function App() {
           <RegionsPanel />
           <SignalsPanel />
           <TrackParametersPanel />
-          <CompatibilityPanel />
           <VehicleProfilesPanel />
           <ScenarioPanel />
           <LayerPanel />

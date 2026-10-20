@@ -15,6 +15,7 @@ import {
 } from '../domain/serviceRouting';
 import { MODES } from '../domain/modes';
 import { snapDrawingToStations } from '../domain/stationLayout';
+import { stationMode } from '../domain/modeSeparation';
 import { useStore } from './projectStore';
 import { createLogger } from '../util/logger';
 
@@ -28,7 +29,7 @@ export function drawTracks(points: LngLat[], options: { loop?: boolean } = {}): 
   const o = state.trackDraw;
   const res = createTracks(sc, {
     // Track drawn into a station object joins the station's end, not its platform tracks.
-    points: snapDrawingToStations(sc, points, o.double),
+    points: snapDrawingToStations(sc, points, o.double, mode),
     mode,
     double: o.double,
     radiusM: o.radius === 'default' ? undefined : o.radius,
@@ -124,6 +125,13 @@ export function finishServiceDraft(): string | null {
   }
   const sc = activeScenario(state.project);
   const mode = isRailMode(state.newLineMode) ? state.newLineMode : 'tram';
+  const wrong = ids
+    .map((id) => sc.stations.find((s) => s.id === id)!)
+    .find((st) => stationMode(sc, st) !== mode);
+  if (wrong) {
+    state.announce(`"${wrong.name}" is not a ${MODES[mode].label} station; modes are kept separate.`);
+    return null;
+  }
   const positions = ids.map((id) => sc.stations.find((s) => s.id === id)!.position);
   const c = createLine(sc, { coordinates: positions, mode, ring: false });
   const next = setServiceStops(c.scenario, c.line.id, ids);

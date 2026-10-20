@@ -1,7 +1,7 @@
 /** Pure builders for the GeoJSON shown in MapLibre layers (no map access). */
 import type { FeatureCollection, Feature } from 'geojson';
 import { circle } from '@turf/turf';
-import type { LngLat, Scenario } from '../domain/schema';
+import type { LngLat, Scenario, TransportMode } from '../domain/schema';
 import {
   isInterchange,
   isRing,
@@ -17,6 +17,7 @@ import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
 import { curveHandles } from '../domain/curveHandles';
 import { stationGeometry } from '../domain/stationLayout';
+import { stationMode } from '../domain/modeSeparation';
 import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
 import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
@@ -583,5 +584,37 @@ export function stationHandlesCollection(
       geometry: { type: 'Point', coordinates: p },
       properties: { stationId: st.id, end: i },
     })),
+  };
+}
+
+/**
+ * Mark features of other modes (`dim: true`) so they are drawn faded: the active tab's mode
+ * is edited, the others are shown for context only.
+ */
+export function dimOtherModes(
+  fc: FeatureCollection,
+  scenario: Scenario,
+  mode: TransportMode,
+): FeatureCollection {
+  const trackMode = new Map(scenario.trackNetwork.tracks.map((t) => [t.id, t.designMode]));
+  const lineMode = new Map(scenario.lines.map((l) => [l.id, l.mode]));
+  const stationModes = new Map(scenario.stations.map((s) => [s.id, stationMode(scenario, s)]));
+  const nodeMode = new Map<string, TransportMode>();
+  for (const t of scenario.trackNetwork.tracks) {
+    nodeMode.set(t.fromNodeId, t.designMode);
+    nodeMode.set(t.toNodeId, t.designMode);
+  }
+  return {
+    ...fc,
+    features: fc.features.map((f) => {
+      const p = f.properties ?? {};
+      const m =
+        (p.trackId && trackMode.get(String(p.trackId))) ||
+        (p.lineId && lineMode.get(String(p.lineId))) ||
+        (p.stationId && stationModes.get(String(p.stationId))) ||
+        (p.nodeId && nodeMode.get(String(p.nodeId))) ||
+        null;
+      return { ...f, properties: { ...p, dim: m !== null && m !== mode } };
+    }),
   };
 }

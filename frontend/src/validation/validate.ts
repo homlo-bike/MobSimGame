@@ -434,7 +434,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     const net = scenario.trackNetwork;
     const used = new Set(line.alignment.path.concat(line.alignment.returnPath ?? []).map((s) => s.trackId));
     const usedTracks = net.tracks.filter((t) => used.has(t.id));
-    const wrong = usedTracks.filter((t) => !serviceCanUse(net, line.mode, t));
+    const wrong = usedTracks.filter((t) => !serviceCanUse(line.mode, t));
     if (wrong.length)
       add({
         severity: 'error',

@@ -2,17 +2,14 @@
  * Infrastructure classes and compatibility: which service modes and vehicles may
  * use which tracks. Pure.
  *
- * The defaults are modelling conventions of this project, not cited engineering
- * rules. They are deliberately sparse (each mode uses its own class, plus the
- * closest relative such as tram ↔ light rail) and can be changed per project, for
- * example to allow tram-trains on railway track.
+ * Every mode uses only its own class (owner decision): a tram never runs on light
+ * rail or metro track, a bus never on a BRT busway or trolleybus wire. Where modes
+ * meet on the same level they cross (crossings with priority), they never share.
  */
 import type {
   Electrification,
   InfrastructureClass,
   PhysicalTrack,
-  Scenario,
-  TrackNetwork,
   TransportMode,
   VehicleType,
 } from './schema';
@@ -24,6 +21,7 @@ export const INFRASTRUCTURE_CLASSES: readonly InfrastructureClass[] = [
   'railway',
   'bus',
   'brt',
+  'trolleybus',
   'cycling',
   'walking',
 ];
@@ -35,6 +33,7 @@ export const INFRASTRUCTURE_CLASS_LABELS: Record<InfrastructureClass, string> = 
   railway: 'Railway track',
   bus: 'Bus lane or road',
   brt: 'BRT busway',
+  trolleybus: 'Trolleybus overhead wire',
   cycling: 'Cycle track',
   walking: 'Footway',
 };
@@ -58,23 +57,25 @@ export const DEFAULT_CLASS_FOR_MODE: Record<TransportMode, InfrastructureClass> 
   commuter_rail: 'railway',
   bus: 'bus',
   brt: 'brt',
+  trolleybus: 'trolleybus',
   cycling: 'cycling',
   pedestrian: 'walking',
   custom: 'light_rail',
 };
 
-/** Default service compatibility (project convention, editable per project). */
+/** The class each mode may use: only its own. */
 export const DEFAULT_SERVICE_COMPATIBILITY: Record<TransportMode, readonly InfrastructureClass[]> = {
-  tram: ['tram', 'light_rail'],
-  light_rail: ['light_rail', 'tram'],
+  tram: ['tram'],
+  light_rail: ['light_rail'],
   metro: ['metro'],
   elevated_metro: ['metro'],
   commuter_rail: ['railway'],
-  bus: ['bus', 'brt'],
-  brt: ['brt', 'bus'],
+  bus: ['bus'],
+  brt: ['brt'],
+  trolleybus: ['trolleybus'],
   cycling: ['cycling'],
   pedestrian: ['walking'],
-  custom: ['tram', 'light_rail', 'metro', 'railway'],
+  custom: ['light_rail'],
 };
 
 export function trackClass(
@@ -83,42 +84,19 @@ export function trackClass(
   return t.infrastructureClass ?? DEFAULT_CLASS_FOR_MODE[t.designMode];
 }
 
-/** Classes the mode may use in this network (project override, else the default). */
-export function allowedClasses(
-  net: Pick<TrackNetwork, 'serviceCompatibility'>,
-  mode: TransportMode,
-): readonly InfrastructureClass[] {
-  return net.serviceCompatibility?.[mode] ?? DEFAULT_SERVICE_COMPATIBILITY[mode];
-}
-
-export function isCompatibilityOverridden(
-  net: Pick<TrackNetwork, 'serviceCompatibility'>,
-  mode: TransportMode,
-) {
-  return net.serviceCompatibility?.[mode] !== undefined;
+/**
+ * Classes a mode may use. Every mode keeps to its own infrastructure (owner decision: modes
+ * need different track, power supply, sensors and speeds); there are no project overrides.
+ */
+export function allowedClasses(mode: TransportMode): readonly InfrastructureClass[] {
+  return DEFAULT_SERVICE_COMPATIBILITY[mode];
 }
 
 export function serviceCanUse(
-  net: Pick<TrackNetwork, 'serviceCompatibility'>,
   mode: TransportMode,
   track: Pick<PhysicalTrack, 'infrastructureClass' | 'designMode'>,
 ): boolean {
-  return allowedClasses(net, mode).includes(trackClass(track));
-}
-
-/** Set (or with `null` reset) the classes a mode may use. The mode's own class always stays allowed. */
-export function setServiceCompatibility(
-  scenario: Scenario,
-  mode: TransportMode,
-  classes: readonly InfrastructureClass[] | null,
-): Scenario {
-  const next = { ...scenario.trackNetwork.serviceCompatibility };
-  if (classes === null) delete next[mode];
-  else {
-    const own = DEFAULT_CLASS_FOR_MODE[mode];
-    next[mode] = INFRASTRUCTURE_CLASSES.filter((c) => c === own || classes.includes(c));
-  }
-  return { ...scenario, trackNetwork: { ...scenario.trackNetwork, serviceCompatibility: next } };
+  return allowedClasses(mode).includes(trackClass(track));
 }
 
 export interface CompatibilityIssue {

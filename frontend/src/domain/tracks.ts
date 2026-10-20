@@ -322,6 +322,17 @@ function withFrame(net: TrackNetwork, p: LngLat): TrackNetwork {
 }
 
 /**
+ * The network as one mode sees it: its own tracks and the nodes they use (modes never share
+ * track or nodes). Nodes without any track (just created) are kept.
+ */
+export function modeView(net: TrackNetwork, mode: TransportMode): TrackNetwork {
+  const tracks = net.tracks.filter((t) => t.designMode === mode);
+  const used = new Set(tracks.flatMap((t) => [t.fromNodeId, t.toNodeId]));
+  const anyUse = new Set(net.tracks.flatMap((t) => [t.fromNodeId, t.toNodeId]));
+  return { ...net, tracks, nodes: net.nodes.filter((n) => used.has(n.id) || !anyUse.has(n.id)) };
+}
+
+/**
  * The node a new track end attaches to: an existing node within the snap
  * distance on the same level, else a point on an existing track on the same
  * level (the track is split there), else a new node.
@@ -331,8 +342,10 @@ function attachEnd(
   p: LngLat,
   level: number,
   exclude: ReadonlySet<string> = new Set(),
+  mode?: TransportMode,
 ): { scenario: Scenario; nodeId: string } {
-  const net = scenario.trackNetwork;
+  // Track only joins track of its own mode; other modes are never connected (they may cross).
+  const net = mode ? modeView(scenario.trackNetwork, mode) : scenario.trackNetwork;
   const snap = parameterValue(net, 'nodeSnapM');
   const frame = networkFrame(net, p);
   const q = frame.toMetres(p);
@@ -361,7 +374,10 @@ function attachEnd(
     metadata: {},
   };
   return {
-    scenario: { ...scenario, trackNetwork: { ...net, nodes: [...net.nodes, node] } },
+    scenario: {
+      ...scenario,
+      trackNetwork: { ...scenario.trackNetwork, nodes: [...scenario.trackNetwork.nodes, node] },
+    },
     nodeId: node.id,
   };
 }
@@ -481,7 +497,7 @@ function addOneTrack(
   noRing = false,
 ): { scenario: Scenario; trackId: string; nodeIds: [string, string] } {
   let sc = scenario;
-  const a = attachEnd(sc, points[0]!, base.level, exclude);
+  const a = attachEnd(sc, points[0]!, base.level, exclude, base.designMode);
   sc = a.scenario;
   // A closed track (ring) ends at its own start node, unless the user declined the loop.
   const b = attachEnd(
@@ -489,6 +505,7 @@ function addOneTrack(
     points[points.length - 1]!,
     base.level,
     noRing ? new Set([...exclude, a.nodeId]) : exclude,
+    base.designMode,
   );
   sc = b.scenario;
   const track: PhysicalTrack = {
@@ -521,9 +538,9 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     const sp = trackSpacingM(net, input.mode);
     const lvl = input.level ?? levelOfStructure(input.structure ?? MODES[input.mode].defaultStructure);
     drawn = [
-      snapEndToPair(net, drawn[0]!, lvl, sp),
+      snapEndToPair(modeView(net, input.mode), drawn[0]!, lvl, sp),
       ...drawn.slice(1, -1),
-      snapEndToPair(net, drawn[drawn.length - 1]!, lvl, sp),
+      snapEndToPair(modeView(net, input.mode), drawn[drawn.length - 1]!, lvl, sp),
     ];
   }
   const pts0 = input.loop === false ? drawn : closeLoop(net, drawn);
@@ -546,7 +563,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
   const { pts, radii } =
     input.tangentEnds === false || looped
       ? { pts: pts0, radii: radii0 }
-      : tangentEnds(net, pts0, radii0, level, r, searchM);
+      : tangentEnds(modeView(net, input.mode), pts0, radii0, level, r, searchM);
   const noRing = input.loop === false;
   const base = {
     name: '',
@@ -772,7 +789,9 @@ export function mergeNodes(scenario: Scenario, keepId: string, dropId: string): 
  * other end of the same track is never a target, so moving an end never closes a loop by itself.
  */
 export function connectMovedNode(scenario: Scenario, nodeId: string): Scenario {
-  const net = scenario.trackNetwork;
+  const all = scenario.trackNetwork;
+  const ownAll = all.tracks.filter((t) => t.fromNodeId === nodeId || t.toNodeId === nodeId);
+  const net = ownAll[0] ? modeView(all, ownAll[0].designMode) : all;
   const node = net.nodes.find((n) => n.id === nodeId);
   if (!node) return scenario;
   const own = net.tracks.filter((t) => t.fromNodeId === nodeId || t.toNodeId === nodeId);
@@ -1042,10 +1061,11 @@ export function applyTrackHandles(scenario: Scenario, trackId: string, handles: 
   let pts: LngLat[] = [handles[0]!, ...interior, handles[handles.length - 1]!];
   let rr: (number | null)[] = [null, ...radii, null];
   if (movedStart || movedEnd) {
+    const view = modeView(sc.trackNetwork, t.designMode);
     const probe: TrackNetwork = {
-      ...sc.trackNetwork,
-      tracks: sc.trackNetwork.tracks.filter((x) => x.id !== t.id),
-      nodes: sc.trackNetwork.nodes.filter((n) => n.id !== t.fromNodeId && n.id !== t.toNodeId),
+      ...view,
+      tracks: view.tracks.filter((x) => x.id !== t.id),
+      nodes: view.nodes.filter((n) => n.id !== t.fromNodeId && n.id !== t.toNodeId),
     };
     const snap = parameterValue(net, 'nodeSnapM');
     if (movedEnd) ({ pts, radii: rr } = tangentAtEnd(probe, pts, rr, t.level, def, snap));

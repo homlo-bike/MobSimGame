@@ -40,15 +40,10 @@ export const VEHICLE_CATEGORY_LABELS: Record<VehicleCategory, string> = {
 
 /** Vehicle categories a mode may use. */
 export const MODE_VEHICLE_CATEGORIES: Record<TransportMode, VehicleCategory[]> = {
-  bus: [
-    'standard_bus',
-    'articulated_bus',
-    'double_articulated_bus',
-    'double_decker_bus',
-    'minibus',
-    'trolleybus',
-  ],
-  brt: ['brt_standard_bus', 'brt_articulated_bus', 'brt_double_articulated_bus', 'brt_trolleybus'],
+  bus: ['standard_bus', 'articulated_bus', 'double_articulated_bus', 'double_decker_bus', 'minibus'],
+  brt: ['brt_standard_bus', 'brt_articulated_bus', 'brt_double_articulated_bus'],
+  // Trolleybuses need overhead wire: their own mode and infrastructure.
+  trolleybus: ['trolleybus', 'brt_trolleybus'],
   tram: ['tram_single', 'tram_articulated', 'tram_coupled_set', 'tram_low_floor', 'tram_high_floor'],
   light_rail: ['lrv_single', 'lrv_coupled_consist', 'lrv_custom'],
   metro: ['metro_consist', 'metro_automated', 'light_metro', 'metro_custom'],

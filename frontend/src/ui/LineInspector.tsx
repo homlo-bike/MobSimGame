@@ -8,9 +8,8 @@ import type {
   StructureType,
   TrackCount,
   TransportLine,
-  TransportMode,
 } from '../domain/schema';
-import { MODES, MODE_LIST, RIGHT_OF_WAY_LABELS, STRUCTURE_LABELS } from '../domain/modes';
+import { MODES, RIGHT_OF_WAY_LABELS, STRUCTURE_LABELS } from '../domain/modes';
 import {
   addExistingStationToLine,
   addStationAtChainage,
@@ -26,7 +25,7 @@ import {
   splitLine,
   updateLine,
 } from '../domain/network';
-import { ALIGNMENT_LABELS, defaultAlignmentKind, type AlignmentKind } from '../domain/alignment';
+import { ALIGNMENT_LABELS, type AlignmentKind } from '../domain/alignment';
 import { mergeWithNext, splitSegmentsAt, updateSegment } from '../geo/segments';
 import { pathCoordinates } from '../geo/geometry';
 import { formatDistance } from '../analysis/units';
@@ -39,7 +38,6 @@ import { SIGNAL_MODES } from '../domain/signals';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { validateLine } from '../validation/validate';
-import { isRailMode, RAIL_MODES } from '../domain/tracks';
 import { moveServiceStop, rerouteServices, setServiceStops } from '../domain/serviceRouting';
 import { MetadataEditor } from './MetadataEditor';
 import { deleteLineWithNotice } from '../store/trackActions';
@@ -47,7 +45,6 @@ import { describeDirection } from '../domain/direction';
 import {
   compatibleVehicles,
   consistLengthM,
-  isVehicleCompatible,
   usesVehicles,
   VEHICLE_CATEGORY_LABELS,
 } from '../domain/vehicles';
@@ -91,7 +88,6 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
         .filter((st): st is NonNullable<typeof st> => !!st)
         .map((station) => ({ station, chainageM: chainage.get(station.id) ?? 0 }))
     : stops;
-  const modeChoices = MODE_LIST.filter((m) => (onTracks ? isRailMode(m) : !isRailMode(m)));
   const alignmentChoices = (Object.keys(ALIGNMENT_LABELS) as AlignmentKind[]).filter((k) => k !== 'track');
 
   const zoomTo = () => {
@@ -161,31 +157,12 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
               : 'Findings are informational until you edit the geometry.'}
           </p>
         )}
-        <SelectField
-          label="Transport mode"
-          value={line.mode}
-          onChange={(e) => {
-            const mode = e.target.value as TransportMode;
-            // An incompatible vehicle is replaced by the first compatible one (or none).
-            const keep = vehicle && isVehicleCompatible(vehicle, mode);
-            let next = updateLine(scenario, line.id, {
-              mode,
-              vehicleTypeId: keep
-                ? line.vehicleTypeId
-                : (compatibleVehicles(scenario.vehicleTypes, mode)[0]?.id ?? null),
-            });
-            // Keep the alignment kind in step with the mode unless the user chose another one.
-            if (line.alignment.kind === defaultAlignmentKind(line.mode))
-              next = setLineAlignmentKind(next, line.id, defaultAlignmentKind(mode));
-            commit(next, 'Mode changed');
-          }}
-          options={modeChoices.map((m) => ({ value: m, label: MODES[m].label }))}
-          hint={
-            onTracks
-              ? `Services on tracks can use the track modes (${RAIL_MODES.map((m) => MODES[m].label).join(', ')}).`
-              : undefined
-          }
-        />
+        <p className="mb-2 text-sm">
+          <span className="font-medium">Transport mode:</span> {MODES[line.mode].label}{' '}
+          <span className="text-xs text-slate-600">
+            (fixed: every mode has its own infrastructure, so a line cannot change mode)
+          </span>
+        </p>
         {onTracks ? (
           <p className="mb-2 text-xs text-slate-700">
             <Badge>Runs on tracks</Badge> The route follows the physical tracks between its stations, in stop
