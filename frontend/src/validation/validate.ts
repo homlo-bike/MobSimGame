@@ -30,6 +30,7 @@ import {
   trackClass,
   vehicleTrackIssues,
 } from '../domain/compatibility';
+import { wireRailCrossings } from '../domain/overheadWire';
 import { lineFleet } from '../analysis/fleet';
 import { trackGeometry } from '../domain/tracks';
 
@@ -499,6 +500,21 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
       category: 'road_compatibility',
       message:
         'This bus alignment uses straight segments instead of following streets. Switch the alignment to "Follows streets" to route it.',
+    });
+  }
+
+  // --- Trolleybus overhead wire meeting rail overhead line ----------------------
+  for (const x of wireRailCrossings(scenario, line)) {
+    const track = scenario.trackNetwork.tracks.find((t) => t.id === x.trackId);
+    const name = track?.name || 'rail track';
+    add({
+      severity: x.overhead ? 'warning' : 'info',
+      category: 'road_compatibility',
+      trackId: x.trackId,
+      position: x.position,
+      message: x.overhead
+        ? `Trolleybus wire crosses the overhead line of "${name}" on the same level. Two overhead systems meet here (wire crossing, insulation, different voltages): this needs a special design.`
+        : `Trolleybus wire crosses "${name}" on the same level; its electrification is not specified. If it has an overhead line, the two overhead systems need a special design here.`,
     });
   }
 

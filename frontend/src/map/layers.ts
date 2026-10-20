@@ -23,6 +23,7 @@ export const SRC = {
   signals: 'msg-signals',
   routeStatus: 'msg-route-status',
   guides: 'msg-guides',
+  wires: 'msg-wires',
   stopDraft: 'msg-stop-draft',
   curveLabels: 'msg-curve-labels',
   platforms: 'msg-platforms',
@@ -403,6 +404,15 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'text-halo-color': '#ffffff',
       'text-halo-width': 2,
     },
+  });
+  // Trolleybus overhead wire: a thin pair of lines either side of the route.
+  add({
+    id: 'msg-wire',
+    type: 'line',
+    source: SRC.wires,
+    minzoom: 12,
+    layout: { 'line-join': 'round' },
+    paint: { 'line-color': '#334155', 'line-width': 1, 'line-gap-width': 10, 'line-opacity': 0.8 },
   });
   // A street line being drawn stop by stop: order of service and (dashed) the way back.
   for (const closing of [false, true])
