@@ -97,7 +97,7 @@ describe('creating tracks', () => {
       // Centre-line radii (as from an import) smaller than half the spacing collapse the inner track.
       radii: [null, 1, null],
     });
-    expect(bad.error).toMatch(/too small/);
+    expect(bad.error).toMatch(/too tight for double track/);
   });
 
   it('continues an existing track at its end node and permits the through movement', () => {

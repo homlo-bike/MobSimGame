@@ -75,6 +75,16 @@ describe('moving a track end', () => {
     expect(t2.fromNodeId).not.toBe(t2.toNodeId);
   });
 
+  it('removes the kink when an end is dragged onto another track end', () => {
+    let s = createTracks(emptyScenario(), { points: [xy(0, 0), xy(300, 0)], mode: 'tram' }).scenario;
+    s = createTracks(s, { points: [xy(400, 200), xy(700, 300)], mode: 'tram' }).scenario;
+    const b = s.trackNetwork.tracks[1]!;
+    const h = trackHandles(s.trackNetwork, b);
+    const joined = applyTrackHandles(s, b.id, [xy(301, 0), ...h.slice(1)]);
+    expect(nodeEnds(joined.trackNetwork, s.trackNetwork.tracks[0]!.toNodeId)).toHaveLength(2);
+    expect(connectionKinks(joined)).toEqual([]);
+  });
+
   it('connects to the middle of a track when dropped on it', () => {
     let s = createTracks(emptyScenario(), { points: [xy(0, 0), xy(600, 0)], mode: 'tram' }).scenario;
     s = createTracks(s, { points: [xy(300, 300), xy(300, 100)], mode: 'tram' }).scenario;

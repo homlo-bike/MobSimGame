@@ -543,7 +543,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
       scenario,
       trackIds: [],
       groupId: null,
-      error: `A curve radius is too small for double track with ${spacing} m spacing`,
+      error: `This curve or loop is too tight for double track with ${spacing} m between the tracks: the inner track would have no room. Draw it bigger (a radius above ${Math.ceil(spacing / 2)} m on the centre line), or draw single track.`,
     };
   const group: TrackGroup = { id: newId('tg'), kind: 'double', spacingM: spacing };
   sc = { ...sc, trackNetwork: { ...sc.trackNetwork, groups: [...sc.trackNetwork.groups, group] } };
@@ -929,7 +929,25 @@ export function applyTrackHandles(scenario: Scenario, trackId: string, handles: 
     if (interior.length === t.points.length) return t.radii[interior.indexOf(p)] ?? def;
     return def;
   });
-  sc = setTrackPoints(sc, trackId, interior, radii);
+  // An end dropped onto another track end or track arrives tangentially there (no kink): probe the
+  // network without this track and its own nodes.
+  let pts: LngLat[] = [handles[0]!, ...interior, handles[handles.length - 1]!];
+  let rr: (number | null)[] = [null, ...radii, null];
+  if (movedStart || movedEnd) {
+    const probe: TrackNetwork = {
+      ...sc.trackNetwork,
+      tracks: sc.trackNetwork.tracks.filter((x) => x.id !== t.id),
+      nodes: sc.trackNetwork.nodes.filter((n) => n.id !== t.fromNodeId && n.id !== t.toNodeId),
+    };
+    const snap = parameterValue(net, 'nodeSnapM');
+    if (movedEnd) ({ pts, radii: rr } = tangentAtEnd(probe, pts, rr, t.level, def, snap));
+    if (movedStart) {
+      const r = tangentAtEnd(probe, [...pts].reverse(), [...rr].reverse(), t.level, def, snap);
+      pts = [...r.pts].reverse();
+      rr = [...r.radii].reverse();
+    }
+  }
+  sc = setTrackPoints(sc, trackId, pts.slice(1, -1), rr.slice(1, -1));
   // An end dropped onto another node or track connects to it.
   if (movedStart) sc = connectMovedNode(sc, t.fromNodeId);
   if (movedEnd && sc.trackNetwork.nodes.some((n) => n.id === t.toNodeId))

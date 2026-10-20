@@ -104,7 +104,7 @@ Scenario
   separate ends, or discard the track. A loop never closes without that answer.
 - **Drawing stays on**: after a track is finished the tool keeps drawing; Esc stops.
 - **Moving an end** onto another node or onto the middle of a track (within the
-  snap distance) connects it there. The other end of the same track is never a
+  snap distance) connects it there, tangentially in the same way. The other end of the same track is never a
   target, and a click on an end without dragging does not move it.
 - **Radius**: every interior PI gets the mode's cited default (recommended minimum,
   else minimum), or the value set in the tool. For double track the value is the

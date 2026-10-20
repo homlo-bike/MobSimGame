@@ -34,7 +34,9 @@ All notable changes are documented here. The format follows
     end or at a junction in the middle of a track;
   - a track closes into a loop only after you confirm it in a dialog;
   - the drawing tool stays on after each track (Esc stops);
-  - dragging an end onto another track end or onto a track connects them;
+  - dragging an end onto another track end or onto a track connects them, again
+    without a kink;
+  - a loop or curve too tight for double track now says so and how big it must be;
   - clicking an end without dragging no longer makes it jump to a nearby point or
     close a loop.
 - **Rail services:**
