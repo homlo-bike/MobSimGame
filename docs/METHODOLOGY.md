@@ -145,7 +145,8 @@ recommended fare.
 
 ## Simulation
 
-Illustrative only: constant speed per segment (no acceleration), fixed dwell,
+Illustrative only: cruise speed per segment with constant acceleration after and
+constant braking before every stop (see "Acceleration and braking" below), fixed dwell,
 2-minute layover at terminals, one trip departing per peak headway, positions a
 pure function of simulated time (each trip is built in time order from its
 departure time). Rings circulate; one-way lines return out of service;
@@ -213,3 +214,36 @@ Stations are scaled from geography so the median stop spacing is three grid
 steps (40 px), snapped to the grid, collisions moved to the nearest free cell;
 consecutive stations are joined with octilinear elbows. Manual offsets are stored
 per station. Crossing minimisation is not implemented yet.
+
+### Acceleration and braking
+
+Each run between two events is a speed profile: accelerate at the rate `a` from the
+speed the vehicle has, cruise at the segment speed, brake at the rate `b` to the
+speed it must have at the end. The equations are those of uniformly accelerated
+motion, as in SUMO's vehicle model (written from the published equations; no SUMO
+code is used): `x = v₀t + ½at²`; the peak speed of a section of length `d` is
+`v_p = min(v, √((2abd + b·v₀² + a·v₁²)/(a + b)))`.
+
+- A vehicle starts every leg from standstill and stops at every station dwell,
+  fixed hold and at the end of its leg. It never runs faster than allows stopping at
+  the next such stop at the rate `b`.
+- At a red signal or an occupied section it brakes to a stop where it waits (the run
+  before is re-timed, and the wait is computed from the later arrival); on green it
+  passes at speed.
+- Where a section is too short to stop at `b`, the braking in that section is just
+  strong enough; speed changes between segments with different limits are
+  immediate.
+- An occupied section is reserved for the cruise time plus one stop loss
+  `v/(2a) + v/(2b)` per stop inside it and for the start, so reservations do not
+  overlap.
+- Rates: the vehicle profile's acceleration and service braking; where none is given,
+  the documented defaults of the matching SUMO vehicle class (Eclipse SUMO
+  documentation, "Vehicle Type Parameter Defaults", DLR and others, edited 12 October
+  2026, https://sumo.dlr.de/docs/Vehicle_Type_Parameter_Defaults.html): bus, BRT and
+  trolleybus 1.2 / 4.0 m/s² (class bus), tram, light rail and custom 1.0 / 3.0 m/s²
+  (class tram), metro and commuter rail 1.0 / 3.0 m/s² (class rail_urban; SUMO gives
+  no rate for subway). SUMO has no BRT, trolleybus or light-rail class; the closest
+  class is used. SUMO describes these as comfortable service values, not the maximum
+  a vehicle can reach. Vehicles following each other keep the minimum distance of the
+  occupancy rules; a car-following model is planned (R13 part 2).
+

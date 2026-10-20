@@ -8,6 +8,13 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Acceleration and braking in the simulation** (R13 part 1). Vehicles accelerate
+  after every stop and brake before stations, red signals and occupied sections
+  instead of running at constant speed. Rates come from the vehicle profile or,
+  where it has none, from the documented SUMO vehicle-class defaults (cited in
+  Methodology; SUMO's published model, not its code). Round trips are longer by
+  the time lost at each stop.
+
 - **Vehicles drawn to scale** in the animation when zoomed in (from zoom 15.5):
   one outline per unit of the consist, with the vehicle profile's length and width,
   following curves. Waiting and dwelling vehicles have a thick dashed outline. A new
