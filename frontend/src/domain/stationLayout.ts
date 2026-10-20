@@ -145,7 +145,9 @@ export function stationGeometry(
   return { tracks, platforms, halfLengthM: half, axis: [at(-half, 0), at(half, 0)] };
 }
 
-function structureFor(construction: Station['construction'], mode: TransportMode) {
+function structureFor(construction: Station['construction'], mode: TransportMode, level?: number | null) {
+  if (level !== null && level !== undefined)
+    return { structure: level < 0 ? 'underground' : level > 0 ? 'elevated' : 'at_grade', level } as const;
   const structure =
     construction === 'underground'
       ? 'underground'
@@ -163,6 +165,8 @@ export interface PlaceStationInput {
   islandPlatforms: number;
   name?: string;
   construction?: Station['construction'];
+  /** Level of the station (−2 … +2); stations on different levels may stand on top of each other. */
+  level?: number | null;
   platformLengthM?: number | null;
 }
 
@@ -173,7 +177,8 @@ export function placeStation(
 ): { scenario: Scenario; station: Station | null; error: string | null } {
   const error = layoutError(input.sidePlatforms, input.islandPlatforms);
   if (error) return { scenario, station: null, error };
-  const construction = input.construction ?? 'surface';
+  const level = input.level ?? null;
+  const construction = level === null ? (input.construction ?? 'surface') : constructionOfLevel(level);
   const station: Station = {
     id: newId('st'),
     name: uniqueStationName(scenario, input.name ?? `Station ${scenario.stations.length + 1}`),
@@ -191,6 +196,7 @@ export function placeStation(
       islandPlatforms: input.islandPlatforms,
       platformLengthM: input.platformLengthM ?? null,
       trackIds: [],
+      level,
     },
     verticalOffsetM: null,
     entrances: [],
@@ -206,6 +212,23 @@ export function placeStation(
   return { scenario: sc, station: sc.stations.find((s) => s.id === station.id)!, error: null };
 }
 
+/** Levels a station object can be placed on, and their names. */
+export const STATION_LEVELS = [-2, -1, 0, 1, 2];
+export const stationLevelLabel = (l: number) =>
+  l === 0 ? 'Street level (0)' : l < 0 ? `Underground ${l}` : `Elevated +${l}`;
+
+/** Construction that goes with a level: below, at or above the street. */
+export function constructionOfLevel(level: number): Station['construction'] {
+  return level < 0 ? 'underground' : level > 0 ? 'elevated' : 'surface';
+}
+
+/** Level of a station object's tracks. */
+export function stationObjectLevel(scenario: Pick<Scenario, 'trackNetwork'>, st: Station): number {
+  const id = st.layout?.trackIds[0];
+  const t = id ? scenario.trackNetwork.tracks.find((x) => x.id === id) : undefined;
+  return t?.level ?? (st.construction === 'underground' ? -1 : st.construction === 'elevated' ? 1 : 0);
+}
+
 export const normBearing = (b: number) => ((b % 360) + 360) % 360;
 
 /**
@@ -218,7 +241,7 @@ function rebuildStation(scenario: Scenario, stationId: string): Scenario {
   if (!st?.layout) return scenario;
   const layout = st.layout;
   const geom = stationGeometry(scenario.trackNetwork, st.position, layout);
-  const { structure, level } = structureFor(st.construction, layout.mode);
+  const { structure, level } = structureFor(st.construction, layout.mode, layout.level);
   let sc = scenario;
   let ids = layout.trackIds.filter((id) => sc.trackNetwork.tracks.some((t) => t.id === id));
   for (const id of ids.slice(geom.tracks.length)) sc = removeTrack(sc, id);
@@ -271,7 +294,7 @@ function rebuildStation(scenario: Scenario, stationId: string): Scenario {
 
 export type StationLayoutPatch = Partial<
   Pick<Layout, 'bearingDeg' | 'sidePlatforms' | 'islandPlatforms' | 'platformLengthM'>
-> & { position?: LngLat; construction?: Station['construction'] };
+> & { position?: LngLat; construction?: Station['construction']; level?: number | null };
 
 /** Move, rotate or change the platforms of a station object. */
 export function updateStationLayout(
@@ -287,13 +310,18 @@ export function updateStationLayout(
     ...(patch.sidePlatforms !== undefined ? { sidePlatforms: patch.sidePlatforms } : {}),
     ...(patch.islandPlatforms !== undefined ? { islandPlatforms: patch.islandPlatforms } : {}),
     ...(patch.platformLengthM !== undefined ? { platformLengthM: patch.platformLengthM } : {}),
+    // Choosing a construction resets the explicit level to that construction's level.
+    ...(patch.level !== undefined ? { level: patch.level } : patch.construction ? { level: null } : {}),
   };
   const error = layoutError(layout.sidePlatforms, layout.islandPlatforms);
   if (error) return { scenario, error };
   const next: Station = {
     ...st,
     position: patch.position ? [patch.position[0], patch.position[1]] : st.position,
-    construction: patch.construction ?? st.construction,
+    construction:
+      patch.level !== undefined && patch.level !== null
+        ? constructionOfLevel(patch.level)
+        : (patch.construction ?? st.construction),
     platformType:
       layout.islandPlatforms && layout.sidePlatforms
         ? 'separate'

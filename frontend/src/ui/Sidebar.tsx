@@ -16,7 +16,7 @@ import { trackSpacingM } from '../domain/trackParameters';
 import { finishServiceDraft } from '../store/trackActions';
 import { finishStopDraft } from '../store/stopActions';
 import { isStopLineMode, stopNear } from '../domain/stopLines';
-import { layoutError, MAX_PLATFORMS } from '../domain/stationLayout';
+import { layoutError, MAX_PLATFORMS, STATION_LEVELS, stationLevelLabel } from '../domain/stationLayout';
 import { MODE_TABS, modeCounts, stationsForMode } from '../domain/modeSeparation';
 import { CommitField } from './CommitField';
 import { SEVERITY_ORDER, SEVERITY_PLURALS, SEVERITY_SYMBOLS, type Severity } from '../validation/validate';
@@ -514,9 +514,19 @@ function StationDraftOptions() {
         {field('sidePlatforms', 'Side platforms for new stations')}
         {field('islandPlatforms', 'Island platforms for new stations')}
       </div>
+      <SelectField
+        label="Level of new stations"
+        value={draft.level === null ? 'default' : String(draft.level)}
+        onChange={(e) => setDraft({ level: e.target.value === 'default' ? null : Number(e.target.value) })}
+        options={[
+          { value: 'default', label: 'Mode default' },
+          ...STATION_LEVELS.map((l) => ({ value: String(l), label: stationLevelLabel(l) })),
+        ]}
+        hint="Stations on different levels can stand on top of each other (underground, street, elevated)."
+      />
       <p className="mt-1 text-xs text-slate-600">
-        Each side platform has one track, each island one track on either side. Platform sizes are in the
-        track parameters.
+        Each side platform has one track, each island one track on either side. Platform sizes are in Project
+        properties.
       </p>
       {error && (
         <p role="alert" className="text-xs text-red-800">
