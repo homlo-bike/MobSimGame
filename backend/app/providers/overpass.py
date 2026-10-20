@@ -49,14 +49,17 @@ CATEGORY_FILTERS: dict[str, list[str]] = {
         '["amenity"~"^(university|college|hospital|marketplace|library)$"]["name"]',
         '["leisure"="park"]["name"]',
     ],
-    "street": ['["highway"~"^(tertiary|residential|unclassified|living_street)$"]["name"]'],
+    "street": ['["highway"~"^(tertiary|residential|unclassified|living_street|pedestrian)$"]["name"]'],
+    # Local geographic names (squares, localities, hamlets, villages).
+    "place": ['["place"~"^(square|locality|hamlet|village|town|isolated_dwelling|city_block|island)$"]["name"]'],
     "parking": ['["amenity"="parking"]'],
     "railway": ['["railway"~"^(rail|light_rail|tram|subway)$"]'],
     "water": ['["natural"="water"]', '["waterway"~"^(river|canal)$"]'],
     "building": ['["building"]'],
     "landuse": ['["landuse"]'],
 }
-NAME_CATEGORIES = ["landmark", "transit_station", "district", "major_street", "facility", "street"]
+NAME_CATEGORIES = ["landmark", "transit_station", "district", "major_street", "facility", "street", "place"]
+MAJOR_HIGHWAYS = {"trunk", "primary", "secondary", "tertiary"}
 
 
 class OsmFeature(BaseModel):
@@ -75,6 +78,8 @@ def classify(tags: dict[str, str]) -> str:
         return "transit_station"
     if tags.get("place") in ("suburb", "neighbourhood", "quarter"):
         return "district"
+    if "place" in tags:
+        return "place"
     hw = tags.get("highway")
     if hw in ("trunk", "primary", "secondary"):
         return "major_street"
@@ -109,12 +114,73 @@ def build_query(filters: list[str], area: str, timeout_s: int) -> str:
     return f"[out:json][timeout:{timeout_s}][maxsize:33554432];({parts});out center tags 500;"
 
 
-def parse_elements(payload: dict[str, Any]) -> list[OsmFeature]:
+def build_near_query(filters: list[str], area: str, timeout_s: int) -> str:
+    """Named features near a point; streets with their geometry, so intersections can be found."""
+    parts = "".join(f"nwr{f}({area});" for f in filters)
+    return (
+        f"[out:json][timeout:{timeout_s}][maxsize:33554432];"
+        f"({parts})->.all;"
+        "way.all[highway]->.hw;"
+        "(.all; - .hw;)->.other;"
+        ".other out center tags 300;"
+        ".hw out geom 300;"
+    )
+
+
+def _nearest_vertex(geometry: list[dict[str, float]], lon: float, lat: float) -> tuple[float, float]:
+    k = math.cos(math.radians(lat))
+    best = min(geometry, key=lambda g: ((g["lon"] - lon) * k) ** 2 + (g["lat"] - lat) ** 2)
+    return float(best["lon"]), float(best["lat"])
+
+
+def street_intersections(payload: dict[str, Any]) -> list[OsmFeature]:
+    """Nodes shared by differently named streets where at least one street is a major road."""
+    at: dict[tuple[float, float], dict[str, bool]] = {}
+    for el in payload.get("elements", []):
+        tags = el.get("tags") or {}
+        name = tags.get("name")
+        if el.get("type") != "way" or not name or not el.get("geometry") or "highway" not in tags:
+            continue
+        major = tags.get("highway") in MAJOR_HIGHWAYS
+        for g in el["geometry"]:
+            if not g:
+                continue
+            key = (round(float(g["lon"]), 7), round(float(g["lat"]), 7))
+            names = at.setdefault(key, {})
+            names[name] = names.get(name, False) or major
+    out: list[OsmFeature] = []
+    seen: set[str] = set()
+    for (lon, lat), names in at.items():
+        if len(names) < 2 or not any(names.values()):
+            continue
+        # Major roads first, then alphabetical, so "Main Street / Elm Street" is stable.
+        ordered = sorted(names, key=lambda n: (not names[n], n))[:2]
+        label = " / ".join(ordered)
+        if label in seen:
+            continue
+        seen.add(label)
+        out.append(
+            OsmFeature(
+                id=f"intersection/{lon:.6f},{lat:.6f}",
+                category="intersection",
+                name=label,
+                names={},
+                position=(lon, lat),
+                tags={},
+            )
+        )
+    return out
+
+
+def parse_elements(payload: dict[str, Any], near: tuple[float, float] | None = None) -> list[OsmFeature]:
     out: list[OsmFeature] = []
     for el in payload.get("elements", []):
         tags = {str(k): str(v) for k, v in (el.get("tags") or {}).items()}
         if "lat" in el and "lon" in el:
             lon, lat = float(el["lon"]), float(el["lat"])
+        elif el.get("geometry") and near is not None:
+            # Streets: the closest point of the street, so the distance means something.
+            lon, lat = _nearest_vertex([g for g in el["geometry"] if g], *near)
         elif "center" in el:
             lon, lat = float(el["center"]["lon"]), float(el["center"]["lat"])
         else:
@@ -174,7 +240,14 @@ class OverpassProvider:
             confidence="medium",
         )
 
-    async def _run(self, query: str, cache_key: str) -> ProviderResponse[list[OsmFeature]]:
+    async def _run(
+        self,
+        query: str,
+        cache_key: str,
+        near: tuple[float, float] | None = None,
+        retries: int = 3,
+        timeout_s: int | None = None,
+    ) -> ProviderResponse[list[OsmFeature]]:
         if not self.settings.overpass_enabled:
             raise ProviderError("Overpass disabled", CapabilityState.not_configured)
         cached = self.cache.get(cache_key)
@@ -191,12 +264,16 @@ class OverpassProvider:
             self.settings.overpass_url,
             self.settings,
             data={"data": query},
-            timeout=self.settings.overpass_timeout_s + 5,
+            timeout=(timeout_s or self.settings.overpass_timeout_s) + 5,
+            retries=retries,
         )
         if res.status_code != 200:
             log.error("overpass query failed", extra={"status": res.status_code, "cache_key": cache_key})
             raise ProviderError(f"Overpass returned HTTP {res.status_code}", CapabilityState.temporarily_unavailable)
-        features = parse_elements(res.json())
+        payload = res.json()
+        features = parse_elements(payload, near)
+        if near is not None:
+            features.extend(street_intersections(payload))
         log.info("overpass query completed", extra={"cache_key": cache_key, "features": len(features)})
         self.cache.set(cache_key, features, self.settings.overpass_cache_ttl_s)
         return ProviderResponse[list[OsmFeature]](
@@ -208,8 +285,13 @@ class OverpassProvider:
             raise ProviderError("Coordinates out of range", CapabilityState.coverage_unavailable, 400)
         radius = max(10, min(radius_m, self.settings.overpass_max_radius_m))
         filters = [f for c in NAME_CATEGORIES for f in CATEGORY_FILTERS[c]]
-        query = build_query(filters, f"around:{radius},{lat:.6f},{lon:.6f}", self.settings.overpass_timeout_s)
-        return await self._run(query, f"near:{lon:.4f}:{lat:.4f}:{radius}")
+        # Station naming is interactive: a short query without retries keeps the answer
+        # (at most query timeout + 5 s) inside the browser's wait (NAME_LOOKUP_TIMEOUT_MS = 25 s).
+        timeout = min(self.settings.overpass_timeout_s, 15)
+        query = build_near_query(filters, f"around:{radius},{lat:.6f},{lon:.6f}", timeout)
+        return await self._run(
+            query, f"near:{lon:.4f}:{lat:.4f}:{radius}", near=(lon, lat), retries=0, timeout_s=timeout
+        )
 
     async def features_in_bbox(
         self, w: float, s: float, e: float, n: float, categories: list[str]

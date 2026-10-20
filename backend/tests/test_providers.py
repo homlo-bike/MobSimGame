@@ -106,10 +106,79 @@ def test_provider_unavailable_after_retries(
     monkeypatch.setattr("app.providers.base.asyncio.sleep", no_sleep)
     upstream.handlers["overpass-api.de"] = lambda r: httpx.Response(504, text="gateway timeout")
     c = make_client(settings)
-    res = c.get("/api/v1/osm/features-near", params={"lon": 1, "lat": 1})
+    res = c.get("/api/v1/osm/features", params={"bbox": "0,0,0.01,0.01", "categories": "parking"})
     assert res.status_code == 503
     assert res.json()["capability"]["state"] == "temporarily_unavailable"
     assert len(upstream.requests) == 4  # initial + 3 retries
+
+
+def test_name_lookup_does_not_retry(
+    make_client: Callable[[Settings], TestClient], settings: Settings, upstream: Upstream
+) -> None:
+    # Interactive station naming must answer within the browser's wait: one attempt only.
+    upstream.handlers["overpass-api.de"] = lambda r: httpx.Response(504, text="gateway timeout")
+    res = make_client(settings).get("/api/v1/osm/features-near", params={"lon": 1, "lat": 1})
+    assert res.status_code == 503
+    assert len(upstream.requests) == 1
+
+
+def test_street_intersections_and_nearest_street_point(client: TestClient, upstream: Upstream) -> None:
+    payload = {
+        "elements": [
+            {
+                "type": "way",
+                "id": 1,
+                "tags": {"highway": "primary", "name": "Main Street"},
+                "geometry": [
+                    {"lon": 13.400, "lat": 52.520},
+                    {"lon": 13.402, "lat": 52.520},
+                    {"lon": 13.404, "lat": 52.520},
+                ],
+            },
+            {
+                "type": "way",
+                "id": 2,
+                "tags": {"highway": "residential", "name": "Elm Street"},
+                "geometry": [{"lon": 13.402, "lat": 52.519}, {"lon": 13.402, "lat": 52.520}],
+            },
+            {
+                "type": "way",
+                "id": 3,
+                "tags": {"highway": "residential", "name": "Oak Lane"},
+                "geometry": [
+                    {"lon": 13.410, "lat": 52.519},
+                    {"lon": 13.410, "lat": 52.520},
+                    {"lon": 13.411, "lat": 52.521},
+                ],
+            },
+            {
+                "type": "way",
+                "id": 4,
+                "tags": {"highway": "residential", "name": "Ash Lane"},
+                "geometry": [{"lon": 13.411, "lat": 52.521}, {"lon": 13.412, "lat": 52.522}],
+            },
+            {
+                "type": "node",
+                "id": 9,
+                "lat": 52.5205,
+                "lon": 13.4021,
+                "tags": {"place": "square", "name": "Market Square"},
+            },
+        ]
+    }
+    upstream.handlers["overpass-api.de"] = lambda r: httpx.Response(200, json=payload)
+    res = client.get("/api/v1/osm/features-near", params={"lon": 13.4041, "lat": 52.5201, "radius_m": 300})
+    data = res.json()["data"]
+    by_name = {f["name"]: f for f in data}
+    # Major road meets a side street: an intersection; two minor streets do not count.
+    assert by_name["Main Street / Elm Street"]["category"] == "intersection"
+    assert by_name["Main Street / Elm Street"]["position"] == [13.402, 52.52]
+    assert "Ash Lane / Oak Lane" not in by_name and "Oak Lane / Ash Lane" not in by_name
+    # A street's position is its nearest vertex to the query point.
+    assert by_name["Main Street"]["position"] == [13.404, 52.52]
+    assert by_name["Market Square"]["category"] == "place"
+    sent = parse_qs(upstream.requests[0].content.decode())["data"][0]
+    assert ".hw out geom" in sent
 
 
 async def test_retry_honours_429_then_succeeds(monkeypatch: pytest.MonkeyPatch, settings: Settings) -> None:
