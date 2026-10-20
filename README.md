@@ -130,6 +130,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   peak headway between service start and end (`frequencies.txt`), times between stops
   from the simulation (running time with acceleration, dwell) and the line shapes.
   Readable by OpenTripPlanner, MATSim, SUMO's GTFS import and other tools.
+- **SUMO export** (File → Export for SUMO): the rail track network (plain-XML nodes and
+  edges, single track used both ways as a "bidi" pair), platforms as train stops and
+  each rail service as a flow with its vehicle type (length, width, acceleration,
+  braking, maximum speed), for Eclipse SUMO on your own machine
+  (`netconvert … --proj.utm`, then `sumo-gui`; see the bundled README.txt). Street lines
+  reach SUMO through the GTFS export and SUMO's OSM and GTFS import.
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
   profile, one outline per unit of the consist, bending through curves; a waiting or

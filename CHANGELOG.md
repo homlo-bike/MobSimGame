@@ -8,6 +8,8 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **SUMO export** (File menu): rail track network, platforms and rail services as
+  plain-XML files for Eclipse SUMO (build with `netconvert --proj.utm`).
 - **GTFS export** (File menu): a GTFS Schedule feed with routes, stops, trips, stop
   times from the simulation, peak-headway frequencies, calendar and shapes.
 

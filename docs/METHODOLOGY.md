@@ -309,3 +309,24 @@ The GTFS Schedule feed describes the sketch, not a published timetable:
   line geometry (the return path where it differs). `agency.txt` and `feed_info.txt` use
   the project name, this deployment's address and the browser's time zone.
 
+## SUMO export
+
+Files for Eclipse SUMO (owner decision: interoperate through files; no SUMO code is
+used or bundled):
+
+- `network.nod.xml`, `network.edg.xml`: track nodes and tracks as plain XML with
+  longitude/latitude coordinates (build with `netconvert --proj.utm`, as SUMO's
+  "Networks/PlainXML" documentation describes). Each track is an edge in its permitted
+  direction; a track used both ways is two edges joined by `bidi`. `allow` is the SUMO
+  vehicle class of the track's mode (tram → tram, light rail and commuter rail →
+  rail_urban, metro → subway); speed is the track's limit, else the mode default.
+- `stops.add.xml`: each station's platform on the route's track as a `trainStop`
+  (platform length centred on the station).
+- `routes.rou.xml`: per rail service a `vType` (consist length, width, acceleration,
+  braking, maximum speed) and per direction a `flow` repeating at the peak headway
+  between service start and end, stopping for the line's dwell time.
+- Street lines are not exported here: the project has no street network. They reach
+  SUMO through the GTFS export (SUMO's `gtfs2pt` with an OSM network).
+- Checked with SUMO 1.28.0: `netconvert` builds the network and `sumo` runs the flows
+  with their stops.
+

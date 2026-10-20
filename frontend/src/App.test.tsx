@@ -185,6 +185,7 @@ describe('File menu', () => {
       'Import GeoJSON…',
       'Export GeoJSON',
       'Export GTFS timetable.zip',
+      'Export for SUMO.zip',
       'Export coordinates.csv',
       'Save to server and share…',
       'Print report',

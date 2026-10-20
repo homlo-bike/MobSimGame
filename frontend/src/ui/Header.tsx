@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useStore, useScenario } from '../store/projectStore';
 import { buildGtfs } from '../export/gtfs';
+import { buildSumo } from '../export/sumo';
 import { zip } from '../export/zip';
 import { downloadText, parseProjectText, safeFilename, serializeProject } from '../store/persistence';
 import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJSON } from '../geo/geojson';
@@ -152,6 +153,15 @@ export function Header({
       feed.skipped.length > 0,
     );
   };
+  const exportSumo = () => {
+    const out = buildSumo(scenario, project.name);
+    downloadText(`${name}-sumo.zip`, zip(out.files), 'application/zip');
+    report(
+      out.skipped.length
+        ? `SUMO files exported; ${out.skipped.length} line(s) not included (street lines go through GTFS, see README.txt)`
+        : 'SUMO files exported',
+    );
+  };
   const openReport = () =>
     openServerReport(project).catch((e) =>
       report(e instanceof ProviderError ? `Report unavailable: ${e.message}` : 'Report failed', true),
@@ -184,6 +194,7 @@ export function Header({
     { kind: 'item', label: 'Import GeoJSON…', onSelect: () => geojsonInput.current?.click() },
     { kind: 'item', label: 'Export GeoJSON', onSelect: exportGeoJSON },
     { kind: 'item', label: 'Export GTFS timetable', hint: '.zip', onSelect: exportGtfs },
+    { kind: 'item', label: 'Export for SUMO', hint: '.zip', onSelect: exportSumo },
     {
       kind: 'item',
       label: 'Export coordinates',
