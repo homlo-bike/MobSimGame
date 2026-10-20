@@ -67,9 +67,13 @@ alignment:
 
 `coordinates` stays as the **derived** geometry: routed legs joined, or the sampled
 spline. Every existing consumer (stations, segments, simulation, analysis, export)
-keeps working unchanged. Projects are migrated v1 → v2 by wrapping the existing
-coordinates as `polyline`, so nothing changes shape silently; the user can convert a
-line explicitly.
+keeps working unchanged.
+
+*As implemented* (`frontend/src/domain/schema.ts`): `polyline` has no points of its own
+(the vertices are `coordinates`), `spline` has no tension parameter (centripetal,
+α = 0.5), leg statuses are `routed | manual | unrouted` and each leg stores its
+geometry; `routed` also keeps an optional `returnCoordinates`. Following the owner's
+decision, migration converts track lines to curves and bus lines to routed lines.
 
 ### A3. Drawing and editing UX
 
@@ -88,8 +92,8 @@ line explicitly.
 
 - **Blocking:** a bus or BRT line with a `failed` leg is not complete ("routing
   required").
-- **Warning:** a `manual` leg; a route that uses a road the router flags as
-  restricted.
+- **Information** (as implemented; the plan said warning): a `manual` leg.
+- Planned: a route that uses a road the router flags as restricted.
 - **Information:** one-way streets used in one direction only, which means the return
   direction needs its own path.
 - Phase 3: show dedicated bus lanes and busways from OSM (`busway`, `bus:lanes`)

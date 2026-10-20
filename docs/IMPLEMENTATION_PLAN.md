@@ -50,20 +50,30 @@ Vertical slice:
 | HTML report endpoint; PDF contract (501) | `backend/app/api/reports.py` |
 | Tests and CI | `**/*.test.ts(x)`, `e2e/`, `backend/tests/`, `.github/workflows/ci.yml` |
 
-### Phase 2 — Alignments, geospatial validation and a minimal UI (planning)
+### Phase 2 — Alignments, real networks, geospatial validation, minimal UI (in progress)
 
-Detailed plan: [PHASE_2_PLAN.md](PHASE_2_PLAN.md).
+Detailed plan and owner decisions: [PHASE_2_PLAN.md](PHASE_2_PLAN.md).
 
-- Bus and BRT lines follow streets (RoutingProvider; self-hosted Valhalla recommended).
-- Metro, rail, light-rail and tram lines as smooth centripetal Catmull–Rom splines through
-  control points; curvature checks on the smooth curve.
+Done:
+
+- Bus and BRT lines follow streets (self-hosted Valhalla, `docs/ROUTING.md`).
+- Track lines as smooth centripetal Catmull–Rom splines; cited curve radii
+  (`docs/CURVE_RADII.md`).
 - Schema v2 with an explicit `alignment` (polyline / spline / routed); v1 projects
-  migrate unchanged.
-- Minimal UI: single-row header with a File menu for import/export (done), then
-  collapsible panels, an on-map toolbar, a command palette and a responsive layout.
-- Geospatial validation: projected-CRS measures in PostGIS, conflict checks
-  (buildings, water, railways, protected areas), real elevation, cited mode profiles,
-  editable entrances, platforms and portals.
+  migrate (track lines become curves, bus lines become routed with unrouted sections).
+- Directional double track, crossovers, disruption simulation, traffic signals with
+  transit signal priority, real-city networks from OSM, login for server saving.
+- Minimal header with a File menu.
+
+Open:
+
+- UI next steps (C2): collapsible side panels, on-map toolbar, command palette,
+  responsive layout, dark mode, shortcut help.
+- Geospatial validation (D): projected-CRS measures in PostGIS, conflict checks
+  (buildings, water, railways, protected areas), real elevation, cited grade and
+  stop-spacing values, editable entrances, platforms and portals.
+- Routing extras: live route preview while drawing, distinct map style for manual and
+  unrouted sections, cycling/walking routing profiles.
 
 ### Phase 3 — Data-provider integrations
 

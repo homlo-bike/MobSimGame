@@ -43,7 +43,11 @@ def test_share_roundtrip_with_postgis_extent(
 ) -> None:
     c = make_client(pg_settings)
     assert c.get("/api/health").json()["database"] == "ok"
-    created = c.post("/api/v1/projects", json={"project": demo_project}).json()
+    token = c.post("/api/v1/auth/login", json={"username": "admin", "password": "admin"}).json()["token"]
+    c.headers["Authorization"] = f"Bearer {token}"
+    res = c.post("/api/v1/projects", json={"project": demo_project})
+    assert res.status_code == 201, res.text
+    created = res.json()
     assert c.get(f"/api/v1/projects/{created['id']}").json()["project"]["name"] == demo_project["name"]
     engine = create_engine(pg_settings.database_url)
     with engine.connect() as conn:
