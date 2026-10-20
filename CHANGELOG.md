@@ -8,6 +8,13 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Ramps between levels** (R6). A track whose ends are on different levels is a
+  ramp; the track inspector sets the level of each end and shows the gradient, the
+  maximum and the length needed. Too steep ramps and platforms on ramps are reported
+  (cited EBO limits for railways, placeholders otherwise); the map labels ramps and
+  marks portals. Level heights are system defaults (owner decision): 10 m per
+  underground level and 7 m per elevated level, editable per project. The street is taken
+  as flat for now; terrain follows.
 - **Following the vehicle ahead** (R13 part 2). Buses, BRT, trolleybuses, trams and
   light rail keep the Intelligent Driver Model's steady-state gap (2.5 m + speed ×
   1.0 s, SUMO defaults, plus the length of the vehicle ahead) instead of a fixed

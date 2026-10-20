@@ -25,6 +25,7 @@ import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
 import { findingPosition } from '../validation/locate';
 import { stepsCoordinates, stepsSegments } from '../domain/serviceRouting';
 import { wirePaths } from '../domain/overheadWire';
+import { rampLabelPosition, ramps } from '../domain/ramps';
 
 /**
  * Physical tracks, one feature each, oriented in their running direction so
@@ -714,4 +715,34 @@ export function wiresCollection(scenario: Scenario): FeatureCollection {
       properties: { lineId: w.lineId },
     })),
   };
+}
+
+/** Ramps between levels: a label in the middle (levels, gradient, length) and the portal at street level. */
+export function rampsCollection(scenario: Scenario): FeatureCollection {
+  const net = scenario.trackNetwork;
+  const features: Feature[] = [];
+  for (const r of ramps(scenario)) {
+    const t = net.tracks.find((x) => x.id === r.trackId)!;
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: rampLabelPosition(net, t) },
+      properties: {
+        kind: 'label',
+        trackId: t.id,
+        fits: r.fits,
+        label: `${r.fits ? '' : '⚠ '}Ramp ${r.fromLevel} → ${r.toLevel} · ${r.gradientPercent.toFixed(1)} % · ${Math.round(r.lengthM)} m`,
+      },
+    });
+    if (r.portal)
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: r.portal },
+        properties: {
+          kind: 'portal',
+          trackId: t.id,
+          label: r.fromLevel < 0 || r.toLevel < 0 ? 'Portal' : 'Ramp start',
+        },
+      });
+  }
+  return { type: 'FeatureCollection', features };
 }
