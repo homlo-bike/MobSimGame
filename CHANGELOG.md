@@ -8,6 +8,9 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **GTFS export** (File menu): a GTFS Schedule feed with routes, stops, trips, stop
+  times from the simulation, peak-headway frequencies, calendar and shapes.
+
 - **Stacked stations on different levels**: new rail stations get a level
   (underground −2/−1, street, elevated +1/+2; "Level of new stations"), and the
   station inspector moves a station object to another level with its tracks.

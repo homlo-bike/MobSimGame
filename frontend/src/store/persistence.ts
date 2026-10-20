@@ -165,8 +165,8 @@ export function parseProjectText(
   return parseProject(data);
 }
 
-export function downloadText(filename: string, text: string, mime: string) {
-  const blob = new Blob([text], { type: mime });
+export function downloadText(filename: string, text: string | Uint8Array, mime: string) {
+  const blob = new Blob([text as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

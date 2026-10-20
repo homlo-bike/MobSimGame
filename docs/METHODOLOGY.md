@@ -292,3 +292,20 @@ code is used): `x = v₀t + ½at²`; the peak speed of a section of length `d` i
   section; a vehicle does not slow down gradually behind a slower one between two
   sections, and the IDM's approach term (`v·Δv / (2√(ab))`) is not used.
 
+## GTFS export
+
+The GTFS Schedule feed describes the sketch, not a published timetable:
+
+- `routes.txt`: one route per line; `route_type` by mode (tram and light rail 0, metro 1,
+  commuter rail 2, bus and BRT 3, trolleybus 11).
+- `stops.txt`: the stations served by an exported line.
+- `trips.txt`, `stop_times.txt`: one trip per direction (one for rings and one-way lines;
+  a loop ends at its first stop again). Times are offsets of the simulation's first,
+  undisturbed trip (running time with acceleration and braking, dwell), starting at the
+  pattern's service start; signal and crossing waits are not included.
+- `frequencies.txt`: the trip repeats at the peak headway from service start to end
+  (`exact_times = 0`); off-peak headways are not exported yet.
+- `calendar.txt`: every day, valid one year from the export date. `shapes.txt`: the
+  line geometry (the return path where it differs). `agency.txt` and `feed_info.txt` use
+  the project name, this deployment's address and the browser's time zone.
+

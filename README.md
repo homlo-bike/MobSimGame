@@ -125,6 +125,11 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).
+- **GTFS export** (File → Export GTFS timetable): a GTFS Schedule feed (zip) with one
+  route per line, the stations as stops, one trip pattern per direction repeating at the
+  peak headway between service start and end (`frequencies.txt`), times between stops
+  from the simulation (running time with acceleration, dwell) and the line shapes.
+  Readable by OpenTripPlanner, MATSim, SUMO's GTFS import and other tools.
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
   profile, one outline per unit of the consist, bending through curves; a waiting or
