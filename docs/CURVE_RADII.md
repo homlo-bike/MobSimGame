@@ -54,9 +54,10 @@ dedicated track.
   new construction.
 - No cited recommended value was found for street-running trams (UK ORR guidance and
   BOStrab §15 give none), so only the tram minimum is checked.
-- Radii are measured on the sketched curve (centripetal Catmull–Rom spline, sampled
-  about every 10 m; radius from samples about 20 m apart). Sketches have no transition
-  curves or cant, so the radius is an estimate, and the junction between a straight and
-  a curve can read a little tighter than the arc itself.
+- Radii are design inputs on the physical tracks (circular arcs, see
+  [TRACK_GEOMETRY.md](TRACK_GEOMETRY.md)) and are checked exactly on every arc. On
+  double track the inner track is checked on its own: the radius entered when drawing
+  double track is the inner track's, and new double track uses the cited value for the
+  inner track by default. There are no transition curves or cant.
 - Real networks (Paris Métro, London Underground, historic tram networks) have curves
   well below these values; that is why imported lines are reported as information.

@@ -1,8 +1,11 @@
 # Track geometry: lines and circular arcs
 
-Status: **library implemented and tested** (`frontend/src/geo/track/`). It is not yet
-wired into the editor: rail lines are still drawn as splines until the track
-network model (see `TRACK_NETWORK_REVIEW.md`, `IMPLEMENTATION_PLAN.md`) lands.
+Status: **implemented and used by the editor** (`frontend/src/geo/track/`, used by
+`domain/tracks.ts`). Every physical track is stored as interior PIs with radii; its
+ends are its nodes. See [TRACK_ARCHITECTURE.md](TRACK_ARCHITECTURE.md).
+
+Each project fixes its frame origin (`trackNetwork.frameOrigin`) with the first
+track, so all tracks share one frame.
 
 ## Metric frame (`projection.ts`)
 
@@ -65,6 +68,23 @@ usually laid out.
   This is the basis for double track as two physical tracks.
 - `innerOuterRadii(R, spacing)` gives the inner and outer radii of a pair of
   tracks.
+- `splitAlignment(a, along)` splits an alignment into two that reproduce the same
+  lines and arcs. Inside an arc, both halves get a new PI where the tangent at the
+  split point meets the neighbouring leg.
+
+## Editor conventions (`domain/tracks.ts`)
+
+- **Default radius.** Each new interior point gets the cited recommended minimum
+  of the mode, or the cited minimum where no recommended value exists.
+- **Double track** is the centre line offset by ± spacing / 2. The radius entered
+  for double track, default included, is the **inner** track's radius. The centre
+  line gets that radius plus half the spacing, so the inner track meets the cited
+  value and the outer track is wider.
+- **Closed loops.** A drawn loop (last point within the snap distance of the
+  first) is reordered so it starts and ends in the middle of its first straight.
+  Every corner then carries a curve and the loop closes tangentially. `parallel`
+  keeps the two ends of a closed alignment together.
+- **Display samples** are derived: straights by their endpoints, arcs every 5 m.
 - `serializeAlignment` / `deserializeAlignment` round-trip the alignment and are
   validated with Zod.
 

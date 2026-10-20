@@ -75,22 +75,26 @@ Open:
 - Routing extras: live route preview while drawing, distinct map style for manual and
   unrouted sections, cycling/walking routing profiles.
 
-### Phase 2b — Track network (Priority 1, in progress)
+### Phase 2b — Track network (Priority 1 done)
 
 Review: [TRACK_NETWORK_REVIEW.md](TRACK_NETWORK_REVIEW.md). Geometry:
 [TRACK_GEOMETRY.md](TRACK_GEOMETRY.md). Architecture:
 [TRACK_ARCHITECTURE.md](TRACK_ARCHITECTURE.md). Schema 3 replaces schema 2 without
 migration (owner decision).
 
+All steps below are implemented and tested; see
+[PHASE_REQUIREMENTS_STATUS.md](PHASE_REQUIREMENTS_STATUS.md#track-network-this-change).
+
 | Step | Content | Where |
 | --- | --- | --- |
-| 1 | Line-and-arc geometry, project metric frame (done) | `geo/track/` |
+| 1 | Line-and-arc geometry, project metric frame | `geo/track/` |
 | 2 | Schema 3: `scenario.trackNetwork` with nodes, tracks, double-track groups, permitted movements, metadata, parameters with source and range | `domain/schema.ts`, `domain/trackParameters.ts` |
 | 3 | Pure track operations: draw a track (single or double), join to nodes, split, move a node (connected tracks follow), set a radius, delete with impact report | `domain/tracks.ts` |
 | 4 | Graph: adjacency through permitted movements only, connectivity, single-track blocks, validation (dangling ends, kinks, radius, unconnected level crossings) | `domain/trackGraph.ts`, `validation/trackValidation.ts` |
 | 5 | Stations on tracks: nearby tracks within 20 m (configurable), same level only | `domain/stationTracks.ts` |
-| 6 | Services routed over tracks (shortest permitted path between stops, both directions); line coordinates and structure segments derived from the path | `domain/serviceRouting.ts` |
+| 6 | Services routed over tracks (shortest permitted path between stops, both directions); line coordinates and structure segments derived from the path; deleting used track asks cancel / reroute / break / delete | `domain/serviceRouting.ts` |
 | 7 | Simulation: occupancy of single-track blocks (opposite directions wait), minimum separation for following vehicles | `simulation/occupancy.ts`, `simulation/engine.ts` |
+| — | Backend accepts schema 3 only and validates track geometry and sizes | `backend/app/schemas.py` |
 | 8 | Editor: track tool (single/double, radius), node and track inspectors, station track assignment, "New service" by clicking stations; rail lines lose "Follow streets" and "Straight segments" | `map/`, `ui/` |
 | 9 | Docs, tests, examples in schema 3 | `docs/`, `domain/examples.ts` |
 
@@ -127,6 +131,4 @@ provider interface.
 
 - Many inspector strings are not yet routed through `i18n/` (UI chrome is).
 - Station entrances and images are stored but not editable on the map.
-- Station-name suggestions use only feature points; "major intersection" candidates
-  are not generated yet.
 - Dark mode is not implemented; high-contrast offline basemap is.

@@ -6,7 +6,70 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Project format schema 3: physical track network.** Track (nodes, tracks,
+  double-track groups, permitted movements) is now separate from services. Rail
+  lines run over tracks instead of owning a spline. Projects in schema 1 or 2 are
+  not migrated (owner decision; the format was unpublished). They are refused with a
+  message, and the server accepts only schema 3. See `docs/PROJECT_MIGRATION.md`.
+- Rail and tram geometry is **straight lines and circular arcs** with a radius per
+  point, computed in a per-project transverse Mercator frame. This replaces
+  Catmull–Rom splines. Curve radii are checked exactly on every arc, including the
+  inner and outer track of a double track.
+- Rail lines no longer offer "Follows streets" or "Straight segments".
+- Imported OpenStreetMap rail lines become a double track fitted with lines and arcs,
+  with stations on both tracks and a service routed over them.
+
+### Added
+
+- **Draw track** for track modes:
+  - single or double track, with radius and structure options;
+  - ends attach to nodes or open ends, and an end on a track creates a junction;
+  - loops close tangentially;
+  - dragging a track end moves every connected track;
+  - split a track at a chainage.
+- **Track and node inspectors**:
+  - running direction, structure, level, right of way, design rules, speed limit
+    and the radius per point;
+  - permitted movements per node (automatic or manual);
+  - buffer stops;
+  - custom key/value fields.
+- **Stations on tracks**:
+  - placing a station serves every track within 20 m on its level (adjustable);
+  - tracks can be added or removed in the station inspector;
+  - moving a station keeps it on its tracks.
+- **New service** tool: pick stations in calling order on the map, from a list or in
+  the Table view. The service is routed over the tracks, and on double track the
+  way back uses the other track. Services are routed again after track, station or
+  movement edits.
+- **Deleting a used track** asks: cancel, reroute the services, leave them unrouted,
+  or delete them.
+- **Track occupancy in the simulation**:
+  - single track used in both directions is reserved by one direction at a time,
+    and opposing trains wait;
+  - following vehicles keep a minimum distance (placeholder values);
+  - the result stays deterministic.
+- **Track validation**:
+  - radius below the cited minimum or recommended value;
+  - radius reduced to fit its legs;
+  - kinks inside tracks and at connections;
+  - open track ends;
+  - unspecified junction types;
+  - same-level crossings without a connection;
+  - single track used both ways.
+- **Track parameters** panel: track spacing (EBO § 10 for heavy rail; tram value a
+  placeholder), station search distance, snap distance and minimum separations, each
+  with default, range, status and source.
+- Table view: create track, add a station on track, and see a track table, all
+  without the map.
+- Custom key/value fields on lines, stations, tracks and nodes (projects store them too; no project editor yet).
+
 ### Fixed
+
+- Simulation: the return trip of a two-ended line started its timing before the
+  terminal layover had passed, so traffic-signal waits on the way back were computed
+  for the wrong time. The way back now starts after the layover.
 
 - **Station auto-naming** could stay on "Looking up nearby features…" and then offer
   latitude/longitude: the browser gave up after 20 s while the server's map lookup

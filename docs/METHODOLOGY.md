@@ -25,14 +25,22 @@ convention, **not** a probabilistic confidence interval. The relative spread
   6 371 008.8 m).
 - Station snapping: nearest point on the polyline; a click within 60 m of an
   existing station reuses it (shared station).
-- Alignments: track modes use a **centripetal Catmull–Rom spline** through the
-  user's control points (Yuksel, Schaefer & Keyser 2011, *Computer-Aided Design*
-  43(7)), sampled about every 10 m; bus/BRT lines are street-routed sections
-  (see [ROUTING.md](ROUTING.md)); other modes use straight segments.
-- Curvature: on curves, the radius of the circle through samples about 20 m apart;
-  on straight-segment lines, through three consecutive vertices (local
-  equirectangular projection). Sketches have no transition curves or cant, so this
-  is an estimate.
+- Track geometry: physical tracks are **straight lines and circular arcs** with a
+  radius entered per point, tangent to each other by construction, computed in a
+  per-project transverse Mercator frame (Krüger series as given by Karney 2011);
+  see [TRACK_GEOMETRY.md](TRACK_GEOMETRY.md). Radii are exact design inputs, not
+  estimates. There are no transition curves or cant. Rail services run over the
+  tracks ([SERVICE_ROUTING.md](SERVICE_ROUTING.md)); bus/BRT lines are
+  street-routed sections ([ROUTING.md](ROUTING.md)); other modes use straight
+  segments.
+- Curvature of straight-segment lines: radius of the circle through three
+  consecutive vertices (local equirectangular projection), an estimate.
+- Imported OpenStreetMap track: lines and arcs fitted to the mapped geometry
+  (resampled every 10 m; straights where the local radius is at least 3000 m, a
+  fitting heuristic; arcs from the median local radius between straights). The
+  largest deviation is noted on the line.
+- Stations on tracks: tracks within 20 m (owner requirement, adjustable) of the
+  station on the same level, measured in the projected frame.
 - Grades: `(Δ elevation / Δ chainage) × 100` between samples of ground elevation.
   Not a vertical alignment.
 - Shared track detection: sample one line every 25 m and test distance to the
@@ -51,8 +59,9 @@ A line is **complete** only without blocking findings:
 
 Threshold checks use versioned mode profiles in `domain/modeProfiles.ts`:
 
-- **Curve radius**: cited documented defaults per mode (below the minimum blocks,
-  below the recommended value warns). Values, quotes and caveats:
+- **Curve radius**: cited documented defaults per mode, checked on every arc of
+  every physical track (inner and outer track of a double track separately; below
+  the minimum blocks, below the recommended value warns). Values, quotes and caveats:
   [CURVE_RADII.md](CURVE_RADII.md).
 - Grade, stop spacing and short structure segments: still **uncited placeholders**;
   findings say so and never block.
@@ -118,7 +127,8 @@ Illustrative only: constant speed per segment (no acceleration), fixed dwell,
 2-minute layover at terminals, one trip departing per peak headway, positions a
 pure function of simulated time (each trip is built in time order from its
 departure time). Rings circulate; one-way lines return out of service;
-bidirectional lines reverse at terminals.
+bidirectional lines reverse at terminals. Services on double track return on the
+other track.
 
 - **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a
   vehicle reaching a signal on red waits until the next green. Signals come from
@@ -134,6 +144,18 @@ bidirectional lines reverse at terminals.
   protection or vehicle interaction model.
 - Crossovers are drawn up to 80 m before or after their station (a display position,
   not a design).
+- **Track occupancy** (services on tracks): a single-track block, meaning a chain of
+  bidirectional tracks with nowhere to pass, is reserved by one direction at a time.
+  Trains of the other direction wait at its entry. Following vehicles on any track
+  or bus route keep a **minimum separation**, applied as a time gap at entry and
+  exit (distance ÷ running speed). The values are placeholders: 200 m for metro and
+  rail, 50 m for tram and light rail, 20 m for buses (`domain/trackParameters.ts`).
+  Trips are scheduled in a fixed order (departure, line, service), so results are
+  deterministic.
+  - Limitations: a waiting train does not block the track behind it, signals inside
+    a block do not extend the reservation, and there is no interlocking, signalling
+    or braking model.
+  - Waits longer than the headway mean the timetable exceeds the section's capacity.
 
 ## Schematic
 

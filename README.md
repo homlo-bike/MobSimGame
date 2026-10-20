@@ -31,17 +31,42 @@ set, labelled as such. See the [roadmap](#roadmap).
   of Berlin, Paris, London, New York City, Los Angeles or Bogotá live from
   OpenStreetMap (real line and station names; Bogotá Metro Line 1 labelled as under
   construction; TransMilenio as BRT). Imported lines are existing infrastructure.
-- **Alignments:** trams, light rail, metro and rail run on smooth curves (centripetal
-  Catmull–Rom splines through the points you place; older projects are converted);
-  bus and BRT lines follow streets through waypoints, routed by a self-hosted
-  Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)); unrouted sections make a line
+- **Physical track network** ([docs/TRACK_ARCHITECTURE.md](docs/TRACK_ARCHITECTURE.md)):
+  for tram, light rail, metro and rail you draw track, place stations on it, then
+  create services that run over it.
+  - **Geometry:** track is straight lines and circular arcs with a radius you enter
+    per point (the mode's cited value by default), tangent by construction, computed
+    in metres in a per-project projection ([docs/TRACK_GEOMETRY.md](docs/TRACK_GEOMETRY.md)).
+  - **Double track** is two physical tracks with their own IDs, the spacing between
+    them and opposite running directions. Inner and outer radii are checked
+    separately.
+  - **Connections:** track connects only at nodes, along permitted movements
+    (automatic, or set per node). Tracks that only cross on the map, such as a
+    bridge or tunnel, are not connected.
+  - **Joining:** ending a new track on another track creates a junction. A drawn
+    loop closes tangentially.
+  - **Editing:** drag a track end and every connected track follows. Split a track
+    at a chainage. Deleting a track that services use asks whether to reroute,
+    break or delete those services.
+  - **Stations** serve the tracks within 20 m on their level (adjustable).
+  - **Services** are routed over the tracks through their stations in calling
+    order, and on double track the way back uses the other track
+    ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
+  - Rail lines cannot use "Follows streets" or "Straight segments".
+- **Bus and BRT** lines follow streets through waypoints, routed by a self-hosted
+  Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)). Unrouted sections make a line
   incomplete until routed or marked manual. Cycling and walking corridors use straight
   segments.
-- Line drawing and vertex editing with snapping (`@sakuzu/maplibre-gl-draw`);
-  lines from typed coordinates (Table view, no map needed).
-- **Directions and tracks:** every track carries one direction; double-track segments
-  are drawn as two parallel tracks with direction arrows, single track shows both
-  directions; swap track sides per segment; reverse a line.
+- Drawing and point editing with snapping (`@sakuzu/maplibre-gl-draw`). The Table
+  view creates track, stations on track, and lines from typed coordinates (no map
+  needed).
+- **Directions:** each physical track has a running direction (arrows on the map,
+  both ways on single track). Street-routed and straight lines keep per-segment
+  track sides and can be reversed.
+- **Parameters** (track spacing, station search distance, minimum separation) show
+  their default, range, status and source and can be changed per project. Uncited
+  values are marked placeholder.
+- **Custom fields** (key/value) on lines, stations, tracks and nodes.
 - **Crossovers** before or after each station (map and schematic).
 - Stations snapped to lines (click or chainage); shared stations become
   interchanges; drag to move; delete; name suggestions from nearby features
@@ -63,7 +88,9 @@ set, labelled as such. See the [roadmap](#roadmap).
   and buses stop at red **traffic signals** from OpenStreetMap with simulated cycles
   (assumed, editable timings) and optional per-line **transit signal priority**.
   **Disruptions:** close a section and trains turn back at the nearest crossovers or
-  share the remaining track.
+  share the remaining track. **Single track** used in both directions is occupied by
+  one direction at a time (opposing trains wait), and following vehicles keep a
+  minimum distance (placeholder values).
 - Schematic map proof of concept (octilinear, interchange and terminal symbols,
   keyboard corrections, SVG/PNG export, text alternative).
 - Dashboard: for real places, geometry-based figures and "input required" for
@@ -75,22 +102,31 @@ set, labelled as such. See the [roadmap](#roadmap).
 
 ### Planned (not available yet)
 
-Real population/traffic/elevation providers, editable assumption sets for real
-places, calibrated demand, cost/emissions/fare modules, timetables, user accounts
-beyond the single administrator login, server-side PDF. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+Turnout and crossing objects (single, crossover, scissors, diamond, slips) with
+ports ([docs/TURNOUTS_AND_CROSSINGS.md](docs/TURNOUTS_AND_CROSSINGS.md)), moving a
+double track as a pair, routing preferences, a pluggable bus routing provider, real
+population/traffic/elevation providers, editable assumption sets for real places,
+calibrated demand, cost/emissions/fare modules, timetables, user accounts beyond
+the single administrator login, server-side PDF. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## Important limitations
 
 - Alignments are conceptual sketches; findings are advisory, never "safe" or
   "construction-ready".
-- Distances use a spherical-earth approximation (sketch accuracy).
+- Line lengths use a spherical-earth approximation; track geometry uses a
+  per-project transverse Mercator frame (sketch accuracy, no transition curves or
+  cant).
+- Projects saved before the track network (schema 1 or 2) cannot be opened; the
+  format starts again at schema 3 ([docs/PROJECT_MIGRATION.md](docs/PROJECT_MIGRATION.md)).
+- Imported rail lines get their own pair of tracks; lines sharing a street in
+  OpenStreetMap are not merged onto shared track.
 - Phase 1 estimates are exploratory, uncalibrated and use synthetic inputs.
 - Synthetic overlays (population, traffic, existing transit) appear only in
   fictional projects, never over real places.
 - Example networks are OpenStreetMap as mapped today: one direction per route, merged
   stations, no timetables, structures (tunnels, viaducts) not imported.
-- Signal timings are placeholders until you enter local values; the animation has no
-  train protection or vehicle interaction.
+- Signal timings and vehicle separations are placeholders until you enter local
+  values; the animation has no signalling, interlocking or braking model.
 - Missing OSM tags do not mean a feature does not exist.
 
 ## Architecture
@@ -232,6 +268,10 @@ See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#backup-and-restore).
   placed in the browser bundle (enforced in CI).
 - Provenance rules: [docs/DATA_PROVENANCE.md](docs/DATA_PROVENANCE.md)
 - Formulas: [docs/METHODOLOGY.md](docs/METHODOLOGY.md)
+- Track network: [review](docs/TRACK_NETWORK_REVIEW.md), [architecture](docs/TRACK_ARCHITECTURE.md),
+  [geometry](docs/TRACK_GEOMETRY.md), [turnouts and crossings](docs/TURNOUTS_AND_CROSSINGS.md),
+  [service routing](docs/SERVICE_ROUTING.md), [project format](docs/PROJECT_MIGRATION.md),
+  [requirement status](docs/PHASE_REQUIREMENTS_STATUS.md)
 
 ## Attribution
 
@@ -264,9 +304,12 @@ their own licences. Background: [docs/LICENSING_OPTIONS.md](docs/LICENSING_OPTIO
 ## Roadmap
 
 1. Phase 1 — map and network editor (v0.1.0)
-2. **Phase 2 (in progress)** — street-following bus lines, smooth rail alignments,
-   directional double track, crossovers and disruptions, traffic signals, real-city
-   networks, minimal UI, geospatial validation ([plan](docs/PHASE_2_PLAN.md))
+2. **Phase 2 (in progress)** — street-following bus lines, physical track network
+   with lines and arcs, double track as two tracks, stations and services on tracks,
+   single-track occupancy, crossovers and disruptions, traffic signals, real-city
+   networks, minimal UI, geospatial validation ([plan](docs/PHASE_2_PLAN.md),
+   [track network](docs/IMPLEMENTATION_PLAN.md)); next: turnouts and crossings,
+   connected double-track editing, routing preferences
 3. Phase 3 — data-provider integrations (population, transit, traffic, OSM extracts)
 4. Phase 4 — analysis and estimates (editable assumptions, costs, emissions, fares)
 5. Phase 5 — simulation and publishing (richer simulation, schematic optimisation, PDF, accounts)

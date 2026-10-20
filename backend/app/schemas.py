@@ -18,6 +18,9 @@ LngLat = tuple[Lon, Lat]
 MAX_LINES = 500
 MAX_STATIONS = 5000
 MAX_VERTICES = 20000
+# Imported networks create two tracks per line plus junction splits.
+MAX_TRACKS = 20000
+MAX_TRACK_POINTS = 5000
 
 
 class LineIn(BaseModel):
@@ -34,18 +37,39 @@ class StationIn(BaseModel):
     position: LngLat
 
 
+class TrackNodeIn(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str = Field(max_length=64)
+    position: LngLat
+
+
+class TrackIn(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str = Field(max_length=64)
+    fromNodeId: str = Field(max_length=64)
+    toNodeId: str = Field(max_length=64)
+    points: list[LngLat] = Field(default_factory=list, max_length=MAX_TRACK_POINTS)
+
+
+class TrackNetworkIn(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    nodes: list[TrackNodeIn] = Field(default_factory=list, max_length=2 * MAX_TRACKS)
+    tracks: list[TrackIn] = Field(default_factory=list, max_length=MAX_TRACKS)
+
+
 class ScenarioIn(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: str = Field(max_length=64)
     name: str = Field(max_length=200)
+    trackNetwork: TrackNetworkIn = Field(default_factory=TrackNetworkIn)
     lines: list[LineIn] = Field(max_length=MAX_LINES)
     stations: list[StationIn] = Field(max_length=MAX_STATIONS)
 
 
 class ProjectIn(BaseModel):
     model_config = ConfigDict(extra="allow")
-    # 1 is still accepted: the browser migrates older documents when it opens them.
-    schemaVersion: int = Field(ge=1, le=2)
+    # Schema 3 (physical track network). Older, unpublished formats are not migrated.
+    schemaVersion: int = Field(ge=3, le=3)
     id: str = Field(max_length=64)
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=10000)

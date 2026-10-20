@@ -51,7 +51,7 @@ pure-domain / store / map split; provenance on every dataset; the trip-based
 simulation that is a pure function of time; schema versioning with a migration
 function before validation (`migrate.ts`).
 
-## 3. Target model (proposal, pending owner decisions)
+## 3. Target model (implemented in schema 3; see [TRACK_ARCHITECTURE.md](TRACK_ARCHITECTURE.md))
 
 Physical infrastructure and passenger services become separate collections in a
 scenario. Names below are adapted to the repository (the existing `TrackSegment`
@@ -63,11 +63,24 @@ meanings of one name).
 | Track graph | `TrackNode`, `TrackEdge` | A node is a shared position (endpoint, junction, buffer stop, portal, structure transition). An edge is one physical single track between two nodes, with its own ID. |
 | Geometry | `TrackAlignment` = ordered `line` / `arc` primitives in a project metric frame | Source of truth; display coordinates are derived. |
 | Paired tracks | `trackGroupId` on edges | Double track = two edges with a shared group, spacing and default opposite directions. |
-| Connections | `TrackConnection` with ports and `permittedMovements` | Turnout, crossover, scissors crossover, diamond, single/double slip. A geometric crossing without a connection object is not traversable. |
+| Connections | Implemented: `TrackNode.movements` (permitted movements, automatic or manual). Planned: `TrackConnection` with ports for turnout, crossover, scissors crossover, diamond, single/double slip ([TURNOUTS_AND_CROSSINGS.md](TURNOUTS_AND_CROSSINGS.md)) | A geometric crossing without a node is not traversable. |
 | Stations | `Station` (kept) + `StationTrack` (station ↔ edge, side, level) + `Platform` (existing schema, extended) | |
 | Services | `ServiceLine` (public name, colour, mode, vehicle type) with `ServicePattern`s; each pattern has a `ServicePath` (ordered edge references with direction) and `ScheduledStop`s | Occupancy is derived from service paths, never stored. |
 | Bus services | Existing street-routed alignment (waypoints, legs, return path) | Kept separate from the track graph. |
 | Simulation | `VehicleRun` (runtime only) | Not persisted. |
+
+Names as implemented:
+
+| Proposal | Code |
+| --- | --- |
+| `TrackEdge` | `PhysicalTrack` |
+| `ServiceLine` | `TransportLine` with `alignment.kind = 'track'` |
+| `ServicePath` | `alignment.path` / `alignment.returnPath` (`TrackStep[]`) |
+| `ScheduledStop` | `line.stops`, in calling order |
+| `StationTrack` | `station.trackRefs` |
+| `VehicleRun` | the simulation's trips (runtime only) |
+
+`Platform` objects and turnout connection objects are not implemented yet.
 
 ## 4. Migrations
 
