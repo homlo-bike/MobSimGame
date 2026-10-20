@@ -470,6 +470,8 @@ export const StationSchema = z.object({
   position: LngLatSchema,
   construction: z.enum(['surface', 'underground', 'elevated']),
   platformType: z.enum(['side', 'island', 'separate', 'unknown']),
+  /** Layout of a bus or BRT stop (rail platforms use `platformType`). */
+  busStopType: z.enum(['unknown', 'roadside', 'in_lane', 'bay', 'island', 'brt_platform']).default('unknown'),
   /** Negative = depth below ground, positive = height above ground, metres. */
   verticalOffsetM: z.number().nullable().default(null),
   entrances: z.array(z.object({ id: z.string(), position: LngLatSchema, label: z.string() })).default([]),

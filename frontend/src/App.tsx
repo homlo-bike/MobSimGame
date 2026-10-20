@@ -1,9 +1,9 @@
-import { finishServiceDraft, requestTrackDeletion } from './store/trackActions';
+import { deleteLineWithNotice, finishServiceDraft, requestTrackDeletion } from './store/trackActions';
 import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
 import { saveToLocalStorage } from './store/persistence';
-import { activeScenario, deleteLine, deleteStation } from './domain/network';
+import { activeScenario, deleteStation } from './domain/network';
 import { fetchSharedProject } from './api/projects';
 import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
@@ -206,7 +206,7 @@ export default function App() {
             ),
             'Station deleted',
           );
-        } else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        } else if (sel.kind === 'line') deleteLineWithNotice(sel.id);
         else if (sel.kind === 'track') requestTrackDeletion([sel.id]);
         state.select(null);
         e.preventDefault();

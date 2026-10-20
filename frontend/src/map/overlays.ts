@@ -14,6 +14,7 @@ import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
+import { stationKind } from '../domain/stationKinds';
 import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
 import { findingPosition } from '../validation/locate';
@@ -373,6 +374,7 @@ export function stationsCollection(scenario: Scenario, selectedStationId: string
           interchange: isInterchange(scenario, s.id),
           color: lines[0]?.color ?? '#475569',
           lineCount: lines.length,
+          kind: stationKind(scenario, s),
           selected: s.id === selectedStationId,
         },
       };

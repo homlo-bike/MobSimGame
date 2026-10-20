@@ -14,7 +14,6 @@ import { MODES, MODE_LIST, RIGHT_OF_WAY_LABELS, STRUCTURE_LABELS } from '../doma
 import {
   addExistingStationToLine,
   addStationAtChainage,
-  deleteLine,
   detectSharedTracks,
   isRing,
   joinLines,
@@ -43,6 +42,7 @@ import { validateLine } from '../validation/validate';
 import { isRailMode, RAIL_MODES } from '../domain/tracks';
 import { moveServiceStop, rerouteServices, setServiceStops } from '../domain/serviceRouting';
 import { MetadataEditor } from './MetadataEditor';
+import { deleteLineWithNotice } from '../store/trackActions';
 import { describeDirection } from '../domain/direction';
 import {
   compatibleVehicles,
@@ -123,7 +123,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
           <Button
             variant="danger"
             onClick={() => {
-              commit(deleteLine(scenario, line.id), `Line "${line.name}" deleted`);
+              deleteLineWithNotice(line.id);
               select(null);
             }}
           >

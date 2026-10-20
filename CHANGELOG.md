@@ -29,6 +29,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Station and stop rules**:
+  - a station that track services call at but that is on no track (for example
+    after its track was deleted) is an error, so it never looks valid;
+  - the deletion dialog lists stations that would lose all their tracks;
+  - a stop without any line is a warning that says what to do;
+  - deleting a line reports the stops it leaves without service;
+  - bus stops have a type (roadside, in-lane, bay, island, BRT platform);
+  - the inspector shows whether a station is a rail station, a bus stop, both, or
+    unserved;
+  - on the map, bus stops are smaller and unserved stops have a grey ring.
 - **Traffic signals by hand**:
   - place signals on the map or at typed coordinates, drag to move, delete;
   - type: intersection, pedestrian, tram, BRT or railway crossing, station

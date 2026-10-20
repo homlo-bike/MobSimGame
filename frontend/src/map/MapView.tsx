@@ -18,7 +18,6 @@ import {
   activeScenario,
   addStationOnLine,
   createLine,
-  deleteLine,
   isRing,
   moveStation,
   updateLineGeometry,
@@ -31,7 +30,7 @@ import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
 import { applyTrackHandles, isRailMode, nearestOnTrack, pointOnTrack } from '../domain/tracks';
 import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../domain/serviceRouting';
-import { drawTracks, requestTrackDeletion } from '../store/trackActions';
+import { deleteLineWithNotice, drawTracks, requestTrackDeletion } from '../store/trackActions';
 import { addManualSignal, moveSignal } from '../domain/signals';
 import {
   ensureLayers,
@@ -255,8 +254,7 @@ export default function MapView() {
           requestTrackDeletion([feature.id]);
           // Until the user decides, the drawing shows the track again.
           reconcileDraw(draw, sc, null, null);
-        } else if (sc.lines.some((l) => l.id === feature.id))
-          state.commitScenario(deleteLine(sc, feature.id), 'Line deleted');
+        } else if (sc.lines.some((l) => l.id === feature.id)) deleteLineWithNotice(feature.id);
       }),
       draw.on('selection.changed', ({ selection: sel }) => {
         if (sel.type === 'feature' && sel.ids.length === 1) {

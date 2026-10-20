@@ -204,6 +204,7 @@ describe('exploratory demand', () => {
       position: [lng, 0],
       construction: 'surface',
       platformType: 'unknown',
+      busStopType: 'unknown',
       verticalOffsetM: null,
       entrances: [],
       accessibility: { stepFree: null, elevators: null, tactilePaving: null },

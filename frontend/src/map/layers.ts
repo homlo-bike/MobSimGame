@@ -377,9 +377,26 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     type: 'circle',
     source: SRC.stations,
     paint: {
-      'circle-radius': ['case', ['get', 'selected'], 9, ['get', 'interchange'], 8, 6],
+      // Bus stops are smaller than rail stations; stops without a line have a grey ring.
+      'circle-radius': [
+        'case',
+        ['get', 'selected'],
+        9,
+        ['get', 'interchange'],
+        8,
+        ['==', ['get', 'kind'], 'bus'],
+        4.5,
+        6,
+      ],
       'circle-color': '#ffffff',
-      'circle-stroke-color': ['case', ['get', 'interchange'], '#111827', ['get', 'color']],
+      'circle-stroke-color': [
+        'case',
+        ['==', ['get', 'kind'], 'orphan'],
+        '#94a3b8',
+        ['get', 'interchange'],
+        '#111827',
+        ['get', 'color'],
+      ],
       'circle-stroke-width': ['case', ['get', 'selected'], 4, ['get', 'interchange'], 3.5, 3],
     },
   });

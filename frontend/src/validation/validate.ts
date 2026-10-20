@@ -21,6 +21,7 @@ import {
 } from '../geo/geometry';
 import { validateSegments } from '../geo/segments';
 import { validateTrackNetwork } from './trackValidation';
+import { servingLines } from '../domain/stationKinds';
 import { isVehicleCompatible } from '../domain/vehicles';
 import { lineFleet } from '../analysis/fleet';
 import { trackGeometry } from '../domain/tracks';
@@ -600,18 +601,31 @@ export function validateScenario(scenario: Scenario, options: ValidationOptions 
     ...validateTrackNetwork(scenario),
     ...scenario.lines.flatMap((l) => validateLine(l, scenario, options)),
   ];
-  const served = new Set(scenario.lines.flatMap((l) => l.stops.map((s) => s.stationId)));
   for (const st of scenario.stations) {
-    if (!served.has(st.id)) {
+    const lines = servingLines(scenario, st.id);
+    const trackLines = lines.filter((l) => l.alignment.kind === 'track');
+    if (!lines.length) {
       findings.push({
         id: `orphan-${st.id}`,
         severity: 'warning',
         category: 'station_alignment',
         stationId: st.id,
         position: st.position,
-        message: `Station "${st.name}" is not served by any line.`,
+        message: st.trackRefs.length
+          ? `Station "${st.name}" is on tracks but no service calls at it.`
+          : `Stop "${st.name}" is not served by any line. A bus stop needs a bus or BRT line passing through it; delete it or add it to a line.`,
       });
     }
+    // A rail station must reference tracks; after a track was deleted it must not look valid.
+    if (trackLines.length && !st.trackRefs.length)
+      findings.push({
+        id: `no-track-${st.id}`,
+        severity: 'error',
+        category: 'station_alignment',
+        stationId: st.id,
+        position: st.position,
+        message: `Station "${st.name}" is not on any track, but ${trackLines.map((l) => `"${l.name}"`).join(', ')} call at it. Draw track through it or assign tracks in the station inspector.`,
+      });
   }
   return findings;
 }

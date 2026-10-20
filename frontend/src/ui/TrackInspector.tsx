@@ -410,6 +410,11 @@ export function TrackDeletionDialog() {
   }, [pending]);
   if (!pending || !scenario) return null;
   const names = pending.lineIds.map((id) => scenario.lines.find((l) => l.id === id)?.name ?? id);
+  // Stations whose only tracks are being deleted would no longer be on a track.
+  const gone = new Set(pending.trackIds);
+  const stranded = scenario.stations.filter(
+    (st) => st.trackRefs.length > 0 && st.trackRefs.every((r) => gone.has(r.trackId)),
+  );
   return (
     <dialog
       ref={ref}
@@ -427,6 +432,13 @@ export function TrackDeletionDialog() {
         {names.length === 1 ? 'This service uses' : `${names.length} services use`} the track:{' '}
         <strong>{names.join(', ')}</strong>.
       </p>
+      {stranded.length > 0 && (
+        <p className="mb-2 text-sm">
+          ⚠ {stranded.length} station(s) would no longer be on any track:{' '}
+          <strong>{stranded.map((s) => s.name).join(', ')}</strong>. They are kept and flagged so you can draw
+          new track or delete them.
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         <Button variant="primary" onClick={() => resolveTrackDeletion('reroute')}>
           Delete and reroute the services (where another path exists)

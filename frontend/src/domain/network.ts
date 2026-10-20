@@ -290,6 +290,7 @@ export function addStationOnLine(
     position: snap.position,
     construction,
     platformType: 'unknown',
+    busStopType: 'unknown',
     verticalOffsetM: null,
     entrances: [],
     accessibility: { stepFree: null, elevators: null, tactilePaving: null },

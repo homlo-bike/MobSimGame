@@ -37,6 +37,10 @@ Scenario
   along permitted movements. Two tracks that merely cross on the map are never
   connected: a bridge, a tunnel, or a crossing that has not been modelled.
   Validation reports same-level crossings without a node.
+- A **station** that track services call at must be on at least one track; otherwise it
+  is an error (for example after its track was deleted). A stop that no line serves
+  is a warning. A station can be both a rail station and a bus stop; the two are
+  linked only through the station, never by shared infrastructure.
 - A **station** keeps its own position and lists the tracks it serves
   (`trackRefs`, with a fraction along each track). Tracks within 20 m (projected
   distance, adjustable) on the station's level are suggested. Tracks on other

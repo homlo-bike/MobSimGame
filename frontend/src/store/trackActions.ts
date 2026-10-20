@@ -3,7 +3,9 @@
  * (all pure; this module only reads and commits store state).
  */
 import type { LngLat } from '../domain/schema';
-import { activeScenario, createLine } from '../domain/network';
+import { activeScenario, createLine, deleteLine } from '../domain/network';
+import { stopsOnlyServedBy } from '../domain/stationKinds';
+import { notify } from './notifications';
 import { createTracks, isRailMode, removeTrack, trackUsage } from '../domain/tracks';
 import {
   afterTrackEdit,
@@ -99,4 +101,22 @@ export function finishServiceDraft(): string | null {
   state.setTool('select');
   state.select({ kind: 'line', id: c.line.id });
   return c.line.id;
+}
+
+/** Delete a line; stops left without any line are reported (they stay, flagged by validation). */
+export function deleteLineWithNotice(lineId: string) {
+  const state = useStore.getState();
+  const sc = activeScenario(state.project);
+  const line = sc.lines.find((l) => l.id === lineId);
+  if (!line) return;
+  const orphans = stopsOnlyServedBy(sc, [lineId]);
+  state.commitScenario(deleteLine(sc, lineId), `Line "${line.name}" deleted`);
+  if (orphans.length)
+    notify({
+      severity: 'warning',
+      kind: 'project',
+      title: `${orphans.length} stop(s) no longer served`,
+      message: `${orphans.map((s) => s.name).join(', ')} had only "${line.name}". Add them to another line or delete them.`,
+      target: { stationId: orphans[0]!.id },
+    });
 }

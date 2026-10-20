@@ -160,6 +160,7 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
       position: s.position,
       construction: 'surface',
       platformType: 'unknown',
+      busStopType: 'unknown',
       verticalOffsetM: null,
       entrances: [],
       accessibility: { stepFree: null, elevators: null, tactilePaving: null },

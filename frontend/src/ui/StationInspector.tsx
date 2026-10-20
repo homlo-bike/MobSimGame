@@ -27,6 +27,15 @@ import {
 } from '../domain/serviceRouting';
 import { parameterValue } from '../domain/trackParameters';
 import { MetadataEditor } from './MetadataEditor';
+import { BUS_STOP_TYPE_LABELS, stationKind, type StationKind } from '../domain/stationKinds';
+
+const KIND_LABELS: Record<StationKind, string> = {
+  rail: 'Rail station',
+  bus: 'Bus stop',
+  mixed: 'Rail station and bus stop',
+  other: 'Stop',
+  orphan: 'Not served by any line',
+};
 
 const log = createLogger('station-inspector');
 
@@ -38,6 +47,7 @@ export function StationInspector({ station, scenario }: { station: Station; scen
   const [suggestStatus, setSuggestStatus] = useState('');
   const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle');
   const lines = linesServingStation(scenario, station.id);
+  const kind = stationKind(scenario, station);
   const otherLines = scenario.lines.filter((l) => !lines.includes(l));
   const patch = (p: Partial<Station>, label = 'Station updated') =>
     commit(updateStation(scenario, station.id, p), label);
@@ -68,6 +78,7 @@ export function StationInspector({ station, scenario }: { station: Station; scen
     <div>
       <Section title="Station" id="station-inspector">
         <div className="mb-2 flex flex-wrap items-center gap-1">
+          <Badge tone={kind === 'orphan' ? 'warn' : 'neutral'}>{KIND_LABELS[kind]}</Badge>
           {isInterchange(scenario, station.id) && <Badge>Interchange ({lines.length} lines)</Badge>}
           <Badge tone={station.nameSource === 'user' ? 'ok' : 'neutral'}>
             Name:{' '}
@@ -175,6 +186,16 @@ export function StationInspector({ station, scenario }: { station: Station; scen
             { value: 'elevated', label: 'Elevated' },
           ]}
         />
+        {(kind === 'bus' || kind === 'mixed') && (
+          <SelectField
+            label="Bus stop type"
+            value={station.busStopType}
+            onChange={(e) =>
+              patch({ busStopType: e.target.value as Station['busStopType'] }, 'Stop type changed')
+            }
+            options={Object.entries(BUS_STOP_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+          />
+        )}
         <SelectField
           label="Platforms"
           value={station.platformType}
