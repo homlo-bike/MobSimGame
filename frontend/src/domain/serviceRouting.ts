@@ -9,6 +9,7 @@
  */
 import type {
   LngLat,
+  PhysicalTrack,
   Scenario,
   Station,
   TrackSegment,
@@ -20,6 +21,7 @@ import { MODES } from './modes';
 import { isRing, STATION_MERGE_RADIUS_M, uniqueStationName } from './network';
 import { parameterValue } from './trackParameters';
 import { shortestPath, stepsLengthM, type Dir } from './trackGraph';
+import { serviceCanUse } from './compatibility';
 import {
   levelOfStructure,
   nearestOnTrack,
@@ -174,6 +176,7 @@ export function routeThroughStations(
   scenario: Scenario,
   stationIds: readonly string[],
   closeRing = false,
+  mode?: TransportMode,
 ): {
   steps: TrackStep[];
   error: string | null;
@@ -185,16 +188,32 @@ export function routeThroughStations(
     return { steps: [], error: 'Add at least two stations on tracks to route the service.' };
   const missing = stops.find((s) => !s.trackRefs.length);
   if (missing) return { steps: [], error: `Station "${missing.name}" is not on a track.` };
+  // Only tracks whose infrastructure class the service mode may use (domain/compatibility.ts).
+  const byTrack = new Map(net.tracks.map((t) => [t.id, t]));
+  const allow = mode ? (t: PhysicalTrack) => serviceCanUse(net, mode, t) : undefined;
+  const refsOf = (s: Station) =>
+    allow
+      ? s.trackRefs.filter((r) => {
+          const t = byTrack.get(r.trackId);
+          return !!t && allow(t);
+        })
+      : s.trackRefs;
+  const incompatible = mode ? stops.find((s) => !refsOf(s).length) : undefined;
+  if (incompatible)
+    return {
+      steps: [],
+      error: `Station "${incompatible.name}" has no track this ${MODES[mode!].label.toLowerCase()} service may use (see infrastructure compatibility).`,
+    };
   const sequence = closeRing ? [...stops, stops[0]!] : stops;
   type State = { cand: Candidate; dir: Dir | null; cost: number; steps: TrackStep[] };
-  let states: State[] = sequence[0]!.trackRefs.map((r) => ({ cand: r, dir: null, cost: 0, steps: [] }));
+  let states: State[] = refsOf(sequence[0]!).map((r) => ({ cand: r, dir: null, cost: 0, steps: [] }));
   for (let i = 1; i < sequence.length; i++) {
     const next: State[] = [];
-    for (const target of sequence[i]!.trackRefs) {
+    for (const target of refsOf(sequence[i]!)) {
       for (const d of [1, -1] as Dir[]) {
         let best: State | null = null;
         for (const s of states) {
-          const p = shortestPath(net, s.cand, target, s.dir ?? undefined);
+          const p = shortestPath(net, s.cand, target, s.dir ?? undefined, allow);
           if (!p || p.arrivalDir !== d) continue;
           const cost = s.cost + p.lengthM;
           if (!best || cost < best.cost)
@@ -234,10 +253,10 @@ function mergeSteps(steps: TrackStep[]): TrackStep[] {
 export function routeService(scenario: Scenario, line: TransportLine): ServiceRoute {
   const ids = line.stops.map((s) => s.stationId);
   const ring = isRing(line);
-  const out = routeThroughStations(scenario, ids, ring);
+  const out = routeThroughStations(scenario, ids, ring, line.mode);
   if (out.error) return { path: [], returnPath: null, error: out.error };
   if (ring || line.direction === 'one_way') return { path: out.steps, returnPath: null, error: null };
-  const back = routeThroughStations(scenario, [...ids].reverse());
+  const back = routeThroughStations(scenario, [...ids].reverse(), false, line.mode);
   if (back.error) return { path: out.steps, returnPath: null, error: `Return direction: ${back.error}` };
   return { path: out.steps, returnPath: back.steps, error: null };
 }

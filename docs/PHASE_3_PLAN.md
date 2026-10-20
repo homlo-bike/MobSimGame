@@ -150,7 +150,7 @@ a schema 4 needs migration once projects are published.
   - matrices are applied in routing and validation.
 - **Risks:** combinatorial settings (keep defaults sparse, placeholder-marked).
 - **Done when:** routing, validation and stations check compatibility, and the matrices are editable and source-aware.
-- **PRs:** P3-02a (classes and compatibility), P3-02b (mode × structure profiles).
+- **PRs:** P3-02a (classes and compatibility, **implemented** in its PR: classes, service matrix, gauge, electrification), P3-02b (mode × structure profiles, loading gauge, platforms, signalling).
 
 ## P3-03 Line-and-arc track geometry improvements
 

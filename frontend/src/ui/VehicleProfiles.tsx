@@ -174,6 +174,13 @@ function ProfileEditor({ v }: { v: VehicleType }) {
           onCommit={(n) => patch({ minRadiusM: n })}
         />
         <NumberField
+          label="Track gauge"
+          unit="mm"
+          integer
+          value={v.gaugeMm}
+          onCommit={(n) => patch({ gaugeMm: n })}
+        />
+        <NumberField
           label="Maximum grade"
           unit="%"
           value={v.maxGradePercent}

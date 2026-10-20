@@ -23,6 +23,12 @@ import { validateSegments } from '../geo/segments';
 import { validateTrackNetwork } from './trackValidation';
 import { servingLines } from '../domain/stationKinds';
 import { isVehicleCompatible } from '../domain/vehicles';
+import {
+  INFRASTRUCTURE_CLASS_LABELS,
+  serviceCanUse,
+  trackClass,
+  vehicleTrackIssues,
+} from '../domain/compatibility';
 import { lineFleet } from '../analysis/fleet';
 import { trackGeometry } from '../domain/tracks';
 
@@ -408,6 +414,28 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
         category: 'curve_radius',
         message: `Vehicle "${vehicle.name}" needs curves of at least ${vehicle.minRadiusM} m; the route has ${tight.length} tighter curve(s).`,
       });
+  }
+  if (line.alignment.kind === 'track') {
+    // Infrastructure compatibility (domain/compatibility.ts): tracks the mode may not use, and
+    // vehicle gauge or electrification conflicts. Unknown track values never conflict.
+    const net = scenario.trackNetwork;
+    const used = new Set(line.alignment.path.concat(line.alignment.returnPath ?? []).map((s) => s.trackId));
+    const usedTracks = net.tracks.filter((t) => used.has(t.id));
+    const wrong = usedTracks.filter((t) => !serviceCanUse(net, line.mode, t));
+    if (wrong.length)
+      add({
+        severity: 'error',
+        category: 'operations',
+        message: `${MODES[line.mode].label} services may not use ${[...new Set(wrong.map((t) => INFRASTRUCTURE_CLASS_LABELS[trackClass(t)].toLowerCase()))].join(', ')} (${wrong.length} track(s)). Route the service again or change the infrastructure compatibility.`,
+      });
+    if (vehicle) {
+      const issues = new Map<string, number>();
+      for (const t of usedTracks)
+        for (const i of vehicleTrackIssues(vehicle, t))
+          issues.set(i.message, (issues.get(i.message) ?? 0) + 1);
+      for (const [msg, n] of issues)
+        add({ severity: 'error', category: 'operations', message: `${msg} (${n} track(s)).` });
+    }
   }
   const fleet = transitMode ? lineFleet(line, scenario) : null;
   if (fleet && fleet.assigned !== null && fleet.shortfall > 0)

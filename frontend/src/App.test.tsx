@@ -501,6 +501,23 @@ describe('regions', () => {
   });
 });
 
+describe('infrastructure compatibility', () => {
+  it('edits which track a mode may use and resets it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByText('Infrastructure compatibility'));
+    const own = screen.getByRole('checkbox', { name: /Tram \/ streetcar may use tram track/ });
+    expect(own).toBeChecked();
+    expect(own).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /Tram \/ streetcar may use railway track/ }));
+    expect(useStore.getState().project.scenarios[0]!.trackNetwork.serviceCompatibility.tram).toContain(
+      'railway',
+    );
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(useStore.getState().project.scenarios[0]!.trackNetwork.serviceCompatibility.tram).toBeUndefined();
+  });
+});
+
 describe('validation panel', () => {
   it('labels the categories, filters them and links findings to their objects', async () => {
     const user = userEvent.setup();
