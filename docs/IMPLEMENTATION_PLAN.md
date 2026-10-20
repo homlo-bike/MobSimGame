@@ -83,7 +83,7 @@ Review: [TRACK_NETWORK_REVIEW.md](TRACK_NETWORK_REVIEW.md). Geometry:
 migration (owner decision).
 
 All steps below are implemented and tested; see
-[PHASE_REQUIREMENTS_STATUS.md](PHASE_REQUIREMENTS_STATUS.md#track-network-this-change).
+[PHASE_REQUIREMENTS_STATUS.md](PHASE_REQUIREMENTS_STATUS.md#phase-2--alignments-real-networks-routing-minimal-ui).
 
 | Step | Content | Where |
 | --- | --- | --- |
@@ -103,7 +103,12 @@ curved, crossover, scissors, diamond, single and double slip), connected editing
 with constraints, delete with rerouting choices, bus routing preferences and a
 provider interface.
 
-### Phase 3 — Data-provider integrations
+### Phase 3 — Infrastructure, operations, regions and editors (planned)
+
+Detailed plan with 20 work packages and the pull-request order:
+[PHASE_3_PLAN.md](PHASE_3_PLAN.md). Phase 1/2 gaps are fixed first (PRs wp01–wp05,
+[PHASE_REQUIREMENTS_STATUS.md](PHASE_REQUIREMENTS_STATUS.md)). The data-provider
+items below are part of work packages P3-01, P3-06, P3-08 and P3-10.
 
 - Backend-proxied population (CAMARA adapter enabled per deployment; WorldPop, GHSL,
   user GeoTIFF/GeoJSON/CSV fallbacks).

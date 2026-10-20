@@ -268,6 +268,7 @@ See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#backup-and-restore).
   placed in the browser bundle (enforced in CI).
 - Provenance rules: [docs/DATA_PROVENANCE.md](docs/DATA_PROVENANCE.md)
 - Formulas: [docs/METHODOLOGY.md](docs/METHODOLOGY.md)
+- Phase 3 plan: [docs/PHASE_3_PLAN.md](docs/PHASE_3_PLAN.md)
 - Track network: [review](docs/TRACK_NETWORK_REVIEW.md), [architecture](docs/TRACK_ARCHITECTURE.md),
   [geometry](docs/TRACK_GEOMETRY.md), [turnouts and crossings](docs/TURNOUTS_AND_CROSSINGS.md),
   [service routing](docs/SERVICE_ROUTING.md), [project format](docs/PROJECT_MIGRATION.md),
