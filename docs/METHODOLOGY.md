@@ -105,6 +105,14 @@ height difference between the levels over its own length, so its gradient is
   limit: 2.5 per mille for railways (EBO § 7 (2)), else the placeholder project
   parameter (0.5 %).
 - The portal is marked where a ramp meets street level.
+- Stations on different levels may stand on top of each other (for example a metro
+  station underground, a tram stop at street level and an elevated station above);
+  their tracks never connect, and the map lists them in one label, top level first.
+- Vehicles carry their height along the line: on tracks from the track heights
+  (rising and falling along ramps); on street lines from the structure of each
+  segment, changing over the ramp length the mode's gradient needs, centred on the
+  change. Underground vehicles are drawn fainter the deeper they are, with a dotted
+  white outline, so a vehicle entering a tunnel fades out gradually along the ramp.
 - Limitations: the street is taken as flat (terrain follows, from the map's terrain
   tiles); vertical curves at gradient changes are not modelled; crossing checks use
   each track's own level, not the height along a ramp; the simulation does not slow

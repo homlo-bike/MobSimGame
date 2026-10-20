@@ -8,10 +8,11 @@
  * profile (cited for railways, placeholders otherwise). The terrain is not used yet: the
  * street level is taken as flat.
  */
-import type { LngLat, PhysicalTrack, Scenario, TrackNetwork, TransportMode } from './schema';
+import type { LngLat, PhysicalTrack, Scenario, TrackNetwork, TransportLine, TransportMode } from './schema';
 import { MODE_PROFILES } from './modeProfiles';
 import { parameterValue } from './trackParameters';
-import { nodeMap, trackGeometry } from './tracks';
+import { levelOfStructure, nodeMap, trackGeometry } from './tracks';
+import { lineLengthM } from './network';
 import { positionAtFraction } from '../geo/geometry';
 
 /** Height of the track (m) on a level, relative to the street (negative below ground). */
@@ -132,4 +133,68 @@ export function setNodeLevel(scenario: Scenario, nodeId: string, level: number):
     return a !== undefined && a === levels.get(t.toNodeId) && a !== t.level ? { ...t, level: a } : t;
   });
   return { ...scenario, trackNetwork: { ...net, nodes, tracks } };
+}
+
+/** Height of a line (m, relative to the street) at fractions of its length. */
+export type HeightProfile = { fraction: number; heightM: number }[];
+
+/**
+ * Height along a line. Services on track follow the heights of their tracks (rising and
+ * falling along ramps); other lines take the level of each segment's structure and change
+ * height linearly over the ramp length the mode's gradient needs, centred on the change.
+ */
+export function lineHeightProfile(
+  scenario: Pick<Scenario, 'trackNetwork'>,
+  line: TransportLine,
+): HeightProfile {
+  const net = scenario.trackNetwork;
+  if (line.alignment.kind === 'track' && line.alignment.path.length) {
+    const byId = new Map(net.tracks.map((t) => [t.id, t]));
+    const parts = line.alignment.path
+      .map((s) => {
+        const t = byId.get(s.trackId);
+        return t ? { t, s, len: Math.abs(s.to - s.from) * trackGeometry(net, t).lengthM } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    const total = parts.reduce((a, p) => a + p.len, 0);
+    if (total <= 0) return [{ fraction: 0, heightM: 0 }];
+    const out: HeightProfile = [];
+    let at = 0;
+    for (const p of parts) {
+      out.push({ fraction: at / total, heightM: trackHeightAt(net, p.t, p.s.from) });
+      at += p.len;
+      out.push({ fraction: at / total, heightM: trackHeightAt(net, p.t, p.s.to) });
+    }
+    return out;
+  }
+  const total = lineLengthM(line);
+  const grade = maxRampGradient(line.mode).percent / 100;
+  const segs = [...line.segments].sort((a, b) => a.fromFraction - b.fromFraction);
+  const h = (i: number) => levelHeightM(net, levelOfStructure(segs[i]!.structure));
+  const out: HeightProfile = [{ fraction: 0, heightM: segs.length ? h(0) : 0 }];
+  for (let i = 1; i < segs.length; i++) {
+    const dh = h(i) - h(i - 1);
+    if (dh === 0) continue;
+    const half = total > 0 ? Math.abs(dh) / grade / 2 / total : 0;
+    const at = segs[i]!.fromFraction;
+    out.push({ fraction: Math.max(0, at - half), heightM: h(i - 1) });
+    out.push({ fraction: Math.min(1, at + half), heightM: h(i) });
+  }
+  out.push({ fraction: 1, heightM: segs.length ? h(segs.length - 1) : 0 });
+  return out;
+}
+
+/** Height at a fraction of the line, interpolated in the profile. */
+export function heightAtFraction(profile: HeightProfile, fraction: number): number {
+  if (!profile.length) return 0;
+  if (fraction <= profile[0]!.fraction) return profile[0]!.heightM;
+  for (let i = 1; i < profile.length; i++) {
+    const a = profile[i - 1]!;
+    const b = profile[i]!;
+    if (fraction <= b.fraction) {
+      const span = b.fraction - a.fraction;
+      return span > 0 ? a.heightM + ((b.heightM - a.heightM) * (fraction - a.fraction)) / span : b.heightM;
+    }
+  }
+  return profile[profile.length - 1]!.heightM;
 }

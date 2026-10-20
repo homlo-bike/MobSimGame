@@ -537,6 +537,11 @@ export const StationSchema = z.object({
       platformLengthM: z.number().positive().nullable(),
       /** The station's own tracks, across the station from left to right (facing the bearing). */
       trackIds: z.array(z.string()),
+      /**
+       * Level of the station's tracks (−2 … +2); null = from the construction (and the mode's
+       * default structure). Stations on different levels can stand on top of each other.
+       */
+      level: LevelSchema.nullable().default(null),
     })
     .nullable()
     .default(null),

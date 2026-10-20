@@ -42,6 +42,17 @@ export const SRC = {
 } as const;
 
 export const STATION_LAYER = 'msg-stations-circle';
+/** Vehicle opacity by height (m): full at street level and above, faint deep underground. */
+const DEPTH_OPACITY = [
+  'interpolate',
+  ['linear'],
+  ['coalesce', ['get', 'heightM'], 0],
+  -10,
+  0.3,
+  -1,
+  0.9,
+] as unknown as number;
+
 /** From this zoom on vehicles are drawn to scale instead of as dots. */
 export const VEHICLE_SCALE_ZOOM = 15.5;
 export const STATION_HANDLE_LAYER = 'msg-station-handle';
@@ -658,12 +669,13 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       type: 'symbol',
       source: SRC.stations,
       layout: {
-        'text-field': ['get', 'name'],
+        'text-field': ['coalesce', ['get', 'label'], ['get', 'name']],
         'text-font': ['Noto Sans Regular'],
         'text-size': 12,
         'text-offset': [0, 1.2],
         'text-anchor': 'top',
         'text-optional': true,
+        'text-allow-overlap': false,
       },
       paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
     });
@@ -718,7 +730,9 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     type: 'fill',
     source: SRC.vehicleBodies,
     minzoom: VEHICLE_SCALE_ZOOM,
-    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.9 },
+    // Underground vehicles fade with depth (seen "through the ground"); along a ramp the
+    // fade follows the height, so a vehicle entering a tunnel fades out gradually.
+    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': DEPTH_OPACITY },
   });
   for (const waiting of [false, true])
     add({
@@ -729,10 +743,20 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       filter: waiting ? ['!=', ['get', 'state'], 'running'] : ['==', ['get', 'state'], 'running'],
       paint: {
         'line-color': '#111827',
+        'line-opacity': DEPTH_OPACITY,
         'line-width': waiting ? 2.5 : 1,
         ...(waiting ? { 'line-dasharray': [2, 1] } : {}),
       },
     });
+  // Underground vehicles also get a dotted white outline, so the difference is not only shading.
+  add({
+    id: 'msg-vehicle-body-underground',
+    type: 'line',
+    source: SRC.vehicleBodies,
+    minzoom: VEHICLE_SCALE_ZOOM,
+    filter: ['<', ['coalesce', ['get', 'heightM'], 0], -1],
+    paint: { 'line-color': '#ffffff', 'line-width': 1.5, 'line-dasharray': [1, 1.5] },
+  });
   add({
     id: 'msg-vehicles-circle',
     type: 'circle',
@@ -741,6 +765,8 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     paint: {
       'circle-radius': 5,
       'circle-color': ['get', 'color'],
+      'circle-opacity': DEPTH_OPACITY,
+      'circle-stroke-opacity': DEPTH_OPACITY,
       'circle-stroke-color': '#111827',
       'circle-stroke-width': ['case', ['==', ['get', 'state'], 'running'], 1.5, 3],
     },
