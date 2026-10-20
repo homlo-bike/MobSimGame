@@ -8,6 +8,11 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Environment files** in `env/` for development, test and production (template),
+  all with `MOBSIM_VALHALLA_URL=http://valhalla:8002`.
+- **Export all data** (File menu): the project plus every calculated value and the
+  metadata needed to judge it, in one JSON file.
+
 - **Ramps between levels** (R6). A track whose ends are on different levels is a
   ramp; the track inspector sets the level of each end and shows the gradient, the
   maximum and the length needed. Too steep ramps and platforms on ramps are reported

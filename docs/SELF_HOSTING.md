@@ -14,8 +14,21 @@ The services join an existing Docker network named `public` (declared `external`
 docker network create public
 ```
 
+Environment files for each stage are in `env/`:
+
+| File | Use |
+| --- | --- |
+| `env/development.env` | Local development (`MOBSIM_ENVIRONMENT=development`, debug logs, street routing on). Local, non-secret values only. |
+| `env/test.env` | Test and end-to-end runs (`MOBSIM_ENVIRONMENT=test`). Local, non-secret values only. |
+| `env/production.env.example` | Template for a server: copy to `.env` and replace every `change-me` value with a long random secret. |
+
+All three set `MOBSIM_VALHALLA_URL=http://valhalla:8002` (the routing service of the
+`routing` Compose profile). Use one with `--env-file`, for example
+`docker compose --env-file env/development.env --profile routing up -d --build`.
+Never put real secrets in `env/`; it is committed.
+
 ```sh
-cp .env.example .env          # set POSTGRES_PASSWORD and MOBSIM_ADMIN_PASSWORD (long random values)
+cp env/production.env.example .env   # set POSTGRES_PASSWORD, MOBSIM_ADMIN_PASSWORD, MOBSIM_SESSION_SECRET
 docker compose up -d --build  # http://localhost:8080
 docker compose ps             # db, api, web should be "healthy"
 curl http://localhost:8080/api/health
