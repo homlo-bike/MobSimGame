@@ -8,6 +8,12 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Stop merge distance is 20 m (was 60 m) and editable** in the renamed
+  "Project settings" section (formerly "Track parameters"). A new stop or station
+  within this distance of an existing one of the same mode reuses it.
+- Trolleybuses keep the bus following distance in the simulation (they used the
+  rail value).
+
 - **Bus, BRT and trolleybus lines are drawn by clicking their stops in order.**
   Each click is a stop at the kerb where the vehicle stops; Esc, Enter, a
   right-click or "Finish line" ends the drawing and Backspace removes the last

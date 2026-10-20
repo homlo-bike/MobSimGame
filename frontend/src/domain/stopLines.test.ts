@@ -81,6 +81,17 @@ describe('street lines drawn stop by stop', () => {
     expect(Math.abs(names[2]! - 1710)).toBeLessThan(5);
   });
 
+  it('reuses a stop within the project stop merge distance (default 20 m)', () => {
+    const bus = createStopLine(emptyScenario(), { points: [xy(0, 0), xy(500, 0)], mode: 'bus' }).scenario;
+    expect(stopNear(bus, 'bus', xy(15, 0))).not.toBeNull();
+    expect(stopNear(bus, 'bus', xy(30, 0))).toBeNull();
+    const wider = {
+      ...bus,
+      trackNetwork: { ...bus.trackNetwork, parameterOverrides: { stopMergeRadiusM: 60 } },
+    };
+    expect(stopNear(wider, 'bus', xy(30, 0))).not.toBeNull();
+  });
+
   it('rail modes are not drawn by stops', () => {
     expect(
       createStopLine(emptyScenario(), { points: [xy(0, 0), xy(500, 0)], mode: 'tram' }).error,
