@@ -1,5 +1,8 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useStore, useScenario } from '../store/projectStore';
+import { buildGtfs } from '../export/gtfs';
+import { buildSumo } from '../export/sumo';
+import { zip } from '../export/zip';
 import { fullExport } from '../export/fullExport';
 import { downloadText, parseProjectText, safeFilename, serializeProject } from '../store/persistence';
 import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJSON } from '../geo/geojson';
@@ -137,6 +140,29 @@ export function Header({
       ),
       'application/geo+json',
     );
+  const exportGtfs = () => {
+    const feed = buildGtfs(project, scenario, {
+      baseUrl: window.location.origin,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Etc/UTC',
+      date: new Date(),
+    });
+    downloadText(`${name}-gtfs.zip`, zip(feed.files), 'application/zip');
+    report(
+      feed.skipped.length
+        ? `GTFS exported; ${feed.skipped.length} line(s) left out (need two stops and a route)`
+        : 'GTFS exported',
+      feed.skipped.length > 0,
+    );
+  };
+  const exportSumo = () => {
+    const out = buildSumo(scenario, project.name);
+    downloadText(`${name}-sumo.zip`, zip(out.files), 'application/zip');
+    report(
+      out.skipped.length
+        ? `SUMO files exported; ${out.skipped.length} line(s) not included (street lines go through GTFS, see README.txt)`
+        : 'SUMO files exported',
+    );
+  };
   const exportAll = () =>
     downloadText(
       `${name}-full-export.json`,
@@ -182,6 +208,8 @@ export function Header({
     { kind: 'heading', label: 'Import / export' },
     { kind: 'item', label: 'Import GeoJSON…', onSelect: () => geojsonInput.current?.click() },
     { kind: 'item', label: 'Export GeoJSON', onSelect: exportGeoJSON },
+    { kind: 'item', label: 'Export GTFS timetable', hint: '.zip', onSelect: exportGtfs },
+    { kind: 'item', label: 'Export for SUMO', hint: '.zip', onSelect: exportSumo },
     { kind: 'item', label: 'Export all data', hint: '.json', onSelect: exportAll },
     {
       kind: 'item',

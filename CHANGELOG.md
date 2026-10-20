@@ -8,6 +8,11 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **SUMO export** (File menu): rail track network, platforms and rail services as
+  plain-XML files for Eclipse SUMO (build with `netconvert --proj.utm`).
+- **GTFS export** (File menu): a GTFS Schedule feed with routes, stops, trips, stop
+  times from the simulation, peak-headway frequencies, calendar and shapes.
+
 - **Aerial imagery background**: Sentinel-2 cloudless 2016 by EOX (10 m, CC BY 4.0,
   keyless). Esri World Imagery can be offered by a deployment that accepts Esri's
   terms (`VITE_ESRI_IMAGERY=1`).

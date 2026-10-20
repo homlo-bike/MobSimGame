@@ -292,3 +292,41 @@ code is used): `x = v₀t + ½at²`; the peak speed of a section of length `d` i
   section; a vehicle does not slow down gradually behind a slower one between two
   sections, and the IDM's approach term (`v·Δv / (2√(ab))`) is not used.
 
+## GTFS export
+
+The GTFS Schedule feed describes the sketch, not a published timetable:
+
+- `routes.txt`: one route per line; `route_type` by mode (tram and light rail 0, metro 1,
+  commuter rail 2, bus and BRT 3, trolleybus 11).
+- `stops.txt`: the stations served by an exported line.
+- `trips.txt`, `stop_times.txt`: one trip per direction (one for rings and one-way lines;
+  a loop ends at its first stop again). Times are offsets of the simulation's first,
+  undisturbed trip (running time with acceleration and braking, dwell), starting at the
+  pattern's service start; signal and crossing waits are not included.
+- `frequencies.txt`: the trip repeats at the peak headway from service start to end
+  (`exact_times = 0`); off-peak headways are not exported yet.
+- `calendar.txt`: every day, valid one year from the export date. `shapes.txt`: the
+  line geometry (the return path where it differs). `agency.txt` and `feed_info.txt` use
+  the project name, this deployment's address and the browser's time zone.
+
+## SUMO export
+
+Files for Eclipse SUMO (owner decision: interoperate through files; no SUMO code is
+used or bundled):
+
+- `network.nod.xml`, `network.edg.xml`: track nodes and tracks as plain XML with
+  longitude/latitude coordinates (build with `netconvert --proj.utm`, as SUMO's
+  "Networks/PlainXML" documentation describes). Each track is an edge in its permitted
+  direction; a track used both ways is two edges joined by `bidi`. `allow` is the SUMO
+  vehicle class of the track's mode (tram → tram, light rail and commuter rail →
+  rail_urban, metro → subway); speed is the track's limit, else the mode default.
+- `stops.add.xml`: each station's platform on the route's track as a `trainStop`
+  (platform length centred on the station).
+- `routes.rou.xml`: per rail service a `vType` (consist length, width, acceleration,
+  braking, maximum speed) and per direction a `flow` repeating at the peak headway
+  between service start and end, stopping for the line's dwell time.
+- Street lines are not exported here: the project has no street network. They reach
+  SUMO through the GTFS export (SUMO's `gtfs2pt` with an OSM network).
+- Checked with SUMO 1.28.0: `netconvert` builds the network and `sumo` runs the flows
+  with their stops.
+

@@ -125,6 +125,17 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).
+- **GTFS export** (File → Export GTFS timetable): a GTFS Schedule feed (zip) with one
+  route per line, the stations as stops, one trip pattern per direction repeating at the
+  peak headway between service start and end (`frequencies.txt`), times between stops
+  from the simulation (running time with acceleration, dwell) and the line shapes.
+  Readable by OpenTripPlanner, MATSim, SUMO's GTFS import and other tools.
+- **SUMO export** (File → Export for SUMO): the rail track network (plain-XML nodes and
+  edges, single track used both ways as a "bidi" pair), platforms as train stops and
+  each rail service as a flow with its vehicle type (length, width, acceleration,
+  braking, maximum speed), for Eclipse SUMO on your own machine
+  (`netconvert … --proj.utm`, then `sumo-gui`; see the bundled README.txt). Street lines
+  reach SUMO through the GTFS export and SUMO's OSM and GTFS import.
 - **Export all data** (File menu): one JSON file with the project and every calculated
   value per scenario (line lengths, stops and chainages, fleet, simulated round trips,
   acceleration and following rules, ramps, crossings, overhead wire, walking links,
