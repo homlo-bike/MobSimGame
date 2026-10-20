@@ -8,6 +8,7 @@ import type { LngLat, PhysicalTrack, Scenario } from '../domain/schema';
 import { MODE_PROFILES, type CurveRadiusRule } from '../domain/modeProfiles';
 import { angleBetween, networkFrame, nodeEnds, outwardHeading, trackGeometry } from '../domain/tracks';
 import { singleTrackBlocks } from '../domain/trackGraph';
+import { rampLabelPosition, stationMaxGradient, trackRamp } from '../domain/ramps';
 import { continuity, type ArcPrimitive } from '../geo/track/primitives';
 import type { Vec } from '../geo/track/projection';
 import type { Finding, Severity } from './validate';
@@ -246,5 +247,44 @@ export function validateTrackNetwork(scenario: Scenario): Finding[] {
       });
     }
   }
+
+  // --- Ramps between levels -----------------------------------------------------------
+  for (const t of net.tracks) {
+    const r = trackRamp(net, t);
+    if (!r) continue;
+    const where = `${label(t)} is a ramp from level ${r.fromLevel} to level ${r.toLevel}`;
+    const limit = r.cited ? 'the cited maximum' : 'the placeholder maximum';
+    if (!r.fits)
+      add(
+        {
+          severity: r.cited ? 'error' : 'warning',
+          category: 'grade',
+          trackId: t.id,
+          position: rampLabelPosition(net, t),
+          message: `${where}: ${fmt(r.gradientPercent)} % over ${Math.round(r.lengthM)} m is steeper than ${limit} of ${fmt(r.maxGradientPercent)} %. It needs at least ${Math.round(r.requiredLengthM)} m for the ${Math.abs(r.riseM).toFixed(1)} m height difference: lengthen it or move a track end.`,
+        },
+        t,
+      );
+    // A platform must not stand on a ramp steeper than the station limit.
+    const stations = scenario.stations.filter(
+      (st) => st.trackRefs.some((ref) => ref.trackId === t.id) || st.layout?.trackIds.includes(t.id),
+    );
+    const maxStation = stationMaxGradient(net, t.designMode);
+    for (const st of stations)
+      if (r.gradientPercent > maxStation.percent + 1e-9)
+        add(
+          {
+            severity: maxStation.cited ? 'error' : 'warning',
+            category: 'grade',
+            trackId: t.id,
+            stationId: st.id,
+            position: st.position,
+            message: `Station "${st.name}" is on a ramp (${fmt(r.gradientPercent)} %); platform track may be at most ${fmt(maxStation.percent)} %${maxStation.cited ? ' (EBO § 7 (2))' : ' (placeholder)'}. Put the ramp outside the station.`,
+          },
+          t,
+        );
+  }
   return out;
 }
+
+const fmt = (x: number) => (Number.isFinite(x) ? x.toFixed(x < 1 ? 2 : 1) : '∞');

@@ -31,6 +31,7 @@ import {
   movementHas,
 } from '../domain/tracks';
 import { afterTrackEdit } from '../domain/serviceRouting';
+import { setNodeLevel, trackRamp } from '../domain/ramps';
 import { ELECTRIFICATION_LABELS, INFRASTRUCTURE_CLASS_LABELS, trackClass } from '../domain/compatibility';
 import { parameter, TRACK_PARAMETERS, type TrackParameterId } from '../domain/trackParameters';
 import { CURVE_RADIUS_RULES } from '../domain/modeProfiles';
@@ -148,8 +149,13 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
             max={9}
             step={1}
             value={track.level}
+            hint={trackRamp(net, track) ? 'A ramp: its two ends set the levels (see Ramp).' : undefined}
             onCommit={(v) =>
-              Number.isInteger(Number(v)) ? patch({ level: Number(v) }) : 'Whole numbers only'
+              trackRamp(net, track)
+                ? 'This track is a ramp: change the level of its ends under Ramp'
+                : Number.isInteger(Number(v))
+                  ? patch({ level: Number(v) })
+                  : 'Whole numbers only'
             }
           />
           <SelectField
@@ -196,6 +202,8 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
           Tracks on different levels never connect where they cross (bridges, tunnels).
         </p>
       </Section>
+
+      <RampSection track={track} scenario={scenario} />
 
       <Section title={`Curves (${track.points.length})`} id="track-curves">
         <p className="mb-1 text-xs text-slate-600">
@@ -591,5 +599,64 @@ export function LoopDialog() {
         <Button onClick={() => resolveLoop('cancel')}>Discard the track</Button>
       </div>
     </dialog>
+  );
+}
+
+const LEVELS = [-3, -2, -1, 0, 1, 2, 3];
+const levelName = (l: number) =>
+  l === 0 ? 'Street level (0)' : l < 0 ? `Underground ${l}` : `Elevated +${l}`;
+
+/** Level of each track end; a track between two levels is a ramp with a gradient check. */
+function RampSection({ track, scenario }: { track: PhysicalTrack; scenario: Scenario }) {
+  const commit = useStore((s) => s.commitScenario);
+  const net = scenario.trackNetwork;
+  const ramp = trackRamp(net, track);
+  const ends = [
+    { label: 'Level at the start', nodeId: track.fromNodeId },
+    { label: 'Level at the end', nodeId: track.toNodeId },
+  ];
+  return (
+    <Section title={ramp ? 'Ramp' : 'Levels of the ends'} id="track-ramp">
+      {ends.map((e) => {
+        const node = net.nodes.find((n) => n.id === e.nodeId);
+        if (!node) return null;
+        const shared = nodeEnds(net, node.id).length > 1;
+        return (
+          <SelectField
+            key={e.nodeId}
+            label={e.label}
+            value={String(node.level)}
+            onChange={(ev) =>
+              commit(
+                afterTrackEdit(setNodeLevel(scenario, node.id, Number(ev.target.value)), [track.id]),
+                'Track end level changed',
+              )
+            }
+            options={LEVELS.map((l) => ({ value: String(l), label: levelName(l) }))}
+            hint={shared ? 'Tracks joining here change level too.' : undefined}
+          />
+        );
+      })}
+      {ramp ? (
+        <div className="text-sm" data-testid="ramp-summary">
+          <p>
+            {levelName(ramp.fromLevel)} → {levelName(ramp.toLevel)}: {Math.abs(ramp.riseM).toFixed(1)} m over{' '}
+            {Math.round(ramp.lengthM)} m = <strong>{ramp.gradientPercent.toFixed(2)} %</strong>
+          </p>
+          <p className={ramp.fits ? 'text-slate-700' : 'font-medium text-red-800'}>
+            {ramp.fits ? '✓' : '⚠'} Maximum {ramp.maxGradientPercent} %{' '}
+            {ramp.cited ? '(cited)' : '(placeholder)'}; needs at least {Math.round(ramp.requiredLengthM)} m.
+          </p>
+          <p className="text-xs text-slate-600">
+            Level heights are set in Project properties → Parameters. The street is taken as flat; terrain
+            follows later.
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-600">
+          Set a different level at one end to make this track a ramp (for example a tunnel portal).
+        </p>
+      )}
+    </Section>
   );
 }

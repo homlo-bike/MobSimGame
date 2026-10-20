@@ -8,6 +8,13 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Ramps between levels** (R6). A track whose ends are on different levels is a
+  ramp; the track inspector sets the level of each end and shows the gradient, the
+  maximum and the length needed. Too steep ramps and platforms on ramps are reported
+  (cited EBO limits for railways, placeholders otherwise); the map labels ramps and
+  marks portals. Level heights are new placeholder parameters. The street is taken
+  as flat for now; terrain follows.
+
 - **Acceleration and braking in the simulation** (R13 part 1). Vehicles accelerate
   after every stop and brake before stations, red signals and occupied sections
   instead of running at constant speed. Rates come from the vehicle profile or,

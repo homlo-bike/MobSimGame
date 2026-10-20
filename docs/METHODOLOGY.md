@@ -88,6 +88,28 @@ Threshold checks use versioned mode profiles in `domain/modeProfiles.ts`:
 - Lines imported from OpenStreetMap and not edited describe existing
   infrastructure: all their findings are reported as information.
 
+### Ramps between levels
+
+Every track node has a level (0 street, −1, −2 … underground, +1, +2 … elevated). A
+track whose two ends are on different levels is a **ramp**: it rises or falls the
+height difference between the levels over its own length, so its gradient is
+`|h(to) − h(from)| ÷ length`.
+
+- Level heights are project parameters (placeholders until set): 10 m per underground
+  level and 7 m per elevated level (top of rail relative to the street).
+- Steepest ramp: for commuter rail and railways, 12.5 per mille (EBO § 7 (1), new
+  main lines); for the other modes, the placeholder warning grade of the mode's
+  validation profile. A steeper ramp is an error (cited) or a warning (placeholder)
+  that states the length it needs.
+- A station platform on a ramp is reported when the ramp is steeper than the station
+  limit: 2.5 per mille for railways (EBO § 7 (2)), else the placeholder project
+  parameter (0.5 %).
+- The portal is marked where a ramp meets street level.
+- Limitations: the street is taken as flat (terrain follows, from the map's terrain
+  tiles); vertical curves at gradient changes are not modelled; crossing checks use
+  each track's own level, not the height along a ramp; the simulation does not slow
+  vehicles on gradients.
+
 ## Operations
 
 - Running speed per segment: `min(line max, segment limit, vehicle max) × f_ROW`
