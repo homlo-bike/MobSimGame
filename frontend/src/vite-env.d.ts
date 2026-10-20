@@ -8,3 +8,7 @@ interface ImportMetaEnv {
   /** Minimum browser log level: debug | info (log) | warn (warning) | error | silent. */
   readonly VITE_LOG_LEVEL?: string;
 }
+
+/** Package version and build time, injected by vite.config.ts. */
+declare const __APP_VERSION__: string;
+declare const __BUILD_TIME__: string;

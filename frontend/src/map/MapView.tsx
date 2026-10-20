@@ -42,6 +42,7 @@ import {
   closuresCollection,
   crossoversCollection,
   EMPTY,
+  routeStatusCollection,
   signalsCollection,
   populationCollection,
   segmentsCollection,
@@ -333,6 +334,7 @@ export default function MapView() {
     setData(map, SRC.segments, segments);
     setData(map, SRC.arrows, arrowsCollection(segments));
     setData(map, SRC.crossovers, crossoversCollection(scenario));
+    setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));

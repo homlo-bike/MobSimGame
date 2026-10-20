@@ -96,6 +96,27 @@ export function segmentsCollection(scenario: Scenario, selectedLineId: string | 
   return { type: 'FeatureCollection', features };
 }
 
+/**
+ * Street-routed sections that do not follow streets: unrouted (incomplete) or
+ * accepted manual sketches. Drawn over the line so a straight bus line is
+ * visibly "not routed yet" rather than looking like a finished route.
+ */
+export function routeStatusCollection(scenario: Scenario): FeatureCollection {
+  const features: Feature[] = [];
+  for (const line of scenario.lines) {
+    if (line.alignment.kind !== 'routed') continue;
+    for (const leg of line.alignment.legs) {
+      if (leg.status === 'routed' || leg.geometry.length < 2) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: leg.geometry },
+        properties: { lineId: line.id, status: leg.status },
+      });
+    }
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 /** Sections closed in the disruption simulation. */
 export function closuresCollection(
   scenario: Scenario,

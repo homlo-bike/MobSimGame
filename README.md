@@ -115,6 +115,52 @@ open http://localhost:8080
 Development with hot reload: `docker compose --profile dev up --build`
 (app on http://localhost:5173).
 
+## Ports
+
+| Port | Service | What listens | When | Published to the host |
+| --- | --- | --- | --- | --- |
+| **8080** | `web` | nginx serving the **built** app (`npm run build` inside the image) and proxying `/api/` to `api:8000` | Always (production-like stack) | Yes, as `${MOBSIM_WEB_PORT:-8080}` |
+| **5173** | `frontend-dev` (Compose profile `dev`) or `npm run dev` | Vite dev server with hot reload, serving the **source**; proxies `/api` to `MOBSIM_API_PROXY_TARGET` (`http://api:8000` in Compose, `http://localhost:8000` locally) | Development only | Yes, in the `dev` profile |
+| 8000 | `api` | FastAPI (uvicorn) | Always | No (internal; nginx and Vite reach it) |
+| 8002 | `valhalla` (profile `routing`) | Street routing | Optional | No (internal) |
+| 5432 | `db` | PostgreSQL/PostGIS | Always | No (internal) |
+
+Port 8080 does **not** proxy to 5173. They are two independent ways to serve the
+same frontend, and both talk to the same API:
+
+- **8080** is the application. It only changes when the image is rebuilt
+  (`docker compose up -d --build`).
+- **5173** is for editing frontend code. It shows source changes immediately.
+  `docker compose --profile dev up` starts it *in addition to* 8080.
+
+Both ports are needed: production uses only 8080, and you never need 5173 unless you
+develop the frontend.
+
+## Updating
+
+`git pull` only changes the files on disk. The app on port 8080 is built into the
+`web` image, so rebuild after every pull:
+
+```sh
+git pull
+docker compose up -d --build                      # rebuilds web (8080) and api
+docker compose --profile routing up -d --build    # if you use street routing
+```
+
+To check which build is running, open **ⓘ Data & licences**: it shows the version and
+the build time. If the build time is older than your pull, you are looking at an old
+image (rebuild), or the browser cached an old page (reload with Ctrl+Shift+R).
+
+## Troubleshooting: features not visible
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| No "Open real network…" or start card; the old fictional demo appears | Old `web` image or cached page | `docker compose up -d --build`, then reload |
+| `docker compose up` says `api` is unhealthy; log shows "the default password is not allowed in production" | `MOBSIM_ENVIRONMENT=production` (the Compose default) with `MOBSIM_ADMIN_PASSWORD=admin` | Set your own `MOBSIM_ADMIN_PASSWORD` in `.env`, or `MOBSIM_ENVIRONMENT=development` on a test machine |
+| Bus lines stay straight, dashed and labelled "not routed" | Street routing is not running. Bus lines follow streets only through the self-hosted Valhalla service | `docker compose --profile routing up -d`, set `MOBSIM_VALHALLA_URL=http://valhalla:8002` in `.env`, restart `api` ([docs/ROUTING.md](docs/ROUTING.md)); or mark sections as manual |
+| Lines look straight with only two points | A smooth curve needs at least three points to bend | Add points; tram, light rail, metro and rail always use smooth curves |
+| "Open real network" fails or times out | The API cannot reach the Overpass API, or the network is very large | Check `docker compose logs api`; try a tram or metro network first (bus networks are the largest) |
+
 ## Local development
 
 Requirements: Node.js ≥ 22, Python 3.12, (optionally) Docker for PostGIS.

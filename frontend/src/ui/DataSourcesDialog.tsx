@@ -49,6 +49,11 @@ export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: (
             Close
           </Button>
         </div>
+        <p className="mb-2 text-xs text-slate-600">
+          Version {__APP_VERSION__}, built {__BUILD_TIME__.slice(0, 16).replace('T', ' ')} UTC. If this date
+          is older than your last update, the browser or Docker is serving an old build (see README,
+          Updating).
+        </p>
         <h3 className="font-semibold">Limitations</h3>
         <p className="mb-2 text-sm">{t('disclaimer')}</p>
         <ul className="mb-3 list-disc ps-5 text-sm">

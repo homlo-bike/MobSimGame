@@ -6,8 +6,21 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- nginx (port 8080) waited only 60 s for the API, so large example networks (bus
+  networks) failed with a gateway timeout; it now waits up to 300 s, and the API no
+  longer retries a timed-out network query (which exceeded the browser's limit).
+- `index.html` is now revalidated by browsers (`Cache-Control: no-cache`), so a
+  rebuilt image is picked up without a stale page.
+
 ### Added
 
+- Bus sections that do not follow streets are drawn dashed and labelled
+  ("not routed" / "manual"); the Street route panel says when routing is not
+  available on the server.
+- Version and build time under Data & licences, to recognise an old build.
+- README: port overview, updating, and troubleshooting.
 - **Smooth track alignments:** tram, light rail, metro and rail lines are centripetal
   Catmull–Rom curves through the points you place (schema v2 `alignment`).
 - **Cited curve radii** per mode (TCRP 155; Mumbai Metro Line 12 DPR; RSSB GCRT5021;

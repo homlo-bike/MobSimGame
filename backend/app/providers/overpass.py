@@ -267,7 +267,7 @@ async def traffic_signals_along(
         provider.settings,
         data={"data": signals_query(paths, radius_m, provider.settings.examples_timeout_s)},
         timeout=provider.settings.examples_timeout_s + 15,
-        retries=1,
+        retries=0,
     )
     if res.status_code != 200:
         raise ProviderError(f"Overpass returned HTTP {res.status_code}", CapabilityState.temporarily_unavailable)

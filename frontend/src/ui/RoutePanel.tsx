@@ -1,10 +1,12 @@
 /** Street routing status of a bus/BRT line: route it, see each section, accept manual sketches. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Scenario, TransportLine } from '../domain/schema';
 import { routeStatus, setLegManual } from '../domain/alignment';
 import { isRing, updateLine } from '../domain/network';
 import { routeLineOnStreets } from '../routing/routeLine';
 import { useStore } from '../store/projectStore';
+import { backendCapability } from '../providers/backend';
+import type { Capability } from '../providers/types';
 import { Button, Section } from './primitives';
 
 const STATUS_TEXT = {
@@ -18,6 +20,16 @@ export function RoutePanel({ line, scenario }: { line: TransportLine; scenario: 
   const announce = useStore((s) => s.announce);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [routing, setRouting] = useState<Capability | null>(null);
+  const isRouted = line.alignment.kind === 'routed';
+  useEffect(() => {
+    if (!isRouted) return;
+    let cancelled = false;
+    void backendCapability('valhalla').then((c) => !cancelled && setRouting(c));
+    return () => {
+      cancelled = true;
+    };
+  }, [isRouted]);
   if (line.alignment.kind !== 'routed') return null;
   const status = routeStatus(line)!;
   const legs = line.alignment.legs;
@@ -39,6 +51,16 @@ export function RoutePanel({ line, scenario }: { line: TransportLine; scenario: 
       {line.alignment.returnCoordinates && (
         <p className="mb-1 text-xs text-slate-700">
           The return direction uses different streets (one-way streets); it is drawn as its own path.
+        </p>
+      )}
+      {routing && routing.state !== 'available' && (
+        <p
+          role="note"
+          className="mb-2 rounded border border-amber-600 bg-amber-50 p-2 text-xs text-amber-950"
+        >
+          ⚠ Street routing is not available on this server ({routing.message}). Sections stay straight (dashed
+          “not routed” on the map) until the routing service runs; see docs/ROUTING.md. You can mark sections
+          as manual sketches meanwhile.
         </p>
       )}
       <Button variant="primary" disabled={busy || status.total === 0} onClick={run}>

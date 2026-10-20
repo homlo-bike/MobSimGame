@@ -15,6 +15,7 @@ export const SRC = {
   crossovers: 'msg-crossovers',
   closures: 'msg-closures',
   signals: 'msg-signals',
+  routeStatus: 'msg-route-status',
   stations: 'msg-stations',
   catchments: 'msg-catchments',
   vehicles: 'msg-vehicles',
@@ -180,6 +181,18 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       },
     });
   }
+  // Bus sections that do not follow streets: dashed (unrouted: red, manual: grey) with a label.
+  add({
+    id: 'msg-route-status-line',
+    type: 'line',
+    source: SRC.routeStatus,
+    layout: { 'line-cap': 'butt' },
+    paint: {
+      'line-color': ['case', ['==', ['get', 'status'], 'unrouted'], '#b91c1c', '#475569'],
+      'line-width': 3,
+      'line-dasharray': [2, 2],
+    },
+  });
   // Closed sections: wide dashed band in a warning colour plus a pattern, never colour alone.
   add({
     id: 'msg-closures-line',
@@ -257,6 +270,19 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     },
   });
   if (opts.labels) {
+    add({
+      id: 'msg-route-status-label',
+      type: 'symbol',
+      source: SRC.routeStatus,
+      layout: {
+        'symbol-placement': 'line-center',
+        'text-field': ['case', ['==', ['get', 'status'], 'unrouted'], 'not routed', 'manual'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        'text-offset': [0, -0.9],
+      },
+      paint: { 'text-color': '#7f1d1d', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    });
     add({
       id: 'msg-crossovers-label',
       type: 'symbol',
