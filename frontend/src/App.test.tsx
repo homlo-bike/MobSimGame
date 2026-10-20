@@ -8,9 +8,10 @@ import { join } from 'node:path';
 vi.mock('./map/MapView', () => ({ default: () => <div data-testid="map">map</div> }));
 
 import App from './App';
-import { useStore } from './store/projectStore';
+import { blankProject, useStore } from './store/projectStore';
+import { notify, useNotifications } from './store/notifications';
 import { buildDemoProject } from './test/fixtures/demoProject';
-import { loadFromLocalStorage, parseProjectText, serializeProject, STORAGE_KEY } from './store/persistence';
+import { LIBRARY_KEY, loadFromLocalStorage, parseProjectText, serializeProject } from './store/persistence';
 import { geocode } from './providers/registry';
 import { parseCoordinateList } from './ui/TableView';
 
@@ -18,6 +19,10 @@ beforeEach(() => {
   localStorage.clear();
   act(() => useStore.getState().loadProject(buildDemoProject()));
   act(() => useStore.getState().setView('map'));
+  act(() => {
+    useStore.getState().closeProjectGate();
+    useStore.getState().setTool('select');
+  });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -71,7 +76,7 @@ describe('application shell', () => {
 
   it('autosaves the project to local storage', async () => {
     render(<App />);
-    await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull(), { timeout: 2000 });
+    await waitFor(() => expect(localStorage.getItem(LIBRARY_KEY)).not.toBeNull(), { timeout: 2000 });
     expect(loadFromLocalStorage()!.name).toBe('Fictional demo city');
   });
 
@@ -101,6 +106,7 @@ describe('application shell', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: /Table/ }));
+    await user.selectOptions(screen.getByLabelText('Mode of the new track or line'), 'bus');
     const area = screen.getByLabelText(/Coordinates, one/);
     await user.type(area, '52.5, 113.4');
     await user.click(screen.getByRole('button', { name: 'Create line' }));
@@ -109,6 +115,30 @@ describe('application shell', () => {
     await user.type(area, '0.01, 0.03{Enter}0.02, 0.03');
     await user.click(screen.getByRole('button', { name: 'Create line' }));
     expect(useStore.getState().project.scenarios[0]!.lines).toHaveLength(4);
+  });
+
+  it('creates track, a station on it and a service without the map', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: /Table/ }));
+    await user.selectOptions(screen.getByLabelText('Mode of the new track or line'), 'tram');
+    const before = useStore.getState().project.scenarios[0]!.trackNetwork.tracks.length;
+    await user.type(screen.getByLabelText(/Coordinates, one/), '0.10, 0.10{Enter}0.12, 0.10');
+    await user.click(screen.getByRole('button', { name: 'Create track' }));
+    expect(useStore.getState().project.scenarios[0]!.trackNetwork.tracks).toHaveLength(before + 2);
+    for (const at of ['0.10, 0.10', '0.12, 0.10']) {
+      await user.clear(screen.getByLabelText(/Position “longitude, latitude”/));
+      await user.type(screen.getByLabelText(/Position “longitude, latitude”/), at);
+      await user.click(screen.getByRole('button', { name: 'Add station at this position' }));
+    }
+    const stations = useStore.getState().project.scenarios[0]!.stations.slice(-2);
+    expect(stations.every((s) => s.trackRefs.length === 2)).toBe(true);
+    act(() => useStore.getState().setNewLineMode('tram'));
+    await user.click(screen.getByRole('button', { name: 'New service' }));
+    for (const st of stations) await user.selectOptions(screen.getByLabelText('Add a station'), st.id);
+    await user.click(screen.getByRole('button', { name: 'Create service' }));
+    const line = useStore.getState().project.scenarios[0]!.lines.at(-1)!;
+    expect(line.alignment.kind === 'track' && line.alignment.status).toBe('routed');
   });
 
   it('opens the data sources dialog listing provider states', async () => {
@@ -140,7 +170,8 @@ describe('File menu', () => {
       .getAllByRole('menuitem')
       .map((el) => el.textContent);
     expect(labels).toEqual([
-      'New project',
+      'New project…',
+      'Switch project…this browser',
       'Open real network…OSM',
       'Open project….json',
       'Save project.json',
@@ -173,13 +204,13 @@ describe('File menu', () => {
     const button = screen.getByRole('button', { name: 'File' });
     button.focus();
     await user.keyboard('{Enter}');
-    expect(screen.getByRole('menuitem', { name: 'New project' })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: 'New project…' })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: /Open real network/ })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: /Switch project/ })).toHaveFocus();
     await user.keyboard('{End}');
     expect(screen.getByRole('menuitem', { name: /Sign in/ })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: 'New project' })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: 'New project…' })).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(button).toHaveFocus();
@@ -189,9 +220,9 @@ describe('File menu', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: 'File' }));
-    await user.click(screen.getByRole('menuitem', { name: 'New project' }));
+    await user.click(screen.getByRole('menuitem', { name: 'New project…' }));
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(useStore.getState().project.name).toBe('Untitled project');
+    expect(await screen.findByRole('heading', { name: 'New project' })).toBeInTheDocument();
   });
 
   it('closes when clicking outside', async () => {
@@ -266,5 +297,69 @@ describe('no secrets in browser code', () => {
     };
     walk(join(process.cwd(), 'src'));
     for (const v of used) expect(allowed.has(v)).toBe(true);
+  });
+});
+
+describe('Start a network card', () => {
+  it('closes when drawing starts, keeps drawing, and returns after Escape', async () => {
+    const user = userEvent.setup();
+    act(() => useStore.getState().loadProject(blankProject()));
+    render(<App />);
+    expect(screen.getByRole('heading', { name: 'Start a network' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Draw track or a line' }));
+    expect(screen.queryByRole('heading', { name: 'Start a network' })).not.toBeInTheDocument();
+    expect(useStore.getState().tool).toBe('draw_line');
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tool).toBe('select');
+    expect(screen.getAllByRole('heading', { name: 'Start a network' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Close start a network' }));
+    expect(screen.queryByRole('heading', { name: 'Start a network' })).not.toBeInTheDocument();
+  });
+
+  it('asks for a project first when none is active, then starts drawing', async () => {
+    const user = userEvent.setup();
+    act(() => {
+      useStore.getState().loadProject(blankProject());
+      useStore.setState({ projectActive: false });
+    });
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Draw track or a line' }));
+    expect(screen.getByRole('heading', { name: 'Choose a project for your line' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Name of the new project'), 'Harbour tram');
+    await user.click(screen.getByRole('button', { name: 'Create and start drawing' }));
+    expect(useStore.getState().project.name).toBe('Harbour tram');
+    expect(useStore.getState().tool).toBe('draw_line');
+    expect(screen.queryByRole('heading', { name: 'Choose a project for your line' })).not.toBeInTheDocument();
+  });
+});
+
+describe('notification menu', () => {
+  it('records toasts, groups repeats and navigates to the related line', async () => {
+    const user = userEvent.setup();
+    useNotifications.getState().clearAll();
+    render(<App />);
+    const line = useStore.getState().project.scenarios[0]!.lines[0]!;
+    act(() => {
+      notify({ severity: 'warning', title: 'Not routed', target: { lineId: line.id } });
+      notify({ severity: 'warning', title: 'Not routed', target: { lineId: line.id } });
+    });
+    await user.click(screen.getByRole('button', { name: /Notifications, 1 unread/ }));
+    const list = screen.getByRole('list', { name: 'Notification list' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(list).getByText(/2×/)).toBeInTheDocument();
+    await user.click(within(list).getByRole('button', { name: /Warning: Not routed.*Show on map/ }));
+    expect(useStore.getState().selection).toEqual({ kind: 'line', id: line.id });
+    expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+  });
+});
+
+describe('station naming in the inspector', () => {
+  it('always leaves the loading state and lists suggestions', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(within(screen.getByRole('list', { name: 'Stations' })).getAllByRole('button')[0]!);
+    await user.click(screen.getByRole('button', { name: 'Suggest names from nearby features' }));
+    await waitFor(() => expect(screen.getByTestId('name-lookup-status')).not.toHaveTextContent('Looking up'));
+    expect(screen.getByRole('list', { name: 'Name suggestions' })).toBeInTheDocument();
   });
 });

@@ -13,6 +13,59 @@ import { slicePath } from '../geo/geometry';
 import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
+import { nodeEnds, trackGeometry } from '../domain/tracks';
+import { stepsCoordinates, stepsSegments } from '../domain/serviceRouting';
+
+/**
+ * Physical tracks, one feature each, oriented in their running direction so
+ * arrows show it ('‹ ›' on track used both ways). Tracks are drawn at their true
+ * position: double track is two features, never a pixel offset.
+ */
+export function tracksCollection(scenario: Scenario, selectedTrackId: string | null): FeatureCollection {
+  const net = scenario.trackNetwork;
+  const features: Feature[] = net.tracks.map((t) => {
+    const coords = trackGeometry(net, t).coordinates;
+    return {
+      type: 'Feature',
+      id: t.id,
+      geometry: {
+        type: 'LineString',
+        coordinates: t.direction === 'backward' ? [...coords].reverse() : coords,
+      },
+      properties: {
+        trackId: t.id,
+        structure: t.structure,
+        level: t.level,
+        selected: t.id === selectedTrackId,
+        double: !!t.groupId,
+        existing: t.origin.source === 'osm' && !t.origin.edited,
+        arrow: t.direction === 'both' ? '‹ ›' : '›',
+        color: '#334155',
+        offsetSign: 0,
+      },
+    };
+  });
+  return { type: 'FeatureCollection', features };
+}
+
+/** Track nodes: open ends, buffer stops, connections and junctions (3+ ends). */
+export function trackNodesCollection(scenario: Scenario, selectedNodeId: string | null): FeatureCollection {
+  const net = scenario.trackNetwork;
+  return {
+    type: 'FeatureCollection',
+    features: net.nodes.map((n) => {
+      const ends = nodeEnds(net, n.id).length;
+      const kind =
+        n.kind === 'buffer_stop' ? 'buffer_stop' : ends <= 1 ? 'end' : ends >= 3 ? 'junction' : 'connection';
+      return {
+        type: 'Feature' as const,
+        id: n.id,
+        geometry: { type: 'Point' as const, coordinates: n.position },
+        properties: { nodeId: n.id, kind, ends, selected: n.id === selectedNodeId },
+      };
+    }),
+  };
+}
 
 /**
  * One feature per track and segment. A double-track segment becomes two
@@ -24,6 +77,10 @@ import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/
 export function segmentsCollection(scenario: Scenario, selectedLineId: string | null): FeatureCollection {
   const features: Feature[] = [];
   for (const line of scenario.lines) {
+    if (line.alignment.kind === 'track') {
+      features.push(...trackServiceFeatures(scenario, line, line.id === selectedLineId));
+      continue;
+    }
     const guidedOrRoad = !['cycling', 'pedestrian'].includes(line.mode);
     // A bus return that uses other streets (one-way streets) is drawn as its own path.
     const ownReturn =
@@ -91,6 +148,85 @@ export function segmentsCollection(scenario: Scenario, selectedLineId: string | 
           },
         });
       }
+    }
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+/** A service on tracks drawn exactly over the tracks it uses, out and back. */
+function trackServiceFeatures(
+  scenario: Scenario,
+  line: Scenario['lines'][number],
+  selected: boolean,
+): Feature[] {
+  if (line.alignment.kind !== 'track') return [];
+  const out: Feature[] = [];
+  const paths = [
+    { steps: line.alignment.path, track: 'forward' },
+    { steps: line.alignment.returnPath ?? [], track: 'return' },
+  ];
+  for (const { steps, track } of paths) {
+    if (!steps.length) continue;
+    const coords = stepsCoordinates(scenario, steps);
+    const segs = track === 'forward' ? line.segments : stepsSegments(scenario, line.id, steps);
+    for (const seg of segs) {
+      const part = slicePath(coords, false, seg.fromFraction, seg.toFraction);
+      if (part.length < 2) continue;
+      out.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: part },
+        properties: {
+          lineId: line.id,
+          segmentId: seg.id,
+          color: line.color,
+          structure: seg.structure,
+          tracks: 'single',
+          selected,
+          // A colour band under the physical track line.
+          track: 'band',
+          offsetSign: 0,
+          arrow: '',
+        },
+      });
+    }
+  }
+  if (!out.length && line.coordinates.length >= 2)
+    // Not routed yet: a thin sketch between the stops.
+    out.push({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: line.coordinates },
+      properties: {
+        lineId: line.id,
+        segmentId: line.segments[0]?.id ?? '',
+        color: line.color,
+        structure: 'at_grade',
+        tracks: 'single',
+        selected,
+        track: 'single',
+        offsetSign: 0,
+        arrow: '',
+        unrouted: true,
+      },
+    });
+  return out;
+}
+
+/**
+ * Street-routed sections that do not follow streets: unrouted (incomplete) or
+ * accepted manual sketches. Drawn over the line so a straight bus line is
+ * visibly "not routed yet" rather than looking like a finished route.
+ */
+export function routeStatusCollection(scenario: Scenario): FeatureCollection {
+  const features: Feature[] = [];
+  for (const line of scenario.lines) {
+    if (line.alignment.kind !== 'routed') continue;
+    for (const leg of line.alignment.legs) {
+      if (leg.status === 'routed' || leg.geometry.length < 2) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: leg.geometry },
+        properties: { lineId: line.id, status: leg.status },
+      });
     }
   }
   return { type: 'FeatureCollection', features };

@@ -1,3 +1,5 @@
+import { finishServiceDraft, requestTrackDeletion } from './store/trackActions';
+import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
 import { saveToLocalStorage } from './store/persistence';
@@ -6,6 +8,12 @@ import { fetchSharedProject } from './api/projects';
 import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
 import { LineInspector } from './ui/LineInspector';
+import {
+  NodeInspector,
+  TrackDeletionDialog,
+  TrackInspector,
+  TrackParametersPanel,
+} from './ui/TrackInspector';
 import { StationInspector } from './ui/StationInspector';
 import { SimulationControls } from './ui/SimulationControls';
 import { SchematicView } from './ui/SchematicView';
@@ -13,6 +21,11 @@ import { Dashboard } from './ui/Dashboard';
 import { TableView } from './ui/TableView';
 import { DataSourcesDialog } from './ui/DataSourcesDialog';
 import { ExampleDialog } from './ui/ExampleDialog';
+import { Toast } from './ui/Toast';
+import { ProjectGate } from './ui/ProjectGate';
+import { StatusIndicator, UpdateBanner } from './ui/StatusIndicator';
+import { startAppStatus } from './runtime/appStatus';
+import { notify } from './store/notifications';
 import { SignalInspector, SignalsPanel } from './ui/SignalsPanel';
 import { FindingsList } from './ui/FindingsList';
 import { Button, Checkbox, Section } from './ui/primitives';
@@ -49,6 +62,14 @@ function Inspector() {
     const line = scenario.lines.find((l) => l.id === id);
     if (line) return <LineInspector key={line.id} line={line} scenario={scenario} />;
   }
+  if (selection?.kind === 'track') {
+    const track = scenario.trackNetwork.tracks.find((t) => t.id === selection.id);
+    if (track) return <TrackInspector key={track.id} track={track} scenario={scenario} />;
+  }
+  if (selection?.kind === 'node') {
+    const node = scenario.trackNetwork.nodes.find((n) => n.id === selection.id);
+    if (node) return <NodeInspector key={node.id} node={node} scenario={scenario} />;
+  }
   if (selection?.kind === 'signal') {
     const signal = scenario.trafficSignals.find((s) => s.id === selection.id);
     if (signal) return <SignalInspector key={signal.id} signal={signal} scenario={scenario} />;
@@ -61,7 +82,7 @@ function Inspector() {
     <>
       <Section title={t('inspector')} id="inspector-empty">
         <p className="text-sm text-slate-700">
-          Select a line or station on the map or in the lists to edit it.
+          Select a track, node, line or station on the map or in the lists to edit it.
         </p>
       </Section>
       <Section title="Display" id="display" collapsible defaultOpen={false}>
@@ -90,6 +111,18 @@ export default function App() {
   const view = useStore((s) => s.view);
   const announcement = useStore((s) => s.announcement);
   const [dataOpen, setDataOpen] = useState(false);
+  const projectActive = useStore((s) => s.projectActive);
+  const startCardDismissed = useStore((s) => s.startCardDismissed);
+  const dismissStartCard = useStore((s) => s.dismissStartCard);
+  const tool = useStore((s) => s.tool);
+  const projectGateOpen = useStore((s) => s.projectGate.open);
+  /** "Draw a line": the card hides (tool changes) and keyboard focus moves to the map. */
+  const startDrawing = () => {
+    setTool('draw_line');
+    requestAnimationFrame(() =>
+      (document.querySelector('[data-testid="map"] canvas') as HTMLElement | null)?.focus(),
+    );
+  };
   const [examplesOpen, setExamplesOpen] = useState(false);
   const scenario = useScenario();
   const setTool = useStore((s) => s.setTool);
@@ -97,14 +130,26 @@ export default function App() {
 
   // Autosave to this browser.
   useEffect(() => {
+    // A first visit's scratch project is not stored until the user creates or opens a project.
+    if (!projectActive) return;
     const id = setTimeout(() => {
       const r = saveToLocalStorage(project);
-      setSaveError(
-        r.ok ? null : `Not saved in this browser: ${r.error}. Use File › Save project to keep a file.`,
-      );
+      const msg = r.ok
+        ? null
+        : `Not saved in this browser: ${r.error}. Use File › Save project to keep a file.`;
+      setSaveError(msg);
+      // Grouped by the notification centre, so repeated autosave failures appear once.
+      if (msg)
+        notify({ severity: 'error', kind: 'project', title: 'Autosave failed', message: msg, toast: false });
     }, 400);
     return () => clearTimeout(id);
-  }, [project]);
+  }, [project, projectActive]);
+
+  // Connection and version monitoring (not in unit tests, which have no server).
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return;
+    return startAppStatus();
+  }, []);
 
   // Open a shared project from ?share=<id>.
   useEffect(() => {
@@ -115,6 +160,12 @@ export default function App() {
       .catch((e: Error) => {
         log.error('could not open shared project', { projectId: id, ...errorContext(e) });
         useStore.getState().announce(`Could not open shared project: ${e.message}`);
+        notify({
+          severity: 'error',
+          kind: 'share',
+          title: 'Could not open shared project',
+          message: e.message,
+        });
       });
   }, []);
 
@@ -130,6 +181,9 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === 'y' && !isEditableTarget(e.target)) {
         e.preventDefault();
         state.redo();
+      } else if (e.key === 'Enter' && state.tool === 'new_service' && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        finishServiceDraft();
       } else if (e.key === 'Escape' && state.tool !== 'select') {
         state.setTool('select');
         state.announce('Tool cancelled');
@@ -140,8 +194,19 @@ export default function App() {
       ) {
         const sc = activeScenario(state.project);
         const sel = state.selection;
-        if (sel.kind === 'station') state.commitScenario(deleteStation(sc, sel.id), 'Station deleted');
-        else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        if (sel.kind === 'station') {
+          const serving = sc.lines.filter(
+            (l) => l.alignment.kind === 'track' && l.stops.some((x) => x.stationId === sel.id),
+          );
+          state.commitScenario(
+            rerouteServices(
+              deleteStation(sc, sel.id),
+              serving.map((l) => l.id),
+            ),
+            'Station deleted',
+          );
+        } else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        else if (sel.kind === 'track') requestTrackDeletion([sel.id]);
         state.select(null);
         e.preventDefault();
       }
@@ -168,6 +233,7 @@ export default function App() {
           and describe no real place.
         </div>
       )}
+      <UpdateBanner autosaveFailed={!!saveError} />
       {saveError && (
         <div
           role="alert"
@@ -185,6 +251,7 @@ export default function App() {
           <ToolPanel />
           <NetworkLists />
           <SignalsPanel />
+          <TrackParametersPanel />
           <ScenarioPanel />
           <LayerPanel />
         </aside>
@@ -195,26 +262,41 @@ export default function App() {
               <MapView />
             </Suspense>
           </div>
-          {view === 'map' && scenario.lines.length === 0 && (
-            <section
-              aria-labelledby="start-title"
-              className="absolute start-1/2 top-1/2 z-10 w-[min(26rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white/95 p-4 shadow-lg"
-            >
-              <h2 id="start-title" className="mb-1 text-base font-semibold">
-                Start a network
-              </h2>
-              <p className="mb-3 text-sm text-slate-700">
-                Open a city’s existing tram, metro or bus network, or search for a place and draw your own
-                lines.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="primary" onClick={() => setExamplesOpen(true)}>
-                  Open a real network…
-                </Button>
-                <Button onClick={() => setTool('draw_line')}>Draw a line</Button>
-              </div>
-            </section>
-          )}
+          {view === 'map' &&
+            scenario.lines.length === 0 &&
+            scenario.trackNetwork.tracks.length === 0 &&
+            tool === 'select' &&
+            !startCardDismissed &&
+            !projectGateOpen && (
+              <section
+                aria-labelledby="start-title"
+                className="absolute start-1/2 top-1/2 z-10 w-[min(26rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white/95 p-4 shadow-lg"
+              >
+                <div className="mb-1 flex items-start justify-between gap-2">
+                  <h2 id="start-title" className="text-base font-semibold">
+                    Start a network
+                  </h2>
+                  <button
+                    type="button"
+                    aria-label="Close start a network"
+                    className="text-slate-600 hover:text-slate-900"
+                    onClick={dismissStartCard}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="mb-3 text-sm text-slate-700">
+                  Open a city’s existing tram, metro or bus network, or search for a place and draw your own
+                  track and lines.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="primary" onClick={() => setExamplesOpen(true)}>
+                    Open a real network…
+                  </Button>
+                  <Button onClick={startDrawing}>Draw track or a line</Button>
+                </div>
+              </section>
+            )}
           {view === 'schematic' && <SchematicView />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'table' && <TableView />}
@@ -228,6 +310,7 @@ export default function App() {
       </div>
       <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 bg-white px-3 py-1.5">
         <SimulationControls />
+        <StatusIndicator />
         <p className="ms-auto text-xs text-slate-600">
           {t('disclaimerShort')}{' '}
           <button type="button" className="underline" onClick={() => setDataOpen(true)}>
@@ -238,7 +321,10 @@ export default function App() {
       <div aria-live="polite" className="sr-only" data-testid="announcer">
         {announcement}
       </div>
+      <Toast />
       <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
+      {projectGateOpen && <ProjectGate />}
+      <TrackDeletionDialog />
       {examplesOpen && <ExampleDialog open={examplesOpen} onClose={() => setExamplesOpen(false)} />}
     </div>
   );

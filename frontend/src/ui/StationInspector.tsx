@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Scenario, Station, TransportLine } from '../domain/schema';
 import {
   addExistingStationToLine,
@@ -12,12 +12,21 @@ import {
 } from '../domain/network';
 import { useStore } from '../store/projectStore';
 import { backendProviders, mockProviders } from '../providers/registry';
-import { suggestStationNames, type NameSuggestion } from '../names/suggest';
+import { resolvedName, type NameSuggestion } from '../names/suggest';
+import { lookupStationNames } from '../names/lookup';
 import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { CommitField } from './CommitField';
 import { getMapInstance } from '../map/mapInstance';
-import { ProviderError } from '../providers/backend';
 import { createLogger } from '../util/logger';
+import {
+  rerouteServices,
+  setServiceStops,
+  setStationTrack,
+  stationLevel,
+  suggestStationTracks,
+} from '../domain/serviceRouting';
+import { parameterValue } from '../domain/trackParameters';
+import { MetadataEditor } from './MetadataEditor';
 
 const log = createLogger('station-inspector');
 
@@ -27,33 +36,32 @@ export function StationInspector({ station, scenario }: { station: Station; scen
   const fictional = useStore((s) => s.project.fictional);
   const [suggestions, setSuggestions] = useState<NameSuggestion[] | null>(null);
   const [suggestStatus, setSuggestStatus] = useState('');
+  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle');
   const lines = linesServingStation(scenario, station.id);
   const otherLines = scenario.lines.filter((l) => !lines.includes(l));
   const patch = (p: Partial<Station>, label = 'Station updated') =>
     commit(updateStation(scenario, station.id, p), label);
 
+  // Cancel a running lookup when the inspector closes or shows another station.
+  const lookup = useRef<AbortController | null>(null);
+  useEffect(() => () => lookup.current?.abort(), []);
+
   const suggest = async () => {
+    lookup.current?.abort();
+    const ctrl = new AbortController();
+    lookup.current = ctrl;
+    setLookupState('loading');
     setSuggestStatus('Looking up nearby features…');
     const provider = fictional ? mockProviders.osm : backendProviders.osm;
-    try {
-      const res = await provider.featuresNear(station.position, 500);
-      const list = suggestStationNames(station.position, res.data, {
-        provider: res.provenance.provider,
-        language: navigator.language.split('-')[0],
-      });
-      setSuggestions(list);
-      setSuggestStatus(
-        `${list.length} suggestion(s) from ${res.provenance.provider}. ${res.provenance.attribution}.`,
-      );
-    } catch (e) {
-      log.warn('station name lookup failed; offering a generated name', {
-        state: e instanceof ProviderError ? e.state : 'unknown',
-      });
-      setSuggestions(suggestStationNames(station.position, [], { provider: 'MobSimGame' }));
-      setSuggestStatus(
-        `${e instanceof ProviderError ? e.message : 'Lookup failed'}. Showing a generated fallback name only.`,
-      );
-    }
+    // The application language first (OSM name:<lang>), then the local name.
+    const language = (document.documentElement.lang || navigator.language || 'en').split('-')[0];
+    const outcome = await lookupStationNames(station.position, provider, { language, signal: ctrl.signal });
+    if (outcome.status === 'cancelled' || ctrl.signal.aborted) return;
+    if (outcome.status === 'error' || outcome.status === 'timeout')
+      log.warn('station name lookup failed', { status: outcome.status });
+    setSuggestions(outcome.suggestions);
+    setSuggestStatus([outcome.message, outcome.attribution].filter(Boolean).join(' '));
+    setLookupState(outcome.status === 'ok' ? 'idle' : outcome.status === 'empty' ? 'empty' : 'error');
   };
 
   return (
@@ -79,41 +87,69 @@ export function StationInspector({ station, scenario }: { station: Station; scen
           }}
           hint="Names you type are never replaced by suggestions."
         />
-        <Button onClick={suggest}>Suggest names from nearby features</Button>
-        <p className="mt-1 text-xs text-slate-600" aria-live="polite">
+        <Button onClick={suggest} disabled={lookupState === 'loading'}>
+          {lookupState === 'loading'
+            ? 'Looking up…'
+            : lookupState === 'error'
+              ? 'Try again'
+              : 'Suggest names from nearby features'}
+        </Button>
+        <p
+          className={`mt-1 text-xs ${lookupState === 'error' ? 'font-medium text-red-800' : 'text-slate-600'}`}
+          aria-live="polite"
+          data-testid="name-lookup-status"
+        >
+          {lookupState === 'error' && '⛔ '}
           {suggestStatus}
         </p>
         {suggestions && (
           <ul className="mt-1 space-y-1 text-sm" aria-label="Name suggestions">
-            {suggestions.slice(0, 6).map((s) => (
-              <li key={s.name} className="rounded border border-slate-300 p-1">
-                <strong>{s.name}</strong>
-                <span className="block text-xs text-slate-600">
-                  Source: {s.sourceFeature} · {s.distanceM} m away · {s.provider}
-                </span>
-                <div className="mt-1 flex gap-1">
-                  <Button
-                    onClick={() => {
-                      if (station.nameSource === 'user') {
-                        // An explicit accept by the user is itself a user decision.
-                        commit(renameStation(scenario, station.id, s.name), 'Suggestion accepted');
-                      } else {
-                        commit(
-                          applyNameSuggestion(scenario, station.id, s, s.qualifier),
-                          'Suggestion accepted',
-                        );
-                      }
-                      setSuggestions(null);
-                    }}
-                  >
-                    Accept
-                  </Button>
-                  <Button variant="ghost" onClick={() => setSuggestions(suggestions.filter((x) => x !== s))}>
-                    Reject
-                  </Button>
-                </div>
-              </li>
-            ))}
+            {suggestions.slice(0, 8).map((s) => {
+              const finalName = resolvedName(scenario, s, station.id);
+              return (
+                <li
+                  key={s.name}
+                  className={`rounded border p-1 ${s.coordinateFallback ? 'border-dashed border-slate-400' : 'border-slate-300'}`}
+                >
+                  <strong>{s.name}</strong>
+                  {s.coordinateFallback && <Badge tone="warn">Last resort</Badge>}
+                  <span className="block text-xs text-slate-600">
+                    {s.coordinateFallback
+                      ? s.sourceFeature
+                      : `Source: ${s.sourceFeature} · ${s.distanceM} m away · ${s.provider}`}
+                  </span>
+                  {finalName !== s.name && (
+                    <span className="block text-xs text-amber-900">
+                      Already used in this project: saved as “{finalName}”.
+                    </span>
+                  )}
+                  <div className="mt-1 flex gap-1">
+                    <Button
+                      onClick={() => {
+                        if (station.nameSource === 'user') {
+                          // An explicit accept by the user is itself a user decision.
+                          commit(renameStation(scenario, station.id, finalName), 'Suggestion accepted');
+                        } else {
+                          commit(
+                            applyNameSuggestion(scenario, station.id, s, s.qualifier),
+                            'Suggestion accepted',
+                          );
+                        }
+                        setSuggestions(null);
+                      }}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setSuggestions(suggestions.filter((x) => x !== s))}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
         <p className="mt-2 text-xs text-slate-700">
@@ -194,6 +230,11 @@ export function StationInspector({ station, scenario }: { station: Station; scen
           />
         </fieldset>
         <CommitField label="Notes" value={station.notes} onCommit={(v) => patch({ notes: v })} />
+        <MetadataEditor
+          value={station.metadata}
+          onChange={(metadata) => patch({ metadata }, 'Station details changed')}
+          idPrefix={`station-${station.id}`}
+        />
         <CommitField
           label="Image URL (https)"
           value={station.imageUrls[0] ?? ''}
@@ -206,6 +247,74 @@ export function StationInspector({ station, scenario }: { station: Station; scen
         <p className="text-xs text-slate-700">
           Entrances: {station.entrances.length} (entrance editing is planned for Phase 2)
         </p>
+      </Section>
+
+      <Section title={`Tracks at this station (${station.trackRefs.length})`} id="station-tracks">
+        {(() => {
+          const net = scenario.trackNetwork;
+          const radius = parameterValue(net, 'stationTrackSearchM');
+          const near = suggestStationTracks(scenario, station.position, stationLevel(station));
+          const ids = [
+            ...new Set([...station.trackRefs.map((r) => r.trackId), ...near.map((h) => h.track.id)]),
+          ];
+          if (!ids.length)
+            return (
+              <p className="text-sm text-slate-700">
+                No track within {radius} m on this level. Services on tracks can only call at stations on
+                tracks.
+              </p>
+            );
+          return (
+            <>
+              <p className="mb-1 text-xs text-slate-600">
+                Tracks within {radius} m on the same level are suggested (set the distance under Track
+                parameters). Services stop on the ticked tracks.
+              </p>
+              <ul className="space-y-0.5 text-sm">
+                {ids.map((id) => {
+                  const i = net.tracks.findIndex((t) => t.id === id);
+                  const t = net.tracks[i];
+                  if (!t) return null;
+                  const served = station.trackRefs.some((r) => r.trackId === id);
+                  const hit = near.find((h) => h.track.id === id);
+                  const cid = `st-${station.id}-trk-${id}`;
+                  return (
+                    <li key={id} className="flex items-center gap-2">
+                      <input
+                        id={cid}
+                        type="checkbox"
+                        checked={served}
+                        onChange={(e) =>
+                          commit(
+                            setStationTrack(scenario, station.id, id, e.target.checked),
+                            e.target.checked
+                              ? 'Track added to the station'
+                              : 'Track removed from the station',
+                          )
+                        }
+                      />
+                      <label htmlFor={cid} className="flex-1">
+                        {t.name || `Track ${i + 1}`}
+                        <span className="text-xs text-slate-600">
+                          {hit
+                            ? ` · ${hit.distanceM.toFixed(1)} m away`
+                            : ' · further away or on another level'}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="text-xs underline"
+                        onClick={() => select({ kind: 'track', id })}
+                      >
+                        show
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          );
+        })()}
       </Section>
 
       <Section title={`Lines at this station (${lines.length})`} id="station-lines">
@@ -223,7 +332,18 @@ export function StationInspector({ station, scenario }: { station: Station; scen
               <Button
                 variant="ghost"
                 aria-label={`Remove from ${l.name}`}
-                onClick={() => commit(removeStopFromLine(scenario, l.id, station.id), 'Stop removed')}
+                onClick={() =>
+                  commit(
+                    l.alignment.kind === 'track'
+                      ? setServiceStops(
+                          scenario,
+                          l.id,
+                          l.stops.filter((x) => x.stationId !== station.id).map((x) => x.stationId),
+                        )
+                      : removeStopFromLine(scenario, l.id, station.id),
+                    'Stop removed',
+                  )
+                }
               >
                 ✕
               </Button>
@@ -236,18 +356,34 @@ export function StationInspector({ station, scenario }: { station: Station; scen
             value=""
             onChange={(e) =>
               e.target.value &&
-              commit(addExistingStationToLine(scenario, e.target.value, station.id), 'Station shared')
+              commit(
+                otherLines.find((l) => l.id === e.target.value)?.alignment.kind === 'track'
+                  ? setServiceStops(scenario, e.target.value, [
+                      ...otherLines.find((l) => l.id === e.target.value)!.stops.map((x) => x.stationId),
+                      station.id,
+                    ])
+                  : addExistingStationToLine(scenario, e.target.value, station.id),
+                'Station shared',
+              )
             }
             options={[
               { value: '', label: 'Choose a line…' },
-              ...otherLines.map((l) => ({ value: l.id, label: l.name })),
+              ...otherLines
+                .filter((l) => l.alignment.kind !== 'track' || station.trackRefs.length > 0)
+                .map((l) => ({ value: l.id, label: l.name })),
             ]}
           />
         )}
         <Button
           variant="danger"
           onClick={() => {
-            commit(deleteStation(scenario, station.id), `Station "${station.name}" deleted`);
+            commit(
+              rerouteServices(
+                deleteStation(scenario, station.id),
+                lines.filter((l) => l.alignment.kind === 'track').map((l) => l.id),
+              ),
+              `Station "${station.name}" deleted`,
+            );
             select(null);
           }}
         >

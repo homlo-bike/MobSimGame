@@ -22,9 +22,9 @@ function busLine() {
 }
 
 describe('alignments', () => {
-  it('chooses curves for track, streets for buses and straight segments otherwise', () => {
-    expect(defaultAlignmentKind('tram')).toBe('spline');
-    expect(defaultAlignmentKind('commuter_rail')).toBe('spline');
+  it('runs track modes on tracks, buses on streets and other modes on straight segments', () => {
+    expect(defaultAlignmentKind('tram')).toBe('track');
+    expect(defaultAlignmentKind('commuter_rail')).toBe('track');
     expect(defaultAlignmentKind('bus')).toBe('routed');
     expect(defaultAlignmentKind('brt')).toBe('routed');
     expect(defaultAlignmentKind('cycling')).toBe('polyline');
@@ -170,12 +170,16 @@ describe('alignments', () => {
     expect(other.alignment.kind === 'routed' && other.alignment.returnCoordinates).toHaveLength(5);
   });
 
-  it('converts between alignment kinds from what the user sees', () => {
-    const { scenario, line } = createLine(emptyScenario(), { coordinates: wps, mode: 'tram' });
-    const asPolyline = setLineAlignmentKind(scenario, line.id, 'polyline').lines[0]!;
-    // Straightening a curve keeps its sampled shape rather than the sparse control points.
-    expect(asPolyline.coordinates.length).toBe(line.coordinates.length);
-    const back = buildAlignment('spline', wps, false);
-    expect(back.alignment.kind).toBe('spline');
+  it('switches buses between streets and straight segments, but never puts rail on streets', () => {
+    const bus = busLine();
+    const straight = setLineAlignmentKind(bus.scenario, bus.line.id, 'polyline').lines[0]!;
+    expect(straight.alignment.kind).toBe('polyline');
+    expect(straight.coordinates).toEqual(wps);
+    const tram = createLine(emptyScenario(), { coordinates: wps, mode: 'tram' });
+    expect(tram.line.alignment.kind).toBe('track');
+    // "Follow street" and "Straight segments" are not available for rail.
+    expect(setLineAlignmentKind(tram.scenario, tram.line.id, 'routed')).toBe(tram.scenario);
+    expect(setLineAlignmentKind(tram.scenario, tram.line.id, 'polyline')).toBe(tram.scenario);
+    expect(buildAlignment('track', wps, false).alignment.kind).toBe('track');
   });
 });

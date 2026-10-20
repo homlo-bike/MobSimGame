@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { LngLat, Provenance } from './schema';
 import { parseProject } from './schema';
-import { controlPoints, networkToProject, type NetworkData } from './examples';
+import { networkToProject, type NetworkData } from './examples';
+import { trackGeometry } from './tracks';
 import { validateScenario } from '../validation/validate';
 import { routeStatus } from './alignment';
 
@@ -60,15 +61,20 @@ function network(kind: NetworkData['kind'], mode: NetworkData['lines'][number]['
 describe('real-city example projects', () => {
   it('builds a valid real-place project with OSM provenance', () => {
     const p = networkToProject(network('tram', 'tram'), provenance);
-    expect(parseProject(JSON.parse(JSON.stringify(p))).ok).toBe(true);
+    expect(parseProject(JSON.parse(JSON.stringify(p)))).toMatchObject({ ok: true });
     expect(p.fictional).toBe(false);
     expect(p.datasetReferences[0]!.provenance.license).toBe('ODbL-1.0');
     const sc = p.scenarios[0]!;
     expect(sc.stations.map((s) => s.name)).toEqual(['Stop A', 'Stop B', 'Stop C']);
     const line = sc.lines[0]!;
     expect(line.origin).toMatchObject({ source: 'osm', ref: 'relation/1', edited: false });
-    expect(line.alignment.kind).toBe('spline');
+    expect(line.alignment.kind).toBe('track');
+    expect(line.alignment.kind === 'track' && line.alignment.status).toBe('routed');
     expect(line.color).toBe('#123456');
+    // Physical double track, marked as existing infrastructure; every station serves both tracks.
+    expect(sc.trackNetwork.tracks).toHaveLength(2);
+    expect(sc.trackNetwork.tracks.every((t) => t.origin.source === 'osm' && !t.origin.edited)).toBe(true);
+    expect(sc.stations.every((st) => st.trackRefs.length === 2)).toBe(true);
   });
 
   it('reports findings on unedited imported lines as information only', () => {
@@ -85,14 +91,20 @@ describe('real-city example projects', () => {
     expect(line.alignment.kind === 'routed' && line.alignment.returnCoordinates).toHaveLength(20);
   });
 
-  it('thins dense geometry to control points but keeps sharp turns', () => {
+  it('fits imported track geometry with lines and circular arcs', () => {
     const corner: LngLat[] = [
       ...straight(10),
       ...[...Array(10).keys()].map((i) => [13.409, 52.5 + (i + 1) * 0.001] as LngLat),
     ];
-    const cps = controlPoints(corner, 1000);
-    expect(cps[0]).toEqual(corner[0]);
-    expect(cps[cps.length - 1]).toEqual(corner[corner.length - 1]);
-    expect(cps).toContainEqual([13.409, 52.5]);
+    const net = network('tram', 'tram');
+    net.lines[0]!.coordinates = corner;
+    net.lines[0]!.stops = ['a', 'b'];
+    net.stations[1] = { key: 'b', name: 'Stop B', position: [13.409, 52.509] };
+    const sc = networkToProject(net, provenance).scenarios[0]!;
+    const kinds = sc.trackNetwork.tracks.flatMap((t) =>
+      trackGeometry(sc.trackNetwork, t).primitives.map((p) => p.kind),
+    );
+    expect(kinds).toContain('arc');
+    expect(sc.lines[0]!.alignment.kind === 'track' && sc.lines[0]!.alignment.status).toBe('routed');
   });
 });

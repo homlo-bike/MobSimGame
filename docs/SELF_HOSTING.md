@@ -96,4 +96,4 @@ Nominatim's 1 request/second limit applies to the whole deployment.
 
 ## Upgrades
 
-`git pull && docker compose up -d --build`. Read `CHANGELOG.md` for migration notes.
+`git pull && docker compose up -d --build` (the web app on port 8080 is built into the image, so a pull alone changes nothing that runs). Ports, build check and troubleshooting: README, "Ports" and "Updating". Read `CHANGELOG.md` for migration notes.

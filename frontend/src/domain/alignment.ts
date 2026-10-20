@@ -1,29 +1,30 @@
 /**
  * Alignment kinds and the points the user edits for each of them.
  *
- * - Track-guided modes (tram, light rail, metro, rail) use smooth splines.
+ * - Track-guided modes (tram, light rail, metro, rail) run over the physical
+ *   track network (domain/tracks.ts, domain/serviceRouting.ts); their geometry
+ *   is derived from the tracks, never drawn on the line itself.
  * - Bus and BRT follow streets: waypoints routed on the street network.
  * - Cycling, walking and custom corridors use straight segments.
  *
  * `line.coordinates` is always the derived geometry; this module recomputes it.
  */
 import type { Alignment, LngLat, RouteLeg, TransportLine, TransportMode } from './schema';
-import { sampleSpline } from '../geo/spline';
 import { snapToPath } from '../geo/geometry';
 
 export type AlignmentKind = Alignment['kind'];
 
 export const ALIGNMENT_LABELS: Record<AlignmentKind, string> = {
-  spline: 'Smooth curve (track)',
+  track: 'Runs on tracks',
   routed: 'Follows streets',
   polyline: 'Straight segments',
 };
 
-const SPLINE_MODES: TransportMode[] = ['tram', 'light_rail', 'metro', 'elevated_metro', 'commuter_rail'];
+const TRACK_MODES: TransportMode[] = ['tram', 'light_rail', 'metro', 'elevated_metro', 'commuter_rail'];
 const ROUTED_MODES: TransportMode[] = ['bus', 'brt'];
 
 export function defaultAlignmentKind(mode: TransportMode): AlignmentKind {
-  if (SPLINE_MODES.includes(mode)) return 'spline';
+  if (TRACK_MODES.includes(mode)) return 'track';
   if (ROUTED_MODES.includes(mode)) return 'routed';
   return 'polyline';
 }
@@ -47,8 +48,8 @@ export function legsGeometry(legs: readonly RouteLeg[], waypoints: readonly LngL
 /** The vertices shown as editing handles on the map. */
 export function editablePoints(line: Pick<TransportLine, 'alignment' | 'coordinates'>): LngLat[] {
   switch (line.alignment.kind) {
-    case 'spline':
-      return line.alignment.controlPoints;
+    case 'track':
+      return [];
     case 'routed':
       return line.alignment.waypoints;
     default:
@@ -69,8 +70,13 @@ export function buildAlignment(
   previous?: Pick<TransportLine, 'alignment' | 'coordinates'>,
 ): { alignment: Alignment; coordinates: LngLat[] } {
   const pts = points.map((p) => [p[0], p[1]] as LngLat);
-  if (kind === 'spline') {
-    return { alignment: { kind: 'spline', controlPoints: pts }, coordinates: sampleSpline(pts, ring) };
+  if (kind === 'track') {
+    // Geometry comes from the track network once the service is routed (serviceRouting.ts).
+    const prev = previous?.alignment.kind === 'track' ? previous.alignment : null;
+    return {
+      alignment: prev ?? { kind: 'track', path: [], returnPath: null, status: 'unrouted', message: '' },
+      coordinates: previous?.coordinates ?? pts,
+    };
   }
   if (kind === 'routed') {
     const legCount = Math.max(0, pts.length - 1 + (ring ? 1 : 0));

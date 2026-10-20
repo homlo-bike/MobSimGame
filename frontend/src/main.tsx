@@ -9,6 +9,8 @@ setLocale('en');
 
 createLogger('app').info('MobSimGame started', {
   mode: import.meta.env.MODE,
+  version: __APP_VERSION__,
+  builtAt: __BUILD_TIME__,
   logLevel: currentLogLevel(),
   backend: import.meta.env.VITE_API_BASE_URL || 'same origin',
 });

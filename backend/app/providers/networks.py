@@ -585,8 +585,8 @@ class OsmNetworkProvider:
             self.settings,
             data={"data": build_query(city, network, timeout)},
             timeout=timeout + 15,
-            retries=1,
-            base_delay_s=5.0,
+            # No retry: a second full query would exceed the browser's and the proxy's wait.
+            retries=0,
         )
         if res.status_code != 200:
             log.error("network query failed", extra={"city": city.id, "kind": kind, "status": res.status_code})

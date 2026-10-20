@@ -40,6 +40,9 @@ import { SIGNAL_MODES } from '../domain/signals';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { validateLine } from '../validation/validate';
+import { isRailMode, RAIL_MODES } from '../domain/tracks';
+import { moveServiceStop, rerouteServices, setServiceStops } from '../domain/serviceRouting';
+import { MetadataEditor } from './MetadataEditor';
 
 const END_LABELS: Record<EndType, string> = {
   terminal_station: 'Terminal station',
@@ -62,8 +65,22 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
   const patchPattern = (p: Partial<typeof pattern>) =>
     patch({ servicePatterns: [{ ...pattern, ...p }, ...line.servicePatterns.slice(1)] }, 'Service updated');
   const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
-  const notServed = scenario.stations.filter((s) => !line.stops.some((x) => x.stationId === s.id));
+  const onTracks = line.alignment.kind === 'track';
+  const notServed = scenario.stations.filter(
+    (s) => !line.stops.some((x) => x.stationId === s.id) && (!onTracks || s.trackRefs.length > 0),
+  );
   const findings = validateLine(line, scenario);
+  const byStation = new Map(scenario.stations.map((s) => [s.id, s]));
+  const chainage = new Map(stops.map((s) => [s.station.id, s.chainageM]));
+  // Track services keep the user's stop order (the route follows it).
+  const stopList = onTracks
+    ? line.stops
+        .map((x) => byStation.get(x.stationId))
+        .filter((st): st is NonNullable<typeof st> => !!st)
+        .map((station) => ({ station, chainageM: chainage.get(station.id) ?? 0 }))
+    : stops;
+  const modeChoices = MODE_LIST.filter((m) => (onTracks ? isRailMode(m) : !isRailMode(m)));
+  const alignmentChoices = (Object.keys(ALIGNMENT_LABELS) as AlignmentKind[]).filter((k) => k !== 'track');
 
   const zoomTo = () => {
     const map = getMapInstance();
@@ -143,29 +160,36 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
               next = setLineAlignmentKind(next, line.id, defaultAlignmentKind(mode));
             commit(next, 'Mode changed');
           }}
-          options={MODE_LIST.map((m) => ({ value: m, label: MODES[m].label }))}
-        />
-        <SelectField
-          label="Alignment"
-          value={line.alignment.kind}
-          onChange={(e) =>
-            commit(
-              setLineAlignmentKind(scenario, line.id, e.target.value as AlignmentKind),
-              'Alignment changed',
-            )
-          }
-          options={(Object.keys(ALIGNMENT_LABELS) as AlignmentKind[]).map((k) => ({
-            value: k,
-            label: ALIGNMENT_LABELS[k],
-          }))}
+          options={modeChoices.map((m) => ({ value: m, label: MODES[m].label }))}
           hint={
-            line.alignment.kind === 'spline'
-              ? 'The track runs on a smooth curve through the points you place.'
-              : line.alignment.kind === 'routed'
+            onTracks
+              ? `Services on tracks can use the track modes (${RAIL_MODES.map((m) => MODES[m].label).join(', ')}).`
+              : undefined
+          }
+        />
+        {onTracks ? (
+          <p className="mb-2 text-xs text-slate-700">
+            <Badge>Runs on tracks</Badge> The route follows the physical tracks between its stations, in stop
+            order. Edit the tracks to change the geometry.
+          </p>
+        ) : (
+          <SelectField
+            label="Alignment"
+            value={line.alignment.kind}
+            onChange={(e) =>
+              commit(
+                setLineAlignmentKind(scenario, line.id, e.target.value as AlignmentKind),
+                'Alignment changed',
+              )
+            }
+            options={alignmentChoices.map((k) => ({ value: k, label: ALIGNMENT_LABELS[k] }))}
+            hint={
+              line.alignment.kind === 'routed'
                 ? 'The route follows streets between the waypoints you place.'
                 : 'Straight segments between the points you place.'
-          }
-        />
+            }
+          />
+        )}
         {line.mode === 'custom' && (
           <CommitField
             label="Custom mode label"
@@ -186,26 +210,37 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
               {d === 'one_way' ? 'One-way (drawn direction)' : 'Both directions'}
             </label>
           ))}
-          <p className="text-xs text-slate-600">
-            Each track carries one direction. With both directions, double-track segments get a parallel track
-            for the return (arrows on the map show the direction of travel).
-          </p>
-          <Button
-            className="mt-1"
-            onClick={() => commit(reverseLineDirection(scenario, line.id), 'Line direction reversed')}
-          >
-            ⇄ Reverse drawn direction
-          </Button>
+          {onTracks ? (
+            <p className="text-xs text-slate-600">
+              With both directions the return trip is routed separately, so on double track it uses the other
+              track.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-slate-600">
+                Each track carries one direction. With both directions, double-track segments get a parallel
+                track for the return (arrows on the map show the direction of travel).
+              </p>
+              <Button
+                className="mt-1"
+                onClick={() => commit(reverseLineDirection(scenario, line.id), 'Line direction reversed')}
+              >
+                ⇄ Reverse drawn direction
+              </Button>
+            </>
+          )}
         </fieldset>
-        <SelectField
-          label="Running side"
-          value={line.runningSide}
-          onChange={(e) => patch({ runningSide: e.target.value as 'left' | 'right' })}
-          options={[
-            { value: 'right', label: 'Right-hand running' },
-            { value: 'left', label: 'Left-hand running' },
-          ]}
-        />
+        {!onTracks && (
+          <SelectField
+            label="Running side"
+            value={line.runningSide}
+            onChange={(e) => patch({ runningSide: e.target.value as 'left' | 'right' })}
+            options={[
+              { value: 'right', label: 'Right-hand running' },
+              { value: 'left', label: 'Left-hand running' },
+            ]}
+          />
+        )}
         <SelectField
           label="Line ends"
           value={line.termination.kind}
@@ -240,6 +275,22 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
       </Section>
 
       <RoutePanel line={line} scenario={scenario} />
+      {line.alignment.kind === 'track' && (
+        <Section title="Route over tracks" id="line-track-route">
+          <p className="text-sm" data-testid="track-route-status">
+            {line.alignment.status === 'routed' ? '✓ Routed over tracks' : '⛔ Not routed'}
+            {line.alignment.status === 'routed' &&
+              ` · ${line.alignment.path.length} track section(s)${line.alignment.returnPath ? ` out, ${line.alignment.returnPath.length} back` : ''}`}
+          </p>
+          {line.alignment.message && <p className="text-sm text-amber-900">{line.alignment.message}</p>}
+          <Button
+            className="mt-1"
+            onClick={() => commit(rerouteServices(scenario, [line.id]), 'Service rerouted')}
+          >
+            Route again
+          </Button>
+        </Section>
+      )}
       <Section title="Service (illustrative)" id="line-service">
         <div className="grid grid-cols-2 gap-2">
           <CommitField
@@ -318,139 +369,163 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
         />
       </Section>
 
-      <Section title={`Segments (${line.segments.length})`} id="line-segments">
-        <p className="mb-1 text-xs text-slate-600">
-          Each segment sets the structure, right of way and track count for part of the line. Map pattern:
-          solid = surface, dashed = underground/tunnel, dotted = elevated, long dash = bridge.
-        </p>
-        <ol className="space-y-2">
-          {line.segments.map((seg, i) => (
-            <li key={seg.id} className="rounded border border-slate-300 p-2">
-              <p className="text-xs font-semibold text-slate-800">
-                Segment {i + 1}: {formatDistance(seg.fromFraction * total, unitSystem)} –{' '}
-                {formatDistance(seg.toFraction * total, unitSystem)}
-              </p>
-              <div className="grid grid-cols-3 gap-1">
-                <SelectField
-                  label="Structure"
-                  value={seg.structure}
-                  onChange={(e) =>
-                    patch(
-                      {
+      {onTracks ? (
+        <Section title={`Sections (${line.segments.length})`} id="line-segments">
+          <p className="mb-1 text-xs text-slate-600">
+            Structure, right of way and track count come from the tracks the service uses. Select a track on
+            the map to change them.
+          </p>
+          <ol className="space-y-0.5 text-sm">
+            {line.segments.map((seg, i) => (
+              <li key={seg.id}>
+                {i + 1}. {formatDistance(seg.fromFraction * total, unitSystem)} –{' '}
+                {formatDistance(seg.toFraction * total, unitSystem)}: {STRUCTURE_LABELS[seg.structure]},{' '}
+                {RIGHT_OF_WAY_LABELS[seg.rightOfWay].toLowerCase()},{' '}
+                {seg.tracks === 'double' ? 'double' : 'single'} track
+              </li>
+            ))}
+          </ol>
+        </Section>
+      ) : (
+        <Section title={`Segments (${line.segments.length})`} id="line-segments">
+          <p className="mb-1 text-xs text-slate-600">
+            Each segment sets the structure, right of way and track count for part of the line. Map pattern:
+            solid = surface, dashed = underground/tunnel, dotted = elevated, long dash = bridge.
+          </p>
+          <ol className="space-y-2">
+            {line.segments.map((seg, i) => (
+              <li key={seg.id} className="rounded border border-slate-300 p-2">
+                <p className="text-xs font-semibold text-slate-800">
+                  Segment {i + 1}: {formatDistance(seg.fromFraction * total, unitSystem)} –{' '}
+                  {formatDistance(seg.toFraction * total, unitSystem)}
+                </p>
+                <div className="grid grid-cols-3 gap-1">
+                  <SelectField
+                    label="Structure"
+                    value={seg.structure}
+                    onChange={(e) =>
+                      patch(
+                        {
+                          segments: updateSegment(line.segments, seg.id, {
+                            structure: e.target.value as StructureType,
+                          }),
+                        },
+                        'Segment structure changed',
+                      )
+                    }
+                    options={Object.entries(STRUCTURE_LABELS).map(([value, label]) => ({ value, label }))}
+                  />
+                  <SelectField
+                    label="Right of way"
+                    value={seg.rightOfWay}
+                    onChange={(e) =>
+                      patch({
                         segments: updateSegment(line.segments, seg.id, {
-                          structure: e.target.value as StructureType,
+                          rightOfWay: e.target.value as RightOfWay,
                         }),
-                      },
-                      'Segment structure changed',
-                    )
-                  }
-                  options={Object.entries(STRUCTURE_LABELS).map(([value, label]) => ({ value, label }))}
-                />
-                <SelectField
-                  label="Right of way"
-                  value={seg.rightOfWay}
-                  onChange={(e) =>
+                      })
+                    }
+                    options={Object.entries(RIGHT_OF_WAY_LABELS).map(([value, label]) => ({ value, label }))}
+                  />
+                  <SelectField
+                    label="Tracks / lanes"
+                    value={seg.tracks}
+                    onChange={(e) =>
+                      patch({
+                        segments: updateSegment(line.segments, seg.id, {
+                          tracks: e.target.value as TrackCount,
+                        }),
+                      })
+                    }
+                    options={[
+                      { value: 'double', label: 'Double' },
+                      { value: 'single', label: 'Single' },
+                    ]}
+                  />
+                </div>
+                {seg.tracks === 'double' && line.direction === 'bidirectional' && (
+                  <Checkbox
+                    label="Swap track sides on this segment"
+                    hint={`Trains run on the ${
+                      (line.runningSide === 'right') !== seg.flipped ? 'right' : 'left'
+                    } here (e.g. through a flying junction).`}
+                    checked={seg.flipped}
+                    onChange={(v) =>
+                      patch(
+                        { segments: updateSegment(line.segments, seg.id, { flipped: v }) },
+                        v ? 'Track sides swapped on segment' : 'Track sides restored on segment',
+                      )
+                    }
+                  />
+                )}
+                <CommitField
+                  label="Speed limit"
+                  unit="km/h, empty = line maximum"
+                  type="number"
+                  min={1}
+                  max={400}
+                  value={seg.speedLimitKmh}
+                  onCommit={(v) =>
                     patch({
                       segments: updateSegment(line.segments, seg.id, {
-                        rightOfWay: e.target.value as RightOfWay,
+                        speedLimitKmh: v === '' ? null : Number(v),
                       }),
                     })
                   }
-                  options={Object.entries(RIGHT_OF_WAY_LABELS).map(([value, label]) => ({ value, label }))}
                 />
-                <SelectField
-                  label="Tracks / lanes"
-                  value={seg.tracks}
-                  onChange={(e) =>
-                    patch({
-                      segments: updateSegment(line.segments, seg.id, {
-                        tracks: e.target.value as TrackCount,
-                      }),
-                    })
-                  }
-                  options={[
-                    { value: 'double', label: 'Double' },
-                    { value: 'single', label: 'Single' },
-                  ]}
+                <CommitField
+                  label="Notes (portal, ramp, transition)"
+                  value={seg.notes}
+                  onCommit={(v) => patch({ segments: updateSegment(line.segments, seg.id, { notes: v }) })}
                 />
-              </div>
-              {seg.tracks === 'double' && line.direction === 'bidirectional' && (
-                <Checkbox
-                  label="Swap track sides on this segment"
-                  hint={`Trains run on the ${
-                    (line.runningSide === 'right') !== seg.flipped ? 'right' : 'left'
-                  } here (e.g. through a flying junction).`}
-                  checked={seg.flipped}
-                  onChange={(v) =>
-                    patch(
-                      { segments: updateSegment(line.segments, seg.id, { flipped: v }) },
-                      v ? 'Track sides swapped on segment' : 'Track sides restored on segment',
-                    )
-                  }
-                />
-              )}
-              <CommitField
-                label="Speed limit"
-                unit="km/h, empty = line maximum"
-                type="number"
-                min={1}
-                max={400}
-                value={seg.speedLimitKmh}
-                onCommit={(v) =>
-                  patch({
-                    segments: updateSegment(line.segments, seg.id, {
-                      speedLimitKmh: v === '' ? null : Number(v),
-                    }),
-                  })
-                }
-              />
-              <CommitField
-                label="Notes (portal, ramp, transition)"
-                value={seg.notes}
-                onCommit={(v) => patch({ segments: updateSegment(line.segments, seg.id, { notes: v }) })}
-              />
-              <div className="flex flex-wrap gap-1">
-                <Button
-                  onClick={() =>
-                    patch(
-                      { segments: splitSegmentsAt(line.segments, (seg.fromFraction + seg.toFraction) / 2) },
-                      'Segment split',
-                    )
-                  }
-                >
-                  Split in half
-                </Button>
-                {i < line.segments.length - 1 && (
+                <div className="flex flex-wrap gap-1">
                   <Button
                     onClick={() =>
-                      patch({ segments: mergeWithNext(line.segments, seg.id) }, 'Segments merged')
+                      patch(
+                        { segments: splitSegmentsAt(line.segments, (seg.fromFraction + seg.toFraction) / 2) },
+                        'Segment split',
+                      )
                     }
                   >
-                    Merge with next
+                    Split in half
                   </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
-        <CommitField
-          label="Split a segment at chainage"
-          unit="m from line start"
-          type="number"
-          min={0}
-          max={Math.floor(total)}
-          value={null}
-          onCommit={(v) => {
-            const f = Number(v) / total;
-            if (!(f > 0 && f < 1)) return 'Chainage must be inside the line';
-            patch({ segments: splitSegmentsAt(line.segments, f) }, 'Segment split');
-          }}
-        />
-      </Section>
+                  {i < line.segments.length - 1 && (
+                    <Button
+                      onClick={() =>
+                        patch({ segments: mergeWithNext(line.segments, seg.id) }, 'Segments merged')
+                      }
+                    >
+                      Merge with next
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+          <CommitField
+            label="Split a segment at chainage"
+            unit="m from line start"
+            type="number"
+            min={0}
+            max={Math.floor(total)}
+            value={null}
+            onCommit={(v) => {
+              const f = Number(v) / total;
+              if (!(f > 0 && f < 1)) return 'Chainage must be inside the line';
+              patch({ segments: splitSegmentsAt(line.segments, f) }, 'Segment split');
+            }}
+          />
+        </Section>
+      )}
 
-      <Section title={`Stations on this line (${stops.length})`} id="line-stops">
+      <Section title={`Stations on this line (${stopList.length})`} id="line-stops">
+        {onTracks && (
+          <p className="mb-1 text-xs text-slate-600">
+            The service calls at the stations in this order; ▲ ▼ change the order and the route follows.
+          </p>
+        )}
         <ol className="mb-2 space-y-0.5 text-sm">
-          {stops.map((s, i) => (
+          {stopList.map((s, i) => (
             <li key={s.station.id} className="flex items-center gap-1">
               <button
                 type="button"
@@ -460,6 +535,20 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 {i + 1}. {s.station.name}
               </button>
               <span className="text-xs text-slate-600">{formatDistance(s.chainageM, unitSystem)}</span>
+              {onTracks &&
+                ([-1, 1] as const).map((d) => (
+                  <Button
+                    key={d}
+                    variant="ghost"
+                    disabled={d === -1 ? i === 0 : i === stopList.length - 1}
+                    aria-label={`Move ${s.station.name} ${d === -1 ? 'earlier' : 'later'}`}
+                    onClick={() =>
+                      commit(moveServiceStop(scenario, line.id, s.station.id, d), 'Stop order changed')
+                    }
+                  >
+                    {d === -1 ? '▲' : '▼'}
+                  </Button>
+                ))}
               {MODES[line.mode].guided &&
                 (['before', 'after'] as const).map((side) => {
                   const on = line.crossovers.some((c) => c.stationId === s.station.id && c.side === side);
@@ -489,7 +578,18 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
               <Button
                 variant="ghost"
                 aria-label={`Remove ${s.station.name} from ${line.name}`}
-                onClick={() => commit(removeStopFromLine(scenario, line.id, s.station.id), 'Stop removed')}
+                onClick={() =>
+                  commit(
+                    onTracks
+                      ? setServiceStops(
+                          removeStopFromLine(scenario, line.id, s.station.id),
+                          line.id,
+                          line.stops.filter((x) => x.stationId !== s.station.id).map((x) => x.stationId),
+                        )
+                      : removeStopFromLine(scenario, line.id, s.station.id),
+                    'Stop removed',
+                  )
+                }
               >
                 ✕
               </Button>
@@ -502,26 +602,43 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             track and turn back when a section is closed.
           </p>
         )}
-        <CommitField
-          label="Add a station at chainage"
-          unit="m from line start"
-          type="number"
-          min={0}
-          max={Math.floor(total)}
-          value={null}
-          onCommit={(v) => {
-            const res = addStationAtChainage(scenario, line.id, Number(v));
-            if (res.error) return res.error;
-            commit(res.scenario, res.reused ? 'Existing station shared' : 'Station added');
-          }}
-        />
+        {!onTracks && (
+          <CommitField
+            label="Add a station at chainage"
+            unit="m from line start"
+            type="number"
+            min={0}
+            max={Math.floor(total)}
+            value={null}
+            onCommit={(v) => {
+              const res = addStationAtChainage(scenario, line.id, Number(v));
+              if (res.error) return res.error;
+              commit(res.scenario, res.reused ? 'Existing station shared' : 'Station added');
+            }}
+          />
+        )}
+        {onTracks && !notServed.length && (
+          <p className="text-xs text-slate-600">Place stations on tracks to add them to this service.</p>
+        )}
         {notServed.length > 0 && (
           <SelectField
-            label="Add an existing station (shared / interchange)"
+            label={
+              onTracks
+                ? 'Add a station (at the end of the service)'
+                : 'Add an existing station (shared / interchange)'
+            }
             value=""
             onChange={(e) =>
               e.target.value &&
-              commit(addExistingStationToLine(scenario, line.id, e.target.value), 'Station shared with line')
+              commit(
+                onTracks
+                  ? setServiceStops(scenario, line.id, [
+                      ...line.stops.map((x) => x.stationId),
+                      e.target.value,
+                    ])
+                  : addExistingStationToLine(scenario, line.id, e.target.value),
+                'Station added to the service',
+              )
             }
             options={[
               { value: '', label: 'Choose a station…' },
@@ -531,77 +648,86 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
         )}
       </Section>
 
-      <Section title="Edit operations" id="line-ops">
-        {!isRing(line) && (
-          <CommitField
-            label="Split line at chainage"
-            unit="m"
-            type="number"
-            min={1}
-            max={Math.floor(total) - 1}
-            value={null}
-            onCommit={(v) => {
-              const f = Number(v) / total;
-              if (!(f > 0.01 && f < 0.99)) return 'Choose a point inside the line';
-              commit(splitLine(scenario, line.id, f), 'Line split into two');
-            }}
-          />
-        )}
-        {scenario.lines.length > 1 && !isRing(line) && (
-          <div className="flex items-end gap-1">
-            <div className="flex-1">
-              <SelectField
-                label="Join with line"
-                value={joinTarget}
-                onChange={(e) => setJoinTarget(e.target.value)}
-                options={[
-                  { value: '', label: 'Choose…' },
-                  ...scenario.lines
-                    .filter((l) => l.id !== line.id && !isRing(l))
-                    .map((l) => ({ value: l.id, label: l.name })),
-                ]}
-              />
-            </div>
-            <Button
-              className="mb-2"
-              disabled={!joinTarget}
-              onClick={() => {
-                const res = joinLines(scenario, line.id, joinTarget);
-                if (res.error) announce(res.error);
-                else commit(res.scenario, 'Lines joined');
-                setJoinTarget('');
-              }}
-            >
-              Join
-            </Button>
-          </div>
-        )}
-        <Button
-          onClick={() => {
-            const shared = detectSharedTracks(scenario);
-            commit(
-              { ...scenario, sharedTracks: shared },
-              `${shared.length} shared track section(s) recorded`,
-            );
-          }}
-        >
-          Detect shared track
-        </Button>
-        {scenario.sharedTracks.some((st) => st.members.some((m) => m.lineId === line.id)) && (
-          <p className="mt-1 text-sm">
-            <Badge>Shared track</Badge> This line shares track with{' '}
-            {scenario.sharedTracks
-              .filter((st) => st.members.some((m) => m.lineId === line.id))
-              .flatMap((st) =>
-                st.members
-                  .filter((m) => m.lineId !== line.id)
-                  .map((m) => scenario.lines.find((l) => l.id === m.lineId)?.name),
-              )
-              .join(', ')}
-            .
-          </p>
-        )}
+      <Section title="Details" id="line-metadata">
+        <MetadataEditor
+          value={line.metadata}
+          onChange={(metadata) => patch({ metadata }, 'Line details changed')}
+          idPrefix={`line-${line.id}`}
+        />
       </Section>
+      {!onTracks && (
+        <Section title="Edit operations" id="line-ops">
+          {!isRing(line) && (
+            <CommitField
+              label="Split line at chainage"
+              unit="m"
+              type="number"
+              min={1}
+              max={Math.floor(total) - 1}
+              value={null}
+              onCommit={(v) => {
+                const f = Number(v) / total;
+                if (!(f > 0.01 && f < 0.99)) return 'Choose a point inside the line';
+                commit(splitLine(scenario, line.id, f), 'Line split into two');
+              }}
+            />
+          )}
+          {scenario.lines.length > 1 && !isRing(line) && (
+            <div className="flex items-end gap-1">
+              <div className="flex-1">
+                <SelectField
+                  label="Join with line"
+                  value={joinTarget}
+                  onChange={(e) => setJoinTarget(e.target.value)}
+                  options={[
+                    { value: '', label: 'Choose…' },
+                    ...scenario.lines
+                      .filter((l) => l.id !== line.id && !isRing(l))
+                      .map((l) => ({ value: l.id, label: l.name })),
+                  ]}
+                />
+              </div>
+              <Button
+                className="mb-2"
+                disabled={!joinTarget}
+                onClick={() => {
+                  const res = joinLines(scenario, line.id, joinTarget);
+                  if (res.error) announce(res.error);
+                  else commit(res.scenario, 'Lines joined');
+                  setJoinTarget('');
+                }}
+              >
+                Join
+              </Button>
+            </div>
+          )}
+          <Button
+            onClick={() => {
+              const shared = detectSharedTracks(scenario);
+              commit(
+                { ...scenario, sharedTracks: shared },
+                `${shared.length} shared track section(s) recorded`,
+              );
+            }}
+          >
+            Detect shared track
+          </Button>
+          {scenario.sharedTracks.some((st) => st.members.some((m) => m.lineId === line.id)) && (
+            <p className="mt-1 text-sm">
+              <Badge>Shared track</Badge> This line shares track with{' '}
+              {scenario.sharedTracks
+                .filter((st) => st.members.some((m) => m.lineId === line.id))
+                .flatMap((st) =>
+                  st.members
+                    .filter((m) => m.lineId !== line.id)
+                    .map((m) => scenario.lines.find((l) => l.id === m.lineId)?.name),
+                )
+                .join(', ')}
+              .
+            </p>
+          )}
+        </Section>
+      )}
       <DisruptionPanel line={line} scenario={scenario} />
       <Section title="Validation" id="line-findings">
         <FindingsList findings={findings} />

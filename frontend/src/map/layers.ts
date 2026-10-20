@@ -10,11 +10,14 @@ import { STRUCTURE_DASH } from '../domain/modes';
 import { EMPTY } from './overlays';
 
 export const SRC = {
+  tracks: 'msg-tracks',
+  trackNodes: 'msg-track-nodes',
   segments: 'msg-segments',
   arrows: 'msg-arrows',
   crossovers: 'msg-crossovers',
   closures: 'msg-closures',
   signals: 'msg-signals',
+  routeStatus: 'msg-route-status',
   stations: 'msg-stations',
   catchments: 'msg-catchments',
   vehicles: 'msg-vehicles',
@@ -27,6 +30,8 @@ export const SRC = {
 export const STATION_LAYER = 'msg-stations-circle';
 export const CROSSOVER_LAYER = 'msg-crossovers-circle';
 export const SIGNAL_LAYER = 'msg-signals-circle';
+export const TRACK_NODE_LAYER = 'msg-track-nodes-circle';
+export const TRACK_LAYER_PREFIX = 'msg-track-';
 
 const ARROW_IMAGE = 'msg-arrow';
 
@@ -170,16 +175,82 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
         'line-color': ['get', 'color'],
         'line-width': [
           'case',
+          ['==', ['get', 'track'], 'band'],
+          ['case', ['get', 'selected'], 9, 6],
           ['==', ['get', 'track'], 'single'],
           ['case', ['get', 'selected'], 5, 3],
           ['case', ['get', 'selected'], 4, 3],
         ],
-        'line-opacity': ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.75 : 1,
+        'line-opacity': [
+          'case',
+          ['==', ['get', 'track'], 'band'],
+          0.6,
+          ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.75 : 1,
+        ],
         'line-offset': TRACK_OFFSET,
         ...(dash ? { 'line-dasharray': dash } : {}),
       },
     });
   }
+  // Physical tracks: a thin dark line per track at its true position, over the service colour bands.
+  for (const s of STRUCTURES) {
+    const dash = STRUCTURE_DASH[s];
+    add({
+      id: `${TRACK_LAYER_PREFIX}${s}`,
+      type: 'line',
+      source: SRC.tracks,
+      filter: ['==', ['get', 'structure'], s],
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: {
+        'line-color': ['case', ['get', 'selected'], '#0f766e', '#1e293b'],
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          12,
+          ['case', ['get', 'selected'], 3, 1],
+          17,
+          ['case', ['get', 'selected'], 4.5, 2],
+        ],
+        'line-opacity': ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.7 : 1,
+        ...(dash ? { 'line-dasharray': dash } : {}),
+      },
+    });
+  }
+  // Track nodes: junctions are larger with a heavy ring, open ends are hollow (shape, not colour alone).
+  add({
+    id: TRACK_NODE_LAYER,
+    type: 'circle',
+    source: SRC.trackNodes,
+    minzoom: 13,
+    paint: {
+      'circle-radius': [
+        'case',
+        ['get', 'selected'],
+        7,
+        ['==', ['get', 'kind'], 'junction'],
+        5,
+        ['==', ['get', 'kind'], 'connection'],
+        2.5,
+        4,
+      ],
+      'circle-color': ['case', ['==', ['get', 'kind'], 'end'], '#ffffff', '#1e293b'],
+      'circle-stroke-color': ['case', ['get', 'selected'], '#0f766e', '#1e293b'],
+      'circle-stroke-width': ['case', ['==', ['get', 'kind'], 'junction'], 2.5, 1.5],
+    },
+  });
+  // Bus sections that do not follow streets: dashed (unrouted: red, manual: grey) with a label.
+  add({
+    id: 'msg-route-status-line',
+    type: 'line',
+    source: SRC.routeStatus,
+    layout: { 'line-cap': 'butt' },
+    paint: {
+      'line-color': ['case', ['==', ['get', 'status'], 'unrouted'], '#b91c1c', '#475569'],
+      'line-width': 3,
+      'line-dasharray': [2, 2],
+    },
+  });
   // Closed sections: wide dashed band in a warning colour plus a pattern, never colour alone.
   add({
     id: 'msg-closures-line',
@@ -257,6 +328,19 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     },
   });
   if (opts.labels) {
+    add({
+      id: 'msg-route-status-label',
+      type: 'symbol',
+      source: SRC.routeStatus,
+      layout: {
+        'symbol-placement': 'line-center',
+        'text-field': ['case', ['==', ['get', 'status'], 'unrouted'], 'not routed', 'manual'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        'text-offset': [0, -0.9],
+      },
+      paint: { 'text-color': '#7f1d1d', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    });
     add({
       id: 'msg-crossovers-label',
       type: 'symbol',

@@ -20,7 +20,14 @@ import {
   vertexCurvatures,
 } from '../geo/geometry';
 import { validateSegments } from '../geo/segments';
-import { sampledCurvature, type CurvatureSample } from '../geo/spline';
+import { validateTrackNetwork } from './trackValidation';
+
+interface CurvatureSample {
+  index: number;
+  chainageM: number;
+  radiusM: number;
+  position: LngLat;
+}
 import { routeStatus } from '../domain/alignment';
 import { STRUCTURE_LABELS } from '../domain/modes';
 
@@ -51,7 +58,8 @@ export type FindingCategory =
   | 'structure_transition'
   | 'road_compatibility'
   | 'operations'
-  | 'short_segment';
+  | 'short_segment'
+  | 'connectivity';
 
 export interface Finding {
   id: string;
@@ -61,6 +69,8 @@ export interface Finding {
   lineId?: string;
   stationId?: string;
   segmentId?: string;
+  trackId?: string;
+  nodeId?: string;
   position?: LngLat;
   profile?: { id: string; version: string; cited: boolean };
 }
@@ -311,7 +321,12 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
         });
       }
     }
-    if (seg.tracks === 'single' && line.direction === 'bidirectional' && MODES[line.mode].guided) {
+    if (
+      seg.tracks === 'single' &&
+      line.direction === 'bidirectional' &&
+      MODES[line.mode].guided &&
+      line.alignment.kind !== 'track'
+    ) {
       add({
         severity: 'info',
         category: 'operations',
@@ -330,6 +345,17 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
         message: `${STRUCTURE_LABELS[seg.structure]} segment on a road-based mode: confirm vehicle, ventilation and access assumptions.`,
       });
     }
+  }
+
+  // --- Track services ----------------------------------------------------------
+  if (line.alignment.kind === 'track' && line.alignment.status === 'unrouted') {
+    add({
+      severity: existingInfrastructure(line) ? 'info' : 'blocking',
+      category: 'geometry',
+      message: `The service is not routed over the tracks: ${line.alignment.message || 'add stations on tracks and connect them.'}`,
+    });
+  } else if (line.alignment.kind === 'track' && line.alignment.message) {
+    add({ severity: 'warning', category: 'geometry', message: line.alignment.message });
   }
 
   // --- Street network ----------------------------------------------------------
@@ -394,18 +420,17 @@ function curveFindings(
   totalM: number,
 ): Omit<Finding, 'id'>[] {
   const rule = profile.curveRadius;
-  if (!rule || totalM <= 0) return [];
+  // Track services are checked on their physical tracks (trackValidation.ts).
+  if (!rule || totalM <= 0 || line.alignment.kind !== 'polyline') return [];
   const ring = isRing(line);
-  const polyline = line.alignment.kind === 'polyline';
-  const samples: CurvatureSample[] = polyline
-    ? vertexCurvatures(line.coordinates, ring).map((v) => ({
-        index: v.index,
-        chainageM: 0,
-        radiusM: v.radiusM,
-        position: v.position,
-      }))
-    : sampledCurvature(line.coordinates, ring);
-  if (polyline) {
+  const polyline = true;
+  const samples: CurvatureSample[] = vertexCurvatures(line.coordinates, ring).map((v) => ({
+    index: v.index,
+    chainageM: 0,
+    radiusM: v.radiusM,
+    position: v.position,
+  }));
+  {
     // Chainage of each vertex, for segment lookup.
     let acc = 0;
     const chain = [0];
@@ -449,9 +474,7 @@ function curveFindings(
   }
   const existing = existingInfrastructure(line);
   const ref = { id: profile.id, version: profile.version, cited: true };
-  const estimate = polyline
-    ? 'Vertex-based estimate on straight segments; switch to a smooth curve for a better estimate.'
-    : 'Estimated on the sketched curve (no transition curves or cant).';
+  const estimate = polyline ? 'Vertex-based estimate on straight segments.' : '';
   const out: Omit<Finding, 'id'>[] = groups.map((g) => {
     const r = Math.round(g.min.radiusM);
     const kind = g.cls === 'below_minimum' ? 'minimum' : 'recommended';
@@ -515,7 +538,10 @@ export function gradeSummary(profile: ElevationProfile) {
 }
 
 export function validateScenario(scenario: Scenario, options: ValidationOptions = {}): Finding[] {
-  const findings = scenario.lines.flatMap((l) => validateLine(l, scenario, options));
+  const findings = [
+    ...validateTrackNetwork(scenario),
+    ...scenario.lines.flatMap((l) => validateLine(l, scenario, options)),
+  ];
   const served = new Set(scenario.lines.flatMap((l) => l.stops.map((s) => s.stationId)));
   for (const st of scenario.stations) {
     if (!served.has(st.id)) {

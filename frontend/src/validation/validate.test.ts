@@ -3,6 +3,9 @@ import type { LngLat, Scenario, TransportLine } from '../domain/schema';
 import { addStationOnLine, createLine, emptyScenario, updateLine } from '../domain/network';
 import { buildDemoScenario } from '../test/fixtures/demoProject';
 import { MODE_PROFILES } from '../domain/modeProfiles';
+import { isRailMode } from '../domain/tracks';
+import { endsMeet } from '../geo/geometry';
+import { railLine, xy } from '../test/fixtures/tracks';
 import type { AlignmentKind } from '../domain/alignment';
 import {
   gradeSummary,
@@ -19,6 +22,11 @@ function lineWith(
   stations: LngLat[] = [],
   alignment?: AlignmentKind,
 ) {
+  // Rail services run on tracks: build tracks, stations on them and the service, as the editor does.
+  if (isRailMode(mode) && !alignment) {
+    const r = railLine(coords, mode, stations, { ring: endsMeet(coords, 5) });
+    return { s: r.s, line: r.line };
+  }
   let s: Scenario = emptyScenario();
   const r = createLine(s, { coordinates: coords, mode, alignment });
   s = r.scenario;
@@ -55,13 +63,13 @@ describe('terminal and loop validation', () => {
     expect(isLineComplete(line, s)).toBe(true);
   });
 
-  it('blocks when only one end has a station', () => {
+  it('blocks when only one end of a drawn line has a station', () => {
     const { s, line } = lineWith(
       [
         [0, 0],
         [0.02, 0],
       ],
-      'tram',
+      'custom',
       [
         [0, 0],
         [0.01, 0],
@@ -152,67 +160,62 @@ describe('mode profile validation', () => {
     expect(MODE_PROFILES.bus.curveRadius).toBeNull();
   });
 
-  it('reports curves below the minimum as blocking and below the recommended value as warnings', () => {
-    // Metro: minimum 120 m, recommended 200 m. Control points placed on circles of radius r
-    // give a smooth curve whose sampled radius is close to r.
-    const m = 1 / 111320;
-    // 200 m straight, a quarter circle of radius r, 200 m straight.
-    const arc = (r: number): LngLat[] => [
-      [-200 * m, 0],
-      ...[...Array(7).keys()].map((i) => {
-        const a = (i * Math.PI) / 12;
-        return [r * Math.sin(a) * m, (r - r * Math.cos(a)) * m] as LngLat;
-      }),
-      [r * m, (r + 200) * m],
-    ];
-    const tight = lineWith(arc(90), 'metro');
-    const fTight = validateLine(tight.line, tight.s).filter((x) => x.category === 'curve_radius');
+  it('reports track curves below the minimum as blocking and below the recommended value as warnings', () => {
+    // Metro: minimum 120 m, recommended 200 m. One curve of radius r between two long straights.
+    const curve = (r: number) =>
+      railLine([xy(-600, 0), xy(0, 0), xy(0, 600)], 'metro', [xy(-600, 0), xy(0, 600)], {
+        double: false,
+        radiusM: r,
+      }).s;
+    const radiusFindings = (s: Scenario) => validateScenario(s).filter((x) => x.category === 'curve_radius');
+    const fTight = radiusFindings(curve(90));
     expect(fTight.some((x) => x.severity === 'blocking')).toBe(true);
     expect(fTight[0]!.message).toMatch(/MMRDA/);
-    const medium = lineWith(arc(160), 'metro');
-    const fMed = validateLine(medium.line, medium.s).filter((x) => x.category === 'curve_radius');
+    expect(fTight[0]!.trackId).toBeTruthy();
+    const fMed = radiusFindings(curve(160));
     expect(fMed.map((x) => x.severity)).toContain('warning');
     expect(fMed.some((x) => x.severity === 'blocking')).toBe(false);
-    const wide = lineWith(arc(400), 'metro');
-    expect(validateLine(wide.line, wide.s).filter((x) => x.category === 'curve_radius')).toEqual([]);
+    expect(radiusFindings(curve(400))).toEqual([]);
   });
 
-  it('reports curves on unedited imported lines as information only', () => {
-    const { s, line } = lineWith(
-      [
-        [0, 0],
-        [0.001, 0],
-        [0.001, 0.001],
-      ],
-      'metro',
-    );
-    const imported = {
-      ...line,
-      origin: { source: 'osm' as const, ref: 'relation/1', edited: false, status: '' },
+  it('checks the inner track of a double-track curve', () => {
+    // The radius entered for double track is the inner track's: 119 m is below the 120 m minimum, the
+    // outer track (123 m) is not.
+    const { s } = railLine([xy(-600, 0), xy(0, 0), xy(0, 600)], 'metro', [xy(-600, 0), xy(0, 600)], {
+      radiusM: 119,
+    });
+    const f = validateScenario(s).filter((x) => x.category === 'curve_radius' && x.severity === 'blocking');
+    expect(f).toHaveLength(1);
+    expect(f[0]!.message).toMatch(/119 m/);
+  });
+
+  it('reports curves on unedited imported tracks as information only', () => {
+    const { s } = railLine([xy(-600, 0), xy(0, 0), xy(0, 600)], 'metro', [], { double: false, radiusM: 50 });
+    const imported: Scenario = {
+      ...s,
+      trackNetwork: {
+        ...s.trackNetwork,
+        tracks: s.trackNetwork.tracks.map((t) => ({
+          ...t,
+          origin: { source: 'osm', ref: 'way/1', edited: false },
+        })),
+      },
     };
-    const f = validateLine(imported, s).filter((x) => x.category === 'curve_radius');
+    const f = validateScenario(imported).filter((x) => x.category === 'curve_radius');
     expect(f.length).toBeGreaterThan(0);
     expect(f.every((x) => x.severity === 'info')).toBe(true);
     expect(f[0]!.message).toMatch(/Existing infrastructure/);
   });
 
-  it('warns about sharp curves for rail modes', () => {
-    // A right-angle corner with short legs → very small radius.
-    const { s, line } = lineWith(
-      [
-        [0, 0],
-        [0.001, 0],
-        [0.001, 0.001],
-      ],
-      'metro',
-      [
-        [0, 0],
-        [0.001, 0.001],
-      ],
-    );
-    const f = validateLine(line, s).filter((x) => x.category === 'curve_radius');
+  it('reduces a radius that does not fit between short legs and says so', () => {
+    // A right-angle corner with 111 m legs cannot hold the 200 m default radius.
+    const { s } = railLine([xy(0, 0), xy(111, 0), xy(111, 111)], 'metro', [xy(0, 0), xy(111, 111)], {
+      double: false,
+    });
+    const f = validateScenario(s).filter((x) => x.category === 'curve_radius');
+    expect(f.some((x) => /does not fit/.test(x.message))).toBe(true);
     expect(f.some((x) => x.severity === 'blocking')).toBe(true);
-    expect(f[0]!.message).toMatch(/documented default/);
+    expect(f.some((x) => /documented default/.test(x.message))).toBe(true);
   });
 
   it('does not warn about curves on a straight line', () => {

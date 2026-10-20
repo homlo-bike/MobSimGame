@@ -18,10 +18,25 @@ MobSimGame: browser-first mobility scenario sketch tool. Read
   `source: 'remote'` and are ignored by event handlers).
 - Edits are pure `Scenario → Scenario` functions committed through
   `useStore().commitScenario` (this gives undo/redo).
-- Stations and shared track are referenced entities; never duplicate geometry.
+- Stations and track are referenced entities; never duplicate geometry.
+- Physical track (`scenario.trackNetwork`: nodes, tracks, double-track groups,
+  permitted movements) is separate from services (lines). Tracks connect only
+  through nodes along permitted movements; a geometric crossing is never a
+  connection. Double track is two tracks. See `docs/TRACK_ARCHITECTURE.md`.
+- Track geometry is lines and circular arcs from a PI polygon with radii, computed
+  in the project metric frame (`geo/track/`); never compute radii or offsets in
+  degrees, and never store display samples as the source.
+- Rail services (`alignment.kind = 'track'`) are routed over tracks through their
+  stops (`domain/serviceRouting.ts`); their coordinates and segments are derived.
+  Bus/BRT stay street-routed and outside the track graph.
 - Segments are stored as fractions of line length covering [0, 1].
-- `line.coordinates` is the derived geometry; `line.alignment` holds what the user
-  edits (spline control points, route waypoints). Recompute via `domain/alignment.ts`.
+- `line.coordinates` is the derived geometry; `line.alignment` holds what defines it
+  (track path, route waypoints). Recompute via `domain/serviceRouting.ts` or
+  `domain/alignment.ts`.
+- Parameters (spacing, separation, search distances) live in
+  `domain/trackParameters.ts` with default, range, status and source.
+- Schema 3 has no migration from older formats (owner decision); see
+  `docs/PROJECT_MIGRATION.md`.
 - Lines imported from OSM (`origin.source = 'osm'`, not edited) report findings as
   information only.
 - The simulation engine is a pure function of simulated time; never tie it to frame rate.

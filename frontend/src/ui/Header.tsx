@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useStore, useScenario } from '../store/projectStore';
 import { downloadText, parseProjectText, safeFilename, serializeProject } from '../store/persistence';
 import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJSON } from '../geo/geojson';
 import { openServerReport, shareProject } from '../api/projects';
 import { currentSession, logout } from '../api/auth';
 import { LoginDialog } from './LoginDialog';
+import { NotificationMenu } from './NotificationMenu';
+import { notify } from '../store/notifications';
 import { ProviderError } from '../providers/backend';
 import { Badge } from './primitives';
 import { Menu, type MenuEntry } from './Menu';
@@ -38,15 +40,18 @@ export function Header({
   const mode = useStore((s) => s.newLineMode);
   const projectInput = useRef<HTMLInputElement>(null);
   const geojsonInput = useRef<HTMLInputElement>(null);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
-  const dismissMessage = useCallback(() => setMessage(null), []);
 
   // Every user-visible outcome of a file/share action is also logged (failures as warnings).
   const report = (text: string, error = false) => {
     if (error) log.warn('project file action failed', { message: text });
     else log.debug('project file action completed', { message: text });
-    setMessage({ text, error });
+    notify({
+      severity: error ? 'error' : 'success',
+      kind: 'file',
+      title: text,
+      target: { projectId: project.id },
+    });
     announce(text);
   };
 
@@ -138,7 +143,13 @@ export function Header({
 
   const fileMenu: MenuEntry[] = [
     { kind: 'heading', label: 'Project' },
-    { kind: 'item', label: 'New project', onSelect: newProject },
+    { kind: 'item', label: 'New project…', onSelect: newProject },
+    {
+      kind: 'item',
+      label: 'Switch project…',
+      hint: 'this browser',
+      onSelect: () => useStore.getState().openProjectGate('select'),
+    },
     { kind: 'item', label: 'Open real network…', hint: 'OSM', onSelect: onOpenExamples },
     { kind: 'item', label: 'Open project…', hint: '.json', onSelect: () => projectInput.current?.click() },
     {
@@ -245,6 +256,7 @@ export function Header({
         </IconButton>
         <span aria-hidden className="mx-1 h-5 border-s border-slate-200" />
         <Menu label="File" entries={fileMenu} />
+        <NotificationMenu />
         <IconButton label="Data & licences" onClick={onOpenDataSources}>
           ⓘ
         </IconButton>
@@ -270,7 +282,6 @@ export function Header({
           e.target.files?.[0] && onImportGeoJSON(e.target.files[0]).finally(() => (e.target.value = ''))
         }
       />
-      {message && <Toast message={message} onDismiss={dismissMessage} />}
       {loginOpen && (
         <LoginDialog
           open={loginOpen}
@@ -320,32 +331,5 @@ function IconButton({
     >
       <span aria-hidden>{children}</span>
     </button>
-  );
-}
-
-/** Transient status message; successes fade after 6 s, errors stay until dismissed. */
-function Toast({ message, onDismiss }: { message: { text: string; error: boolean }; onDismiss: () => void }) {
-  useEffect(() => {
-    if (message.error) return;
-    const id = setTimeout(onDismiss, 6000);
-    return () => clearTimeout(id);
-  }, [message, onDismiss]);
-  return (
-    <div
-      role={message.error ? 'alert' : 'status'}
-      className={`fixed bottom-16 end-4 z-50 flex max-w-md items-start gap-3 rounded-md border px-3 py-2 text-sm shadow-lg ${
-        message.error
-          ? 'border-red-300 bg-red-50 text-red-950'
-          : 'border-emerald-300 bg-emerald-50 text-emerald-950'
-      }`}
-    >
-      <span className="flex-1 break-words">
-        {message.error ? '⛔ ' : '✓ '}
-        {message.text}
-      </span>
-      <button type="button" className="text-xs underline" onClick={onDismiss}>
-        Dismiss
-      </button>
-    </div>
   );
 }

@@ -13,6 +13,7 @@ import type { LngLat, Scenario } from '../domain/schema';
 import { isRing } from '../domain/network';
 import { editablePoints } from '../domain/alignment';
 import { pathCoordinates } from '../geo/geometry';
+import { trackHandles } from '../domain/tracks';
 
 export const REMOTE = 'remote';
 
@@ -28,45 +29,63 @@ export function lineStyle(color: string, selected: boolean, straight: boolean) {
   return { strokeColor: color, strokeWidth: selected ? 14 : 10, strokeOpacity: selected ? 0.35 : 0.18 };
 }
 
-export function reconcileDraw(draw: Draw, scenario: Scenario, selectedLineId: string | null) {
+export function reconcileDraw(
+  draw: Draw,
+  scenario: Scenario,
+  selectedLineId: string | null,
+  selectedTrackId: string | null = null,
+) {
   draw.transact(
     () => {
-      const wanted = new Map(scenario.lines.map((l) => [l.id, l]));
+      const wanted = new Set([
+        ...scenario.lines.map((l) => l.id),
+        ...scenario.trackNetwork.tracks.map((t) => t.id),
+      ]);
       for (const f of draw.features.list()) {
         if (!wanted.has(f.id)) draw.features.delete(f.id);
       }
+      // Tracks: the handles are the PI polygon (ends are the nodes); the track itself is drawn by MapLibre.
+      for (const track of scenario.trackNetwork.tracks) {
+        const coordinates = trackHandles(scenario.trackNetwork, track);
+        const geometry: LineString = { type: 'LineString', coordinates };
+        const style = lineStyle('#0f766e', track.id === selectedTrackId, false);
+        upsert(draw, track.id, geometry, style, track.name || 'Track');
+      }
       for (const line of scenario.lines) {
-        // The handles are what the user edits: spline control points, route waypoints or vertices.
+        // The handles are what the user edits: route waypoints or vertices (track services have none).
         const coordinates = pathCoordinates(editablePoints(line), isRing(line));
         if (coordinates.length < 2) continue;
         const geometry: LineString = { type: 'LineString', coordinates };
         const style = lineStyle(line.color, line.id === selectedLineId, line.alignment.kind === 'polyline');
-        const existing = draw.features.get(line.id);
-        if (!existing) {
-          draw.features.create({
-            id: line.id,
-            type: 'LineString',
-            geometry,
-            style,
-            properties: { name: line.name },
-          });
-        } else {
-          const geomChanged = !sameCoords((existing.geometry as LineString).coordinates, coordinates);
-          const styleChanged =
-            existing.style.strokeColor !== style.strokeColor ||
-            existing.style.strokeWidth !== style.strokeWidth ||
-            existing.style.strokeOpacity !== style.strokeOpacity;
-          if (geomChanged || styleChanged) {
-            draw.features.update(line.id, {
-              ...(geomChanged ? { geometry } : {}),
-              ...(styleChanged ? { style } : {}),
-            });
-          }
-        }
+        upsert(draw, line.id, geometry, style, line.name);
       }
     },
     { source: REMOTE, ignoreLocks: true },
   );
+}
+
+function upsert(
+  draw: Draw,
+  id: string,
+  geometry: LineString,
+  style: ReturnType<typeof lineStyle>,
+  name: string,
+) {
+  const existing = draw.features.get(id);
+  if (!existing) {
+    draw.features.create({ id, type: 'LineString', geometry, style, properties: { name } });
+    return;
+  }
+  const geomChanged = !sameCoords((existing.geometry as LineString).coordinates, geometry.coordinates);
+  const styleChanged =
+    existing.style.strokeColor !== style.strokeColor ||
+    existing.style.strokeWidth !== style.strokeWidth ||
+    existing.style.strokeOpacity !== style.strokeOpacity;
+  if (geomChanged || styleChanged)
+    draw.features.update(id, {
+      ...(geomChanged ? { geometry } : {}),
+      ...(styleChanged ? { style } : {}),
+    });
 }
 
 /** Coordinates from an edited draw feature, converted back to domain form. */

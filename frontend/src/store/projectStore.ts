@@ -7,7 +7,7 @@
  * except for geometry edits which are fed back through `commitScenario`.
  */
 import { create } from 'zustand';
-import type { Project, Scenario, TransportMode } from '../domain/schema';
+import type { StructureType, Project, Scenario, TransportMode } from '../domain/schema';
 import { activeScenario, duplicateScenario, emptyScenario, replaceScenario } from '../domain/network';
 import { SCHEMA_VERSION } from '../domain/schema';
 import { newId, nowIso } from '../util/id';
@@ -21,10 +21,26 @@ const log = createLogger('store');
 
 export const HISTORY_LIMIT = 100;
 
-export type Tool = 'select' | 'draw_line' | 'add_station';
+export type Tool = 'select' | 'draw_line' | 'add_station' | 'new_service';
+
+/** Options for drawing track (rail modes). */
+export interface TrackDrawOptions {
+  double: boolean;
+  /** 'default' = the mode's cited radius; null = no curves (kinks); a number = metres. */
+  radius: 'default' | number | null;
+  structure: StructureType | 'default';
+}
+
+/** A track deletion waiting for the user's choice because services use the track. */
+export interface PendingTrackDeletion {
+  trackIds: string[];
+  lineIds: string[];
+}
 
 export type Selection =
   | { kind: 'line'; id: string }
+  | { kind: 'track'; id: string }
+  | { kind: 'node'; id: string }
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
   | { kind: 'signal'; id: string }
@@ -61,6 +77,10 @@ export interface AppState {
   newLineMode: TransportMode;
   /** For add_station: the line stations are added to (null = nearest line). */
   stationTargetLineId: string | null;
+  trackDraw: TrackDrawOptions;
+  /** Stations picked so far with the new_service tool, in order. */
+  serviceDraft: string[];
+  pendingTrackDeletion: PendingTrackDeletion | null;
   basemapId: string;
   layers: LayerToggles;
   view: View;
@@ -73,17 +93,37 @@ export interface AppState {
   /** Polite screen-reader announcements. */
   announcement: string;
   closures: SectionClosure[];
+  /**
+   * Whether the user has an active project (created, opened or restored). On a
+   * first visit the project is an unsaved scratch project and drawing asks the
+   * user to create or select one first. UI state, never saved in the project.
+   */
+  projectActive: boolean;
+  /** The create/select project dialog and the tool to resume afterwards. */
+  projectGate: { open: boolean; mode: 'create' | 'select'; resume: Tool | null };
+  /** The "Start a network" card was closed for this project. */
+  startCardDismissed: boolean;
 
   commitScenario: (scenario: Scenario, label?: string) => void;
   commitProject: (project: Project, label?: string) => void;
   loadProject: (project: Project) => void;
   newProject: () => void;
+  /** Create a new, active project and resume a pending tool if any. */
+  createProject: (input: { name: string; description: string; mapView?: Project['mapView'] }) => Project;
+  /** Make a loaded project the active one and resume a pending tool if any. */
+  activateProject: (project: Project) => void;
+  openProjectGate: (mode: 'create' | 'select', resume?: Tool | null) => void;
+  closeProjectGate: () => void;
+  dismissStartCard: () => void;
   undo: () => void;
   redo: () => void;
   select: (s: Selection) => void;
   setTool: (t: Tool) => void;
   setNewLineMode: (m: TransportMode) => void;
   setStationTargetLine: (id: string | null) => void;
+  setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
+  setServiceDraft: (ids: string[]) => void;
+  setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
   setBasemap: (id: string) => void;
   toggleLayer: (k: keyof LayerToggles) => void;
   setView: (v: View) => void;
@@ -107,6 +147,7 @@ export function blankProject(): Project {
     id: newId('prj'),
     name: 'Untitled project',
     description: '',
+    metadata: {},
     fictional: false,
     mapView: { center: [10, 50], zoom: 4, bearing: 0, pitch: 0 },
     scenarios: [scenario],
@@ -123,8 +164,9 @@ const prefersReducedMotion = () =>
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
     : false;
 
-function initialProject(): Project {
-  return loadFromLocalStorage() ?? blankProject();
+function initialProject(): { project: Project; active: boolean } {
+  const stored = loadFromLocalStorage();
+  return stored ? { project: stored, active: true } : { project: blankProject(), active: false };
 }
 
 export const useStore = create<AppState>()((set, get) => {
@@ -138,7 +180,7 @@ export const useStore = create<AppState>()((set, get) => {
       ...(label ? { announcement: label } : {}),
     });
   };
-  const initial = initialProject();
+  const { project: initial, active: initialActive } = initialProject();
   return {
     project: initial,
     past: [],
@@ -147,6 +189,9 @@ export const useStore = create<AppState>()((set, get) => {
     tool: 'select',
     newLineMode: 'tram',
     stationTargetLineId: null,
+    trackDraw: { double: true, radius: 'default', structure: 'default' },
+    serviceDraft: [],
+    pendingTrackDeletion: null,
     basemapId: DEFAULT_BASEMAP_ID,
     layers: {
       terrain: false,
@@ -165,6 +210,9 @@ export const useStore = create<AppState>()((set, get) => {
     simulationEpoch: 0,
     announcement: '',
     closures: [],
+    projectActive: initialActive,
+    projectGate: { open: false, mode: 'create', resume: null },
+    startCardDismissed: false,
 
     commitScenario: (scenario, label) => push(replaceScenario(get().project, scenario), label),
     commitProject: (project, label) => push(project, label),
@@ -181,12 +229,34 @@ export const useStore = create<AppState>()((set, get) => {
         future: [],
         selection: null,
         closures: [],
+        projectActive: true,
+        startCardDismissed: false,
         // Keep the user's basemap choice across projects; the OSM map is the default.
         basemapId: get().basemapId,
         announcement: `Loaded project ${project.name}`,
       });
     },
-    newProject: () => get().loadProject(blankProject()),
+    newProject: () => get().openProjectGate('create'),
+    createProject: ({ name, description, mapView }) => {
+      const project = {
+        ...blankProject(),
+        name: name.trim() || 'Untitled project',
+        description: description.trim(),
+        // Start where the user is looking, not at the default overview.
+        ...(mapView ? { mapView } : {}),
+      };
+      get().activateProject(project);
+      return project;
+    },
+    activateProject: (project) => {
+      const resume = get().projectGate.resume;
+      get().loadProject(project);
+      set({ projectGate: { open: false, mode: 'create', resume: null } });
+      if (resume) set({ tool: resume });
+    },
+    openProjectGate: (mode, resume = null) => set({ projectGate: { open: true, mode, resume } }),
+    closeProjectGate: () => set({ projectGate: { open: false, mode: 'create', resume: null } }),
+    dismissStartCard: () => set({ startCardDismissed: true }),
     undo: () => {
       const { past, project, future } = get();
       const prev = past[past.length - 1];
@@ -202,7 +272,17 @@ export const useStore = create<AppState>()((set, get) => {
       set({ project: next, past: [...past, project], future: future.slice(1), announcement: 'Redone' });
     },
     select: (selection) => set({ selection }),
-    setTool: (tool) => set({ tool }),
+    setTool: (tool) => {
+      // Lines belong to a project: ask for one first, then resume drawing.
+      if ((tool === 'draw_line' || tool === 'new_service') && !get().projectActive) {
+        get().openProjectGate('create', tool);
+        return;
+      }
+      set({ tool, serviceDraft: tool === 'new_service' ? get().serviceDraft : [] });
+    },
+    setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
+    setServiceDraft: (serviceDraft) => set({ serviceDraft }),
+    setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
     setNewLineMode: (newLineMode) => set({ newLineMode }),
     setStationTargetLine: (stationTargetLineId) => set({ stationTargetLineId }),
     setBasemap: (basemapId) => set({ basemapId }),

@@ -60,8 +60,21 @@ def test_rejects_invalid_geometry(admin: TestClient, demo_project: dict[str, Any
 
 
 def test_rejects_wrong_schema_version(admin: TestClient, demo_project: dict[str, Any]) -> None:
-    bad = copy.deepcopy(demo_project)
-    bad["schemaVersion"] = 99
+    for version in (2, 99):
+        bad = copy.deepcopy(demo_project)
+        bad["schemaVersion"] = version
+        assert admin.post("/api/v1/projects", json={"project": bad}).status_code == 422
+
+
+def test_validates_track_network_geometry(admin: TestClient, demo_project: dict[str, Any]) -> None:
+    good = copy.deepcopy(demo_project)
+    good["scenarios"][0]["trackNetwork"] = {
+        "nodes": [{"id": "n1", "position": [10.0, 50.0]}, {"id": "n2", "position": [10.01, 50.0]}],
+        "tracks": [{"id": "t1", "fromNodeId": "n1", "toNodeId": "n2", "points": [[10.005, 50.001]]}],
+    }
+    assert admin.post("/api/v1/projects", json={"project": good}).status_code == 201
+    bad = copy.deepcopy(good)
+    bad["scenarios"][0]["trackNetwork"]["tracks"][0]["points"] = [[50.0, 100.0]]
     assert admin.post("/api/v1/projects", json={"project": bad}).status_code == 422
 
 
