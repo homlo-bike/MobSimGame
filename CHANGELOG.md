@@ -11,6 +11,10 @@ All notable changes are documented here. The format follows
 - **Aerial imagery background**: Sentinel-2 cloudless 2016 by EOX (10 m, CC BY 4.0,
   keyless). Esri World Imagery can be offered by a deployment that accepts Esri's
   terms (`VITE_ESRI_IMAGERY=1`).
+- **Environment files** in `env/` for development, test and production (template),
+  all with `MOBSIM_VALHALLA_URL=http://valhalla:8002`.
+- **Export all data** (File menu): the project plus every calculated value and the
+  metadata needed to judge it, in one JSON file.
 - **Stacked stations on different levels**: new rail stations get a level
   (underground −2/−1, street, elevated +1/+2; "Level of new stations"), and the
   station inspector moves a station object to another level with its tracks.

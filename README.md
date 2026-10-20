@@ -125,6 +125,12 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).
+- **Export all data** (File menu): one JSON file with the project and every calculated
+  value per scenario (line lengths, stops and chainages, fleet, simulated round trips,
+  acceleration and following rules, ramps, crossings, overhead wire, walking links,
+  findings, every parameter with value, status and source) plus metadata (versions,
+  units, attribution, disclaimer). Synthetic demonstration figures are included only
+  for the fictional demo, labelled.
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
   profile, one outline per unit of the consist, bending through curves; a waiting or

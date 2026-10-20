@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useStore, useScenario } from '../store/projectStore';
+import { fullExport } from '../export/fullExport';
 import { downloadText, parseProjectText, safeFilename, serializeProject } from '../store/persistence';
 import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJSON } from '../geo/geojson';
 import { openServerReport, shareProject } from '../api/projects';
@@ -136,6 +137,20 @@ export function Header({
       ),
       'application/geo+json',
     );
+  const exportAll = () =>
+    downloadText(
+      `${name}-full-export.json`,
+      JSON.stringify(
+        fullExport(project, {
+          appVersion: __APP_VERSION__,
+          buildTime: __BUILD_TIME__,
+          exportedAt: new Date().toISOString(),
+        }),
+        null,
+        2,
+      ),
+      'application/json',
+    );
   const openReport = () =>
     openServerReport(project).catch((e) =>
       report(e instanceof ProviderError ? `Report unavailable: ${e.message}` : 'Report failed', true),
@@ -167,6 +182,7 @@ export function Header({
     { kind: 'heading', label: 'Import / export' },
     { kind: 'item', label: 'Import GeoJSON…', onSelect: () => geojsonInput.current?.click() },
     { kind: 'item', label: 'Export GeoJSON', onSelect: exportGeoJSON },
+    { kind: 'item', label: 'Export all data', hint: '.json', onSelect: exportAll },
     {
       kind: 'item',
       label: 'Export coordinates',
