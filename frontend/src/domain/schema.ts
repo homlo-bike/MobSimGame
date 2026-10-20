@@ -546,7 +546,10 @@ export const PlatformSchema = z.object({
 });
 export type Platform = z.infer<typeof PlatformSchema>;
 
-/** Out-of-station interchange between distinct stations (in-station interchange is implicit). */
+/**
+ * A walking link between stations (domain/walkingLinks.ts): how passengers change between
+ * modes, which never share a station. `walkTimeMin` null = calculated from the distance.
+ */
 export const InterchangeSchema = z.object({
   id: z.string(),
   stationIds: z.array(z.string()).min(2),

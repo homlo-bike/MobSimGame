@@ -28,6 +28,7 @@ import {
 import { parameterValue } from '../domain/trackParameters';
 import { MetadataEditor } from './MetadataEditor';
 import { StationLayoutSection } from './StationLayoutSection';
+import { WalkingLinksSection } from './WalkingLinksSection';
 import { deleteStationObject, updateStationLayout } from '../domain/stationLayout';
 import { BUS_STOP_TYPE_LABELS, stationKind, type StationKind } from '../domain/stationKinds';
 
@@ -350,6 +351,8 @@ export function StationInspector({ station, scenario }: { station: Station; scen
           );
         })()}
       </Section>
+
+      <WalkingLinksSection station={station} scenario={scenario} />
 
       <Section title={`Lines at this station (${lines.length})`} id="station-lines">
         <ul className="mb-2 space-y-0.5 text-sm">

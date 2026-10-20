@@ -48,6 +48,9 @@ convention, **not** a probabilistic confidence interval. The relative spread
   from the parts and text values kept, with a note. Merging does not add them up:
   the first region's values are kept and a note asks the user to check them for the
   merged area. No figure is invented.
+- Walking links: straight-line distance between the two stations in the project
+  frame, at the walking-speed parameter (4.5 km/h, placeholder) unless a time is
+  entered. Real walking paths are longer.
 - Grades: `(Δ elevation / Δ chainage) × 100` between samples of ground elevation.
   Not a vertical alignment.
 - Shared track detection: sample one line every 25 m and test distance to the
