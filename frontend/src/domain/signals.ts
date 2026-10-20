@@ -36,21 +36,110 @@ export function offsetFor(id: string, cycleS: number): number {
   return (h >>> 0) % Math.max(1, Math.round(cycleS));
 }
 
-/** Add OSM signals not yet in the scenario, with the scenario's assumed timings. */
-export function addSignals(scenario: Scenario, found: { id: string; position: LngLat }[]): Scenario {
-  const known = new Set(scenario.trafficSignals.map((s) => s.ref));
+export type SignalKind = TrafficSignal['kind'];
+
+export const SIGNAL_KIND_LABELS: Record<SignalKind, string> = {
+  intersection: 'Street intersection',
+  pedestrian_crossing: 'Pedestrian crossing',
+  tram_crossing: 'Tram crossing',
+  brt_crossing: 'BRT crossing',
+  railway_crossing: 'Railway crossing',
+  station_approach: 'Station approach',
+  user_defined: 'User-defined location',
+};
+
+/** Fields every new signal starts with; values not known stay "unknown" or empty. */
+function newSignal(scenario: Scenario, position: LngLat, extra: Partial<TrafficSignal>): TrafficSignal {
   const { defaultCycleS, defaultGreenS, status } = scenario.signalSettings;
+  const id = newId('sig');
+  return {
+    id,
+    position: [position[0], position[1]],
+    ref: null,
+    cycleS: defaultCycleS,
+    greenS: Math.min(defaultGreenS, defaultCycleS),
+    offsetS: offsetFor(extra.ref ?? id, defaultCycleS),
+    timingStatus: status,
+    kind: 'intersection',
+    controls: [],
+    priority: 'unknown',
+    approxDelayS: null,
+    attachedTo: null,
+    source: 'manual',
+    retrievedAt: null,
+    confidence: 'unknown',
+    confirmation: 'confirmed',
+    label: '',
+    metadata: {},
+    ...extra,
+  };
+}
+
+/** Place a signal by hand (it is confirmed: the user put it there). */
+export function addManualSignal(
+  scenario: Scenario,
+  position: LngLat,
+  extra: Partial<TrafficSignal> = {},
+): { scenario: Scenario; signal: TrafficSignal } {
+  const signal = newSignal(scenario, position, { ...extra, source: 'manual', confirmation: 'confirmed' });
+  return {
+    scenario: { ...scenario, trafficSignals: [...scenario.trafficSignals, signal], updatedAt: nowIso() },
+    signal,
+  };
+}
+
+export function moveSignal(scenario: Scenario, id: string, to: LngLat): Scenario {
+  return {
+    ...scenario,
+    trafficSignals: scenario.trafficSignals.map((s) =>
+      s.id === id ? { ...s, position: [to[0], to[1]] } : s,
+    ),
+    updatedAt: nowIso(),
+  };
+}
+
+/** Change descriptive fields (type, controlled users, priority, attachment, metadata) without touching timings. */
+export function describeSignal(scenario: Scenario, id: string, patch: Partial<TrafficSignal>): Scenario {
+  return {
+    ...scenario,
+    trafficSignals: scenario.trafficSignals.map((s) => (s.id === id ? { ...s, ...patch, id: s.id } : s)),
+    updatedAt: nowIso(),
+  };
+}
+
+/** Lines a signal applies to in the simulation: its attachment, else every street-level tram/bus line nearby. */
+export function signalAppliesTo(signal: TrafficSignal, line: TransportLine): boolean {
+  const a = signal.attachedTo;
+  if (a?.kind === 'line' && a.id !== line.id) return false;
+  if (a?.kind === 'track') {
+    if (line.alignment.kind !== 'track') return false;
+    const steps = [...line.alignment.path, ...(line.alignment.returnPath ?? [])];
+    if (!steps.some((st) => st.trackId === a.id)) return false;
+  }
+  if (!signal.controls.length) return true;
+  const group = line.mode === 'tram' || line.mode === 'light_rail' ? 'trams' : 'buses';
+  return signal.controls.includes(group);
+}
+
+/** Add OSM signals not yet in the scenario, with the scenario's assumed timings. */
+export function addSignals(
+  scenario: Scenario,
+  found: { id: string; position: LngLat }[],
+  retrievedAt: string | null = nowIso(),
+): Scenario {
+  const known = new Set(scenario.trafficSignals.map((s) => s.ref));
   const added: TrafficSignal[] = found
     .filter((f) => !known.has(f.id))
-    .map((f) => ({
-      id: newId('sig'),
-      position: f.position,
-      ref: f.id,
-      cycleS: defaultCycleS,
-      greenS: Math.min(defaultGreenS, defaultCycleS),
-      offsetS: offsetFor(f.id, defaultCycleS),
-      timingStatus: status,
-    }));
+    .map((f) =>
+      newSignal(scenario, f.position, {
+        ref: f.id,
+        source: 'osm',
+        retrievedAt,
+        // Mapped by volunteers; positions are usually right, but controlled users and plans are not mapped.
+        confidence: 'medium',
+        confirmation: 'imported',
+      }),
+    );
   return { ...scenario, trafficSignals: [...scenario.trafficSignals, ...added], updatedAt: nowIso() };
 }
 

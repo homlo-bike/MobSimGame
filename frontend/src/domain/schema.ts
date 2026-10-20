@@ -159,16 +159,80 @@ export const ServicePatternSchema = z.object({
 });
 export type ServicePattern = z.infer<typeof ServicePatternSchema>;
 
+/** Vehicle categories; which ones a mode may use is defined in domain/vehicles.ts. */
+export const VehicleCategorySchema = z.enum([
+  'standard_bus',
+  'articulated_bus',
+  'double_articulated_bus',
+  'double_decker_bus',
+  'minibus',
+  'trolleybus',
+  'brt_standard_bus',
+  'brt_articulated_bus',
+  'brt_double_articulated_bus',
+  'brt_trolleybus',
+  'tram_single',
+  'tram_articulated',
+  'tram_coupled_set',
+  'tram_low_floor',
+  'tram_high_floor',
+  'lrv_single',
+  'lrv_coupled_consist',
+  'lrv_custom',
+  'metro_consist',
+  'metro_automated',
+  'light_metro',
+  'metro_custom',
+  'emu',
+  'dmu',
+  'locomotive_hauled',
+  'commuter_train',
+  'regional_train',
+  'train_custom',
+  'custom',
+]);
+export type VehicleCategory = z.infer<typeof VehicleCategorySchema>;
+
 export const VehicleTypeSchema = z.object({
   id: z.string(),
   name: z.string(),
+  /** Primary mode; `compatibleModes` lists every service mode that may use the vehicle. */
   mode: TransportModeSchema,
+  category: VehicleCategorySchema.default('custom'),
+  compatibleModes: z.array(TransportModeSchema).default([]),
   /** Total passengers (seated + standing) at the planning load factor. */
   capacity: z.number().int().positive(),
+  seatedCapacity: z.number().int().nonnegative().nullable().default(null),
   maxSpeedKmh: z.number().positive(),
+  /** Length of one unit, metres. A consist of `unitsPerConsist` units is that many times longer. */
   lengthM: z.number().positive(),
+  widthM: z.number().positive().nullable().default(null),
+  unitsPerConsist: z.number().int().positive().default(1),
+  accelerationMs2: z.number().positive().nullable().default(null),
+  serviceBrakingMs2: z.number().positive().nullable().default(null),
+  /** Smallest curve radius the vehicle can run through, metres (from the manufacturer). */
+  minRadiusM: z.number().positive().nullable().default(null),
+  maxGradePercent: z.number().positive().nullable().default(null),
+  doorCount: z.number().int().positive().nullable().default(null),
+  energy: z
+    .enum([
+      'electric_overhead',
+      'electric_third_rail',
+      'battery',
+      'diesel',
+      'hybrid',
+      'gas',
+      'hydrogen',
+      'unknown',
+    ])
+    .default('unknown'),
+  /** Track gauge in millimetres for rail vehicles; null = not specified. */
+  gaugeMm: z.number().int().positive().nullable().default(null),
+  /** Platform types the vehicle can serve (free text such as "low-floor 30 cm"); empty = not specified. */
+  compatiblePlatforms: z.array(z.string()).default([]),
   status: z.enum(['documented_default', 'user_override', 'demonstration']),
   source: z.string(),
+  notes: z.string().default(''),
 });
 export type VehicleType = z.infer<typeof VehicleTypeSchema>;
 
@@ -236,6 +300,22 @@ export type TrackDirection = z.infer<typeof TrackDirectionSchema>;
  * polygon of points of intersection (PIs) with a radius at each interior PI;
  * lines and circular arcs are derived from it (geo/track/alignment.ts).
  */
+/** Primary infrastructure class of a track: which services it is built for. */
+export const InfrastructureClassSchema = z.enum([
+  'tram',
+  'light_rail',
+  'metro',
+  'railway',
+  'bus',
+  'brt',
+  'cycling',
+  'walking',
+]);
+export type InfrastructureClass = z.infer<typeof InfrastructureClassSchema>;
+
+export const ElectrificationSchema = z.enum(['overhead', 'third_rail', 'none', 'unknown']);
+export type Electrification = z.infer<typeof ElectrificationSchema>;
+
 export const PhysicalTrackSchema = z.object({
   id: z.string(),
   name: z.string().default(''),
@@ -251,6 +331,11 @@ export const PhysicalTrackSchema = z.object({
   rightOfWay: RightOfWaySchema,
   /** Mode whose design rules (minimum radius) apply. */
   designMode: TransportModeSchema,
+  /** Primary infrastructure class; null = derived from `designMode` (domain/compatibility.ts). */
+  infrastructureClass: InfrastructureClassSchema.nullable().default(null),
+  /** Track gauge in millimetres; null = not specified. */
+  gaugeMm: z.number().int().positive().nullable().default(null),
+  electrification: ElectrificationSchema.default('unknown'),
   speedLimitKmh: z.number().positive().nullable().default(null),
   /** Double track: both tracks share a group. */
   groupId: z.string().nullable().default(null),
@@ -294,6 +379,8 @@ export const TrackNetworkSchema = z.object({
   runningSide: z.enum(['right', 'left']).default('right'),
   /** User overrides of the parameters in domain/trackParameters.ts, by id. */
   parameterOverrides: z.record(z.string(), z.number()).default({}),
+  /** User overrides of which infrastructure classes a service mode may use (domain/compatibility.ts). */
+  serviceCompatibility: z.partialRecord(TransportModeSchema, z.array(InfrastructureClassSchema)).default({}),
 });
 export type TrackNetwork = z.infer<typeof TrackNetworkSchema>;
 
@@ -304,6 +391,7 @@ export const EMPTY_TRACK_NETWORK: TrackNetwork = {
   groups: [],
   runningSide: 'right',
   parameterOverrides: {},
+  serviceCompatibility: {},
 };
 
 /**
@@ -385,6 +473,10 @@ export const TransportLineSchema = z.object({
   termination: LineTerminationSchema,
   servicePatterns: z.array(ServicePatternSchema),
   vehicleTypeId: z.string().nullable(),
+  /** Vehicles (consists) assigned to the line; null = not set (the simulation runs every scheduled trip). */
+  fleetSize: z.number().int().nonnegative().nullable().default(null),
+  /** Units coupled per consist on this line; null = the vehicle profile's value. */
+  consistUnits: z.number().int().positive().nullable().default(null),
   dwellTimeS: z.number().nonnegative(),
   maxSpeedKmh: z.number().positive(),
   metadata: MetadataSchema.default({}),
@@ -404,6 +496,8 @@ export const StationSchema = z.object({
   position: LngLatSchema,
   construction: z.enum(['surface', 'underground', 'elevated']),
   platformType: z.enum(['side', 'island', 'separate', 'unknown']),
+  /** Layout of a bus or BRT stop (rail platforms use `platformType`). */
+  busStopType: z.enum(['unknown', 'roadside', 'in_lane', 'bay', 'island', 'brt_platform']).default('unknown'),
   /** Negative = depth below ground, positive = height above ground, metres. */
   verticalOffsetM: z.number().nullable().default(null),
   entrances: z.array(z.object({ id: z.string(), position: LngLatSchema, label: z.string() })).default([]),
@@ -478,6 +572,35 @@ export const TrafficSignalSchema = z.object({
   greenS: z.number().positive(),
   offsetS: z.number().nonnegative().default(0),
   timingStatus: z.enum(['documented_default', 'user_override', 'calibrated', 'demonstration']),
+  kind: z
+    .enum([
+      'intersection',
+      'pedestrian_crossing',
+      'tram_crossing',
+      'brt_crossing',
+      'railway_crossing',
+      'station_approach',
+      'user_defined',
+    ])
+    .default('intersection'),
+  /** Who the signal controls; empty = not specified (it then applies to every tram and bus line nearby). */
+  controls: z.array(z.enum(['cars', 'buses', 'trams', 'bicycles', 'pedestrians'])).default([]),
+  /** Transit priority at this signal; the per-line switch still decides who uses it. */
+  priority: z.enum(['unknown', 'none', 'extend_green', 'early_green', 'pre_emption']).default('unknown'),
+  /** A fixed approximate delay per passing vehicle instead of the simulated cycle, seconds. */
+  approxDelayS: z.number().nonnegative().nullable().default(null),
+  /** Attached to one line or track: applies only there (otherwise to nearby lines). */
+  attachedTo: z
+    .object({ kind: z.enum(['line', 'track']), id: z.string() })
+    .nullable()
+    .default(null),
+  source: z.enum(['manual', 'osm']).default('osm'),
+  retrievedAt: z.string().nullable().default(null),
+  confidence: ConfidenceSchema.default('unknown'),
+  /** Imported signals stay "imported" until the user confirms them. */
+  confirmation: z.enum(['imported', 'confirmed']).default('imported'),
+  label: z.string().default(''),
+  metadata: MetadataSchema.default({}),
 });
 export type TrafficSignal = z.infer<typeof TrafficSignalSchema>;
 
@@ -517,12 +640,107 @@ export const AnalysisResultSchema = z.object({
 });
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
+// ---------------------------------------------------------------------------
+// Regions (neighbourhoods, districts, study areas)
+// ---------------------------------------------------------------------------
+
+const RingSchema = z.array(LngLatSchema).min(4);
+export const RegionGeometrySchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('Polygon'), coordinates: z.array(RingSchema).min(1) }),
+  z.object({ type: z.literal('MultiPolygon'), coordinates: z.array(z.array(RingSchema).min(1)).min(1) }),
+]);
+export type RegionGeometry = z.infer<typeof RegionGeometrySchema>;
+
+export const RegionTypeSchema = z.enum([
+  'neighbourhood',
+  'district',
+  'municipality',
+  'commercial',
+  'industrial',
+  'residential',
+  'university_campus',
+  'hospital_district',
+  'development_area',
+  'tod_area',
+  'user_defined',
+]);
+export type RegionType = z.infer<typeof RegionTypeSchema>;
+
+export const ValueStatusSchema = z.enum([
+  'observed',
+  'imported',
+  'assumed',
+  'estimated',
+  'synthetic',
+  'manual',
+]);
+export type ValueStatus = z.infer<typeof ValueStatusSchema>;
+
+/** An area-level value with everything needed to judge it: unit, year, source, resolution, status. */
+export const SourcedValueSchema = z.object({
+  value: z.union([z.number(), z.string()]),
+  unit: z.string().default(''),
+  currency: z.string().nullable().default(null),
+  priceYear: z.number().int().nullable().default(null),
+  datasetYear: z.number().int().nullable().default(null),
+  source: z.string().default(''),
+  sourceUrl: z.string().nullable().default(null),
+  sourceDate: z.string().nullable().default(null),
+  /** Geographic resolution of the data, e.g. "census tract", "whole municipality". */
+  resolution: z.string().default(''),
+  status: ValueStatusSchema.default('manual'),
+  confidence: ConfidenceSchema.default('unknown'),
+  note: z.string().default(''),
+});
+export type SourcedValue = z.infer<typeof SourcedValueSchema>;
+
+export const RegionSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  type: RegionTypeSchema,
+  geometry: RegionGeometrySchema,
+  style: z
+    .object({
+      fill: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      outline: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      opacity: z.number().min(0).max(1),
+      showLabel: z.boolean(),
+    })
+    .default({ fill: '#7c3aed', outline: '#5b21b6', opacity: 0.15, showLabel: true }),
+  visible: z.boolean().default(true),
+  locked: z.boolean().default(false),
+  /** Structured attributes by key (domain/regions.ts lists them). */
+  attributes: z.record(z.string(), SourcedValueSchema).default({}),
+  metadata: MetadataSchema.default({}),
+  /** Where the region record and boundary come from. */
+  source: z
+    .object({
+      source: z.string().default(''),
+      sourceUrl: z.string().nullable().default(null),
+      sourceDate: z.string().nullable().default(null),
+      sourceFeature: z.string().nullable().default(null),
+      status: ValueStatusSchema.default('manual'),
+      confidence: ConfidenceSchema.default('unknown'),
+    })
+    .default({
+      source: '',
+      sourceUrl: null,
+      sourceDate: null,
+      sourceFeature: null,
+      status: 'manual',
+      confidence: 'unknown',
+    }),
+  notes: z.string().default(''),
+});
+export type Region = z.infer<typeof RegionSchema>;
+
 export const ScenarioSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   description: z.string().default(''),
   systems: z.array(TransportSystemSchema),
   trackNetwork: TrackNetworkSchema.default(EMPTY_TRACK_NETWORK),
+  regions: z.array(RegionSchema).default([]),
   lines: z.array(TransportLineSchema),
   stations: z.array(StationSchema),
   platforms: z.array(PlatformSchema).default([]),

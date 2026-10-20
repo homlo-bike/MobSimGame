@@ -17,7 +17,7 @@ async function openTestNetwork(page: Page) {
 }
 
 async function createProject(page: Page, name = 'E2E project') {
-  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'New project…' }).click();
   await page.getByLabel('Name of the new project').fill(name);
   await page.getByRole('button', { name: 'Create project' }).click();
@@ -145,6 +145,27 @@ test('draw double track, place stations, create a service and edit a curve', asy
   await expect(page.getByLabel('Structure').nth(1)).toHaveValue('at_grade');
 });
 
+test('draw a region on the map and give it a type', async ({ page }) => {
+  await page.getByText('Map layers').click();
+  await page.getByLabel('Basemap', { exact: true }).selectOption('plain');
+  await createProject(page, 'Regions');
+  const box = (await page.getByTestId('map').boundingBox())!;
+  await page.getByText(/^Regions \(/).click();
+  await page.getByRole('button', { name: 'Draw region' }).click();
+  for (const [fx, fy] of [
+    [0.4, 0.4],
+    [0.6, 0.4],
+    [0.6, 0.6],
+    [0.4, 0.6],
+  ])
+    await page.mouse.click(box.x + box.width * fx!, box.y + box.height * fy!);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Region', exact: true })).toBeVisible();
+  await page.getByLabel('Region type').selectOption('neighbourhood');
+  await expect(page.getByRole('list', { name: 'Regions' })).toContainText('Neighbourhood');
+  await expect(page.getByText(/km² \(calculated, projected\)/)).toBeVisible();
+});
+
 test('animation, closures, schematic and exports work', async ({ page }) => {
   await openTestNetwork(page);
   await page.getByRole('button', { name: 'Start animation' }).click();
@@ -162,13 +183,13 @@ test('animation, closures, schematic and exports work', async ({ page }) => {
   await expect(page.getByText(/Text alternative/i)).toBeVisible();
 
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Export GeoJSON' }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/\.geojson$/);
 
   const dl2 = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: /Save project/ }).click();
   expect((await dl2).suggestedFilename()).toMatch(/\.mobsim\.json$/);
 });

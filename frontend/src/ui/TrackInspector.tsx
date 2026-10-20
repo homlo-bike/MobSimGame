@@ -6,6 +6,8 @@
 import { useEffect, useRef } from 'react';
 import { bbox, lineString } from '@turf/turf';
 import type {
+  Electrification,
+  InfrastructureClass,
   PhysicalTrack,
   RightOfWay,
   Scenario,
@@ -32,6 +34,12 @@ import {
   movementHas,
 } from '../domain/tracks';
 import { afterTrackEdit } from '../domain/serviceRouting';
+import {
+  DEFAULT_CLASS_FOR_MODE,
+  ELECTRIFICATION_LABELS,
+  INFRASTRUCTURE_CLASS_LABELS,
+  RAIL_CLASSES,
+} from '../domain/compatibility';
 import { parameter, TRACK_PARAMETERS, type TrackParameterId } from '../domain/trackParameters';
 import { CURVE_RADIUS_RULES } from '../domain/modeProfiles';
 import { formatDistance } from '../analysis/units';
@@ -163,6 +171,39 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
             value={track.designMode}
             onChange={(e) => patch({ designMode: e.target.value as TransportMode })}
             options={RAIL_MODES.map((m) => ({ value: m, label: MODES[m].label }))}
+          />
+          <SelectField
+            label="Infrastructure class"
+            value={track.infrastructureClass ?? ''}
+            onChange={(e) =>
+              patch({ infrastructureClass: (e.target.value || null) as InfrastructureClass | null })
+            }
+            options={[
+              {
+                value: '',
+                label: `From design rules (${INFRASTRUCTURE_CLASS_LABELS[DEFAULT_CLASS_FOR_MODE[track.designMode]]})`,
+              },
+              ...RAIL_CLASSES.map((c) => ({ value: c, label: INFRASTRUCTURE_CLASS_LABELS[c] })),
+            ]}
+          />
+          <SelectField
+            label="Electrification"
+            value={track.electrification}
+            onChange={(e) => patch({ electrification: e.target.value as Electrification })}
+            options={Object.entries(ELECTRIFICATION_LABELS).map(([value, label]) => ({ value, label }))}
+          />
+          <CommitField
+            label="Track gauge"
+            unit="mm, empty = not specified"
+            type="number"
+            min={300}
+            max={2000}
+            value={track.gaugeMm}
+            onCommit={(v) => {
+              if (v === '') return patch({ gaugeMm: null });
+              const n = Number(v);
+              return Number.isInteger(n) && n > 0 ? patch({ gaugeMm: n }) : 'Whole millimetres only';
+            }}
           />
           <CommitField
             label="Speed limit"
@@ -410,6 +451,11 @@ export function TrackDeletionDialog() {
   }, [pending]);
   if (!pending || !scenario) return null;
   const names = pending.lineIds.map((id) => scenario.lines.find((l) => l.id === id)?.name ?? id);
+  // Stations whose only tracks are being deleted would no longer be on a track.
+  const gone = new Set(pending.trackIds);
+  const stranded = scenario.stations.filter(
+    (st) => st.trackRefs.length > 0 && st.trackRefs.every((r) => gone.has(r.trackId)),
+  );
   return (
     <dialog
       ref={ref}
@@ -427,6 +473,13 @@ export function TrackDeletionDialog() {
         {names.length === 1 ? 'This service uses' : `${names.length} services use`} the track:{' '}
         <strong>{names.join(', ')}</strong>.
       </p>
+      {stranded.length > 0 && (
+        <p className="mb-2 text-sm">
+          ⚠ {stranded.length} station(s) would no longer be on any track:{' '}
+          <strong>{stranded.map((s) => s.name).join(', ')}</strong>. They are kept and flagged so you can draw
+          new track or delete them.
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         <Button variant="primary" onClick={() => resolveTrackDeletion('reroute')}>
           Delete and reroute the services (where another path exists)

@@ -233,6 +233,63 @@ def test_geocode(client: TestClient, upstream: Upstream) -> None:
     assert len(upstream.requests) == 1  # cached, case-insensitive
 
 
+def test_geocode_places_hierarchy_and_boundary(client: TestClient, upstream: Upstream) -> None:
+    def handler(r: httpx.Request) -> httpx.Response:
+        if r.url.path == "/search":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "display_name": "Kreuzberg, Berlin, Deutschland",
+                        "lat": "52.49",
+                        "lon": "13.40",
+                        "boundingbox": ["52.48", "52.51", "13.36", "13.45"],
+                        "addresstype": "suburb",
+                        "category": "boundary",
+                        "osm_type": "relation",
+                        "osm_id": 55764,
+                        "address": {"suburb": "Kreuzberg", "city": "Berlin", "country": "Deutschland"},
+                    },
+                    {"display_name": "A point", "lat": "1", "lon": "2", "osm_type": "node", "osm_id": 7},
+                ],
+            )
+        assert r.url.path == "/lookup"
+        osm = r.url.params["osm_ids"]
+        geom = (
+            {"type": "Polygon", "coordinates": [[[13.36, 52.48], [13.45, 52.48], [13.45, 52.51], [13.36, 52.48]]]}
+            if osm == "R55764"
+            else {"type": "Point", "coordinates": [2, 1]}
+        )
+        return httpx.Response(200, json=[{"display_name": "x", "geojson": geom}])
+
+    upstream.handlers["nominatim.openstreetmap.org"] = handler
+    body = client.get("/api/v1/geocode", params={"q": "kreuzberg", "places": "true"}).json()
+    assert upstream.requests[0].url.params["featureType"] == "settlement"
+    first, second = body["data"]
+    assert first["kind"] == "suburb" and first["hierarchy"] == ["Berlin", "Deutschland"]
+    assert first["boundaryAvailable"] is True and second["boundaryAvailable"] is False
+
+    b = client.get("/api/v1/geocode/boundary/relation/55764").json()
+    assert b["data"]["geometry"]["type"] == "Polygon"
+    assert b["capability"]["state"] == "available"
+    assert b["provenance"]["license"] == "ODbL-1.0"
+    client.get("/api/v1/geocode/boundary/relation/55764")
+    assert sum(1 for r in upstream.requests if r.url.path == "/lookup") == 1  # cached
+
+    # No polygon: never an invented boundary, the user is asked to draw it.
+    n = client.get("/api/v1/geocode/boundary/node/7").json()
+    assert n["data"]["geometry"] is None
+    assert n["capability"]["state"] == "manual_input_required"
+    assert client.get("/api/v1/geocode/boundary/area/1").status_code == 422
+
+
+def test_geocode_upstream_error(client: TestClient, upstream: Upstream) -> None:
+    upstream.handlers["nominatim.openstreetmap.org"] = lambda r: httpx.Response(500)
+    res = client.get("/api/v1/geocode/boundary/relation/1")
+    assert res.status_code == 503
+    assert res.json()["capability"]["state"] == "temporarily_unavailable"
+
+
 def test_provider_rate_limit(
     make_client: Callable[[Settings], TestClient], settings: Settings, upstream: Upstream
 ) -> None:

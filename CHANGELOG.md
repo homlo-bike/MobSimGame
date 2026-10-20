@@ -8,6 +8,12 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Vehicle type** in the line inspector lists only vehicles compatible with the
+  line's mode; changing the mode replaces an incompatible vehicle.
+- **Validation categories are now Errors, Warnings, Recommendations and
+  Information.** "Blocking geometry error" is now "Error". Each category has a
+  definition shown as help, a count and a filter. The dashboard's unclear
+  "4 ⛔ · 3 ⚠" summary is replaced by labelled categories.
 - **Project format schema 3: physical track network.** Track (nodes, tracks,
   double-track groups, permitted movements) is now separate from services. Rail
   lines run over tracks instead of owning a spline. Projects in schema 1 or 2 are
@@ -23,6 +29,93 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Infrastructure classes and compatibility** (P3-02a):
+  - every track has a primary class (tram, light rail, metro, railway), set in the
+    track inspector or derived from its design rules;
+  - tracks also record electrification and gauge;
+  - rail services are routed only over track their mode may use. By default each
+    mode uses its own class, and tram and light rail may use each other's track;
+    the matrix is a modelling convention, not a cited rule, and is editable per
+    project in *Infrastructure compatibility*;
+  - errors are reported for a service on track its mode may not use, and for a
+    vehicle whose gauge or electrification does not match the track; unknown
+    values never conflict;
+  - vehicle profiles have a gauge;
+  - lines of different modes cannot be joined.
+
+  Loading gauge, platform dimensions, signalling and mode × structure profiles
+  follow in P3-02b.
+
+- **Find a city, district or neighbourhood** in the Regions panel (P3-01b). The
+  results show the place type and the places around it. *Go to* zooms to the place.
+  *Create region from boundary* imports its OpenStreetMap boundary as a region typed
+  from the place (neighbourhood, district or municipality), with source, link,
+  retrieval date and status "imported", and with no statistics. If the place
+  already has a region from the same OSM object, that region is selected and left
+  unchanged. When there is no boundary, or the lookup fails, the map is centred on
+  the place and *Draw the region by hand* is offered; a boundary is never
+  generated. Backend: `places=true` on `/api/v1/geocode` and the new
+  `/api/v1/geocode/boundary/{type}/{id}`, both cached.
+
+- **Regions** (Phase 3, P3-01a): draw polygons on the map or type their corners,
+  cut holes, split with a line, merge, lock, show/hide, and style them (fill,
+  outline, opacity, label). Each region has a name and a type (neighbourhood,
+  district, municipality, commercial/industrial/residential area, campus, hospital
+  district, development area, transit-oriented development area, user-defined).
+  Statistics such as population, income or car ownership are entered by the user,
+  each with unit, currency, price year, dataset year, source, URL, date,
+  resolution, status and confidence. Custom fields and notes are kept. Area is
+  calculated in the projected project frame and never entered. Regions are
+  imported and exported as GeoJSON. A split does not divide statistics (numeric
+  values are dropped from the parts, with a note); a merge does not add them up
+  (the first region's values are kept, with a note to check them).
+  Nothing is inferred about individuals.
+
+- **Station and stop rules**:
+  - a station that track services call at but that is on no track (for example
+    after its track was deleted) is an error, so it never looks valid;
+  - the deletion dialog lists stations that would lose all their tracks;
+  - a stop without any line is a warning that says what to do;
+  - deleting a line reports the stops it leaves without service;
+  - bus stops have a type (roadside, in-lane, bay, island, BRT platform);
+  - the inspector shows whether a station is a rail station, a bus stop, both, or
+    unserved;
+  - on the map, bus stops are smaller and unserved stops have a grey ring.
+- **Traffic signals by hand**:
+  - place signals on the map or at typed coordinates, drag to move, delete;
+  - type: intersection, pedestrian, tram, BRT or railway crossing, station
+    approach, user-defined;
+  - controlled users, transit priority behaviour, an optional fixed approximate
+    delay, attachment to one line or track, label and custom fields.
+  - Discovered OpenStreetMap signals keep their source ID, retrieval date and
+    confidence, and stay "imported" until confirmed (one by one or all).
+  - The animation applies a signal only to its attached line or track, and not to
+    vehicles its controls exclude.
+- **Vehicle profiles** (sidebar):
+  - fields: category per mode (for example double-decker bus, low-floor tram,
+    automated metro, EMU), capacity, seats, length, width, units per consist,
+    doors, maximum speed, acceleration, braking, minimum curve radius, maximum
+    grade, energy, compatible platforms, compatible modes, source and notes;
+  - add custom profiles, edit them, and delete unused ones;
+  - unknown values stay empty, never guessed.
+- **Fleet per line**:
+  - vehicles assigned and units per consist;
+  - the inspector shows the vehicles needed at peak and off-peak, the consist
+    length and the peak capacity (placeholder speeds).
+- Validation errors for:
+  - a fleet too small for the peak headway;
+  - an incompatible or missing vehicle;
+  - curves tighter than the vehicle's minimum radius.
+- Findings can be sorted by severity, line, station, segment or mode. Each finding
+  links to its object: it is selected, the map zooms to it and the finding is
+  highlighted.
+- **Validation markers on the map**:
+  - one shape per category (square, triangle, diamond, circle) in addition to
+    colour;
+  - clustered when they overlap (the cluster ring shows the worst category);
+  - click a marker to select its object and highlight its finding, or a cluster to
+    zoom in;
+  - categories can be hidden under Map layers (information is hidden by default).
 - **Draw track** for track modes:
   - single or double track, with radius and structure options;
   - ends attach to nodes or open ends, and an end on a track creates a junction;
@@ -67,6 +160,22 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- **Direction arrows** sat on top of each other:
+  - the two directions of a single track used both ways;
+  - the two tracks of a double track at normal zoom levels;
+  - a one-way service on double track, which looked like two opposite arrows.
+
+  Now:
+  - each arrow sits beside its own track, on the running side, so opposite
+    directions never overlap;
+  - spacing follows the zoom (about 120 px);
+  - arrows keep clear of stations;
+  - lines' direction is described in words in the line inspector and the Table
+    view (for example "One-way from A to B");
+  - services on tracks can reverse their stop order.
+
+  Regression tests cover one-way, bidirectional, paired tracks, loops, reversed
+  geometry and shared track.
 - Simulation: the return trip of a two-ended line started its timing before the
   terminal layover had passed, so traffic-signal waits on the way back were computed
   for the wrong time. The way back now starts after the layover.

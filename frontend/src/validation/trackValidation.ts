@@ -67,7 +67,7 @@ export function validateTrackNetwork(scenario: Scenario): Finding[] {
       if (w.kind === 'reversal')
         add(
           {
-            severity: 'blocking',
+            severity: 'error',
             category: 'geometry',
             trackId: t.id,
             position: frame.toLngLat(g.alignment.points[w.vertex]!),
@@ -85,7 +85,7 @@ export function validateTrackNetwork(scenario: Scenario): Finding[] {
         let severity: Severity | null = null;
         let threshold = 0;
         if (arc.radius < minimum - 1e-6) {
-          severity = 'blocking';
+          severity = 'error';
           threshold = minimum;
         } else if (rule.recommendedM !== null && arc.radius < rule.recommendedM - 1e-6) {
           severity = 'warning';
@@ -98,7 +98,7 @@ export function validateTrackNetwork(scenario: Scenario): Finding[] {
               category: 'curve_radius',
               trackId: t.id,
               position: frame.toLngLat(arc.start),
-              message: `${label(t)}: curve radius ${Math.round(arc.radius)} m is below the ${severity === 'blocking' ? 'minimum' : 'recommended'} ${threshold} m (documented default: ${ruleSource(rule)}). No transition curves or cant are modelled.`,
+              message: `${label(t)}: curve radius ${Math.round(arc.radius)} m is below the ${severity === 'error' ? 'minimum' : 'recommended'} ${threshold} m (documented default: ${ruleSource(rule)}). No transition curves or cant are modelled.`,
               profile: {
                 id: MODE_PROFILES[t.designMode].id,
                 version: MODE_PROFILES[t.designMode].version,

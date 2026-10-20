@@ -1,13 +1,16 @@
-import { finishServiceDraft, requestTrackDeletion } from './store/trackActions';
+import { CompatibilityPanel } from './ui/CompatibilityPanel';
+import { deleteLineWithNotice, finishServiceDraft, requestTrackDeletion } from './store/trackActions';
 import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
 import { saveToLocalStorage } from './store/persistence';
-import { activeScenario, deleteLine, deleteStation } from './domain/network';
+import { activeScenario, deleteStation } from './domain/network';
 import { fetchSharedProject } from './api/projects';
 import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
 import { LineInspector } from './ui/LineInspector';
+import { VehicleProfilesPanel } from './ui/VehicleProfiles';
+import { RegionInspector, RegionsPanel } from './ui/RegionInspector';
 import {
   NodeInspector,
   TrackDeletionDialog,
@@ -65,6 +68,10 @@ function Inspector() {
   if (selection?.kind === 'track') {
     const track = scenario.trackNetwork.tracks.find((t) => t.id === selection.id);
     if (track) return <TrackInspector key={track.id} track={track} scenario={scenario} />;
+  }
+  if (selection?.kind === 'region') {
+    const region = scenario.regions.find((r) => r.id === selection.id);
+    if (region) return <RegionInspector key={region.id} region={region} scenario={scenario} />;
   }
   if (selection?.kind === 'node') {
     const node = scenario.trackNetwork.nodes.find((n) => n.id === selection.id);
@@ -205,7 +212,7 @@ export default function App() {
             ),
             'Station deleted',
           );
-        } else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        } else if (sel.kind === 'line') deleteLineWithNotice(sel.id);
         else if (sel.kind === 'track') requestTrackDeletion([sel.id]);
         state.select(null);
         e.preventDefault();
@@ -250,8 +257,11 @@ export default function App() {
           <SearchBox />
           <ToolPanel />
           <NetworkLists />
+          <RegionsPanel />
           <SignalsPanel />
           <TrackParametersPanel />
+          <CompatibilityPanel />
+          <VehicleProfilesPanel />
           <ScenarioPanel />
           <LayerPanel />
         </aside>
@@ -265,6 +275,7 @@ export default function App() {
           {view === 'map' &&
             scenario.lines.length === 0 &&
             scenario.trackNetwork.tracks.length === 0 &&
+            scenario.regions.length === 0 &&
             tool === 'select' &&
             !startCardDismissed &&
             !projectGateOpen && (

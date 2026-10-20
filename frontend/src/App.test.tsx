@@ -15,6 +15,10 @@ import { LIBRARY_KEY, loadFromLocalStorage, parseProjectText, serializeProject }
 import { geocode } from './providers/registry';
 import { parseCoordinateList } from './ui/TableView';
 
+// These tests render and drive the whole application; shared CI runners are several
+// times slower than a workstation, so they get more than Vitest's 5 s default.
+vi.setConfig({ testTimeout: 20_000 });
+
 beforeEach(() => {
   localStorage.clear();
   act(() => useStore.getState().loadProject(buildDemoProject()));
@@ -350,6 +354,198 @@ describe('notification menu', () => {
     await user.click(within(list).getByRole('button', { name: /Warning: Not routed.*Show on map/ }));
     expect(useStore.getState().selection).toEqual({ kind: 'line', id: line.id });
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+  });
+});
+
+describe('vehicles in the line inspector', () => {
+  it('offers only vehicles of the line’s mode and shows the fleet needed', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const lines = screen.getByRole('list', { name: 'Lines' });
+    await user.click(within(lines).getByRole('button', { name: /Red Line/ }));
+    const select = screen.getByLabelText('Vehicle type') as HTMLSelectElement;
+    const labels = [...select.options].map((o) => o.text);
+    expect(labels.some((l) => /metro/i.test(l))).toBe(true);
+    expect(labels.some((l) => /bus|tram/i.test(l))).toBe(false);
+    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/Needed: \d+ at peak/);
+    const assigned = screen.getByLabelText(/Vehicles assigned/);
+    await user.clear(assigned);
+    await user.type(assigned, '1{Enter}');
+    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/short of the peak headway/);
+  });
+});
+
+describe('traffic signals by hand', () => {
+  it('adds a signal at typed coordinates and edits its type and controls', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByText(/^Traffic signals \(/));
+    await user.type(screen.getByLabelText(/Add a signal at/), '0.03, 0.02');
+    await user.click(screen.getByRole('button', { name: /^Add$/ }));
+    const sig = useStore.getState().project.scenarios[0]!.trafficSignals.at(-1)!;
+    expect(sig).toMatchObject({ position: [0.03, 0.02], source: 'manual', confirmation: 'confirmed' });
+    expect(useStore.getState().selection).toEqual({ kind: 'signal', id: sig.id });
+    await user.selectOptions(screen.getByLabelText('Signal type'), 'tram_crossing');
+    await user.click(screen.getByRole('checkbox', { name: 'trams' }));
+    const after = useStore.getState().project.scenarios[0]!.trafficSignals.at(-1)!;
+    expect(after).toMatchObject({ kind: 'tram_crossing', controls: ['trams'] });
+  });
+});
+
+describe('regions', () => {
+  it(
+    'creates a region from typed corners, records a sourced value and locks it',
+    { timeout: 20_000 },
+    async () => {
+      const user = userEvent.setup();
+      render(<App />);
+      await user.click(screen.getByText(/^Regions \(/));
+      await user.click(screen.getByText('Create a region from typed corners'));
+      await user.type(
+        screen.getByLabelText(/Corners, one/),
+        '0.00, 0.00{Enter}0.01, 0.00{Enter}0.01, 0.01{Enter}0.00, 0.01',
+      );
+      await user.click(screen.getByRole('button', { name: 'Create region' }));
+      const region = useStore.getState().project.scenarios[0]!.regions.at(-1)!;
+      expect(useStore.getState().selection).toEqual({ kind: 'region', id: region.id });
+      expect(screen.getByText(/calculated, projected/)).toHaveTextContent(/1\.2\d\d km²/);
+      const pop = screen.getByLabelText(/^Total population/);
+      await user.type(pop, '4200{Enter}');
+      expect(screen.getByText(/Population density from population and area/)).toBeInTheDocument();
+      expect(
+        useStore.getState().project.scenarios[0]!.regions.at(-1)!.attributes.totalPopulation,
+      ).toMatchObject({
+        value: 4200,
+        unit: 'persons',
+        status: 'manual',
+      });
+      await user.click(screen.getByLabelText(/^Lock/));
+      expect(screen.getByRole('button', { name: 'Delete region' })).toBeDisabled();
+    },
+  );
+
+  it('creates a region from a looked-up boundary and offers drawing when there is none', async () => {
+    const user = userEvent.setup();
+    const prov = {
+      provider: 'Nominatim',
+      dataset: 'OpenStreetMap',
+      sourceUrl: null,
+      coverage: 'Global',
+      datasetDate: null,
+      spatialResolution: null,
+      cacheExpiresAt: null,
+      license: 'ODbL-1.0',
+      attribution: '© OpenStreetMap contributors (ODbL)',
+      retrievedAt: '2026-10-20T12:00:00Z',
+      status: 'observed',
+      limitations: [],
+      confidence: 'medium',
+    };
+    const ok = { state: 'available', message: '', checkedAt: 'x' };
+    const json = (data: unknown, capability = ok) =>
+      new Response(JSON.stringify({ data, provenance: prov, capability }), { status: 200 });
+    const square = [
+      [
+        [0, 0],
+        [0.01, 0],
+        [0.01, 0.01],
+        [0, 0],
+      ],
+    ];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/geocode/boundary/relation/'))
+        return json({
+          label: 'Mitte',
+          osmType: 'relation',
+          osmId: 1,
+          geometry: { type: 'Polygon', coordinates: square },
+        });
+      if (url.includes('/geocode?'))
+        return json([
+          {
+            label: 'Mitte, Berlin',
+            position: [0, 0],
+            bbox: null,
+            kind: 'suburb',
+            osmType: 'relation',
+            osmId: 1,
+            hierarchy: ['Berlin'],
+            boundaryAvailable: true,
+          },
+          {
+            label: 'Brunnen, Berlin',
+            position: [0, 0],
+            bbox: null,
+            kind: 'neighbourhood',
+            osmType: 'node',
+            osmId: 2,
+            hierarchy: ['Berlin'],
+            boundaryAvailable: false,
+          },
+        ]);
+      return new Response('{}', { status: 404 });
+    });
+    render(<App />);
+    await user.click(screen.getByText(/^Regions \(/));
+    await user.type(screen.getByLabelText('City, district or neighbourhood'), 'mitte{Enter}');
+    const list = await screen.findByRole('list', { name: 'Places found' });
+    expect(within(list).getAllByText(/In Berlin/)).toHaveLength(2);
+    const before = useStore.getState().project.scenarios[0]!.regions.length;
+    await user.click(within(list).getByRole('button', { name: 'Create region from boundary' }));
+    await screen.findByText(/Statistics are empty until you enter them/);
+    const regions = useStore.getState().project.scenarios[0]!.regions;
+    expect(regions).toHaveLength(before + 1);
+    expect(regions.at(-1)!).toMatchObject({ type: 'neighbourhood', attributes: {} });
+    expect(regions.at(-1)!.source.status).toBe('imported');
+    await user.click(within(list).getByRole('button', { name: 'No boundary: draw by hand' }));
+    expect(screen.getByText(/No boundary is available for Brunnen/)).toBeInTheDocument();
+    expect(useStore.getState().project.scenarios[0]!.regions).toHaveLength(before + 1);
+    await user.click(screen.getByRole('button', { name: 'Draw the region by hand' }));
+  });
+});
+
+describe('infrastructure compatibility', () => {
+  it('edits which track a mode may use and resets it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByText('Infrastructure compatibility'));
+    const own = screen.getByRole('checkbox', { name: /Tram \/ streetcar may use tram track/ });
+    expect(own).toBeChecked();
+    expect(own).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /Tram \/ streetcar may use railway track/ }));
+    expect(useStore.getState().project.scenarios[0]!.trackNetwork.serviceCompatibility.tram).toContain(
+      'railway',
+    );
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(useStore.getState().project.scenarios[0]!.trackNetwork.serviceCompatibility.tram).toBeUndefined();
+  });
+});
+
+describe('validation panel', () => {
+  it('labels the categories, filters them and links findings to their objects', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const panel = screen.getByRole('list', { name: 'Findings by category' });
+    for (const name of [/Errors: \d+/, /Warnings: \d+/, /Recommendations: \d+/, /Information: \d+/])
+      expect(within(panel).getAllByRole('button', { name }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/What do the categories mean/).length).toBeGreaterThan(0);
+    const findings = screen.getAllByRole('list', { name: 'Findings' })[0]!;
+    const before = within(findings).getAllByRole('listitem').length;
+    const info = within(panel).getByRole('button', { name: /Information: / });
+    await user.click(info);
+    expect(info).toHaveAttribute('aria-pressed', 'false');
+    const after = within(screen.getAllByRole('list', { name: 'Findings' })[0]!).queryAllByRole(
+      'listitem',
+    ).length;
+    expect(after).toBeLessThan(before);
+    await user.selectOptions(screen.getAllByLabelText('Sort findings by')[0]!, 'station');
+    const show = within(screen.getAllByRole('list', { name: 'Findings' })[0]!).getAllByRole('button', {
+      name: /^Show on map/,
+    })[0]!;
+    await user.click(show);
+    expect(useStore.getState().focusedFindingId).not.toBeNull();
+    expect(useStore.getState().selection).not.toBeNull();
   });
 });
 

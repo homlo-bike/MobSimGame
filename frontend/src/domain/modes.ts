@@ -5,7 +5,8 @@
  * They are NOT benchmarks. Each value carries `status` and `source` so the UI can
  * show that it is a placeholder the user should replace with local data.
  */
-import type { StructureType, TransportMode, RightOfWay, VehicleType } from './schema';
+import type { StructureType, TransportMode, RightOfWay, VehicleCategory, VehicleType } from './schema';
+import { vehicleProfile } from './vehicles';
 
 export interface ModeDefaults {
   label: string;
@@ -187,22 +188,44 @@ export function defaultVehicleTypes(): VehicleType[] {
     capacity: number,
     maxSpeedKmh: number,
     lengthM: number,
-  ): VehicleType => ({
-    id,
-    name,
-    mode,
-    capacity,
-    maxSpeedKmh,
-    lengthM,
-    status: 'demonstration',
-    source: PLACEHOLDER,
-  });
+    category: VehicleCategory,
+  ): VehicleType =>
+    vehicleProfile({
+      id,
+      name,
+      mode,
+      category,
+      capacity,
+      maxSpeedKmh,
+      lengthM,
+      status: 'demonstration',
+      source: PLACEHOLDER,
+    });
   return [
-    v('vt-bus-12m', 'Generic 12 m bus (placeholder)', 'bus', 70, 70, 12),
-    v('vt-bus-18m', 'Generic 18 m articulated bus (placeholder)', 'brt', 110, 70, 18),
-    v('vt-tram-30m', 'Generic 30 m tram (placeholder)', 'tram', 180, 70, 30),
-    v('vt-lrv-40m', 'Generic 40 m light-rail vehicle (placeholder)', 'light_rail', 250, 80, 40),
-    v('vt-metro-100m', 'Generic 100 m metro train (placeholder)', 'metro', 900, 80, 100),
-    v('vt-emu-120m', 'Generic 120 m commuter train (placeholder)', 'commuter_rail', 1000, 140, 120),
+    v('vt-bus-12m', 'Generic 12 m bus (placeholder)', 'bus', 70, 70, 12, 'standard_bus'),
+    v(
+      'vt-bus-18m',
+      'Generic 18 m articulated BRT bus (placeholder)',
+      'brt',
+      110,
+      70,
+      18,
+      'brt_articulated_bus',
+    ),
+    v('vt-tram-30m', 'Generic 30 m tram (placeholder)', 'tram', 180, 70, 30, 'tram_articulated'),
+    v('vt-lrv-40m', 'Generic 40 m light-rail vehicle (placeholder)', 'light_rail', 250, 80, 40, 'lrv_single'),
+    {
+      ...v(
+        'vt-metro-100m',
+        'Generic 100 m metro train (placeholder)',
+        'metro',
+        900,
+        80,
+        100,
+        'metro_consist',
+      ),
+      compatibleModes: ['elevated_metro'],
+    },
+    v('vt-emu-120m', 'Generic 120 m commuter train (placeholder)', 'commuter_rail', 1000, 140, 120, 'emu'),
   ];
 }

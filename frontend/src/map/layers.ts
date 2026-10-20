@@ -10,6 +10,8 @@ import { STRUCTURE_DASH } from '../domain/modes';
 import { EMPTY } from './overlays';
 
 export const SRC = {
+  regions: 'msg-regions',
+  regionLabels: 'msg-region-labels',
   tracks: 'msg-tracks',
   trackNodes: 'msg-track-nodes',
   segments: 'msg-segments',
@@ -25,6 +27,7 @@ export const SRC = {
   traffic: 'msg-traffic',
   transit: 'msg-transit',
   dem: 'msg-dem',
+  findings: 'msg-findings',
 } as const;
 
 export const STATION_LAYER = 'msg-stations-circle';
@@ -32,6 +35,52 @@ export const CROSSOVER_LAYER = 'msg-crossovers-circle';
 export const SIGNAL_LAYER = 'msg-signals-circle';
 export const TRACK_NODE_LAYER = 'msg-track-nodes-circle';
 export const TRACK_LAYER_PREFIX = 'msg-track-';
+export const FINDING_LAYER = 'msg-findings-symbol';
+export const REGION_FILL_LAYER = 'msg-regions-fill';
+export const FINDING_CLUSTER_LAYER = 'msg-findings-cluster';
+
+/**
+ * Marker shapes per finding category (shape and colour both differ, so the
+ * category never depends on colour alone): error = square, warning = triangle,
+ * recommendation = diamond, information = circle.
+ */
+function findingImage(severity: 'error' | 'warning' | 'recommendation' | 'info') {
+  const size = 18;
+  const data = new Uint8Array(size * size * 4);
+  const fill: Record<string, [number, number, number]> = {
+    error: [185, 28, 28],
+    warning: [217, 119, 6],
+    recommendation: [2, 132, 199],
+    info: [71, 85, 105],
+  };
+  const c = (size - 1) / 2;
+  const inside = (x: number, y: number, inset: number) => {
+    const dx = Math.abs(x - c);
+    const dy = y - c;
+    const r = c - inset;
+    switch (severity) {
+      case 'error':
+        return dx <= r - 1 && Math.abs(dy) <= r - 1;
+      case 'warning': {
+        const top = inset * 1.8;
+        const bottom = size - 1 - inset;
+        if (y < top || y > bottom) return false;
+        return dx <= ((y - top) / (bottom - top)) * r;
+      }
+      case 'recommendation':
+        return dx + Math.abs(dy) <= r;
+      default:
+        return dx * dx + dy * dy <= r * r;
+    }
+  };
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      if (inside(x, y, 2.5)) data.set([...fill[severity]!, 255], i);
+      else if (inside(x, y, 0.5)) data.set([255, 255, 255, 255], i);
+    }
+  return { width: size, height: size, data };
+}
 
 const ARROW_IMAGE = 'msg-arrow';
 
@@ -88,7 +137,17 @@ const STRUCTURES: StructureType[] = [
 export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
   for (const id of Object.values(SRC)) {
     if (id === SRC.dem || map.getSource(id)) continue;
-    map.addSource(id, { type: 'geojson', data: EMPTY });
+    if (id === SRC.findings)
+      // Clustered so many findings in one place do not pile up.
+      map.addSource(id, {
+        type: 'geojson',
+        data: EMPTY,
+        cluster: true,
+        clusterRadius: 36,
+        clusterMaxZoom: 16,
+        clusterProperties: { worst: ['max', ['get', 'rank']] },
+      });
+    else map.addSource(id, { type: 'geojson', data: EMPTY });
   }
   const add = (layer: Parameters<MlMap['addLayer']>[0]) => {
     if (!map.getLayer(layer.id)) map.addLayer(layer);
@@ -150,6 +209,30 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     layout: { visibility: 'none' },
     paint: { 'fill-color': '#0ea5e9', 'fill-opacity': 0.08, 'fill-outline-color': '#0369a1' },
   });
+  // Regions under the network: fill and outline from each region's style.
+  add({
+    id: REGION_FILL_LAYER,
+    type: 'fill',
+    source: SRC.regions,
+    paint: { 'fill-color': ['get', 'fill'], 'fill-opacity': ['get', 'opacity'] },
+  });
+  add({
+    id: 'msg-regions-outline',
+    type: 'line',
+    source: SRC.regions,
+    paint: {
+      'line-color': ['get', 'outline'],
+      'line-width': ['case', ['get', 'selected'], 3, 1.5],
+    },
+  });
+  if (opts.labels)
+    add({
+      id: 'msg-regions-label',
+      type: 'symbol',
+      source: SRC.regionLabels,
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 12 },
+      paint: { 'text-color': '#3b0764', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    });
   // Halo under every segment so lines read on any basemap.
   add({
     id: 'msg-seg-halo',
@@ -277,9 +360,9 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'icon-offset': [
         'case',
         ['>', ['get', 'offsetSign'], 0],
-        ['literal', [4, 0]],
+        ['literal', [6, 0]],
         ['<', ['get', 'offsetSign'], 0],
-        ['literal', [-4, 0]],
+        ['literal', [-6, 0]],
         ['literal', [0, 0]],
       ],
     },
@@ -321,9 +404,26 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     type: 'circle',
     source: SRC.stations,
     paint: {
-      'circle-radius': ['case', ['get', 'selected'], 9, ['get', 'interchange'], 8, 6],
+      // Bus stops are smaller than rail stations; stops without a line have a grey ring.
+      'circle-radius': [
+        'case',
+        ['get', 'selected'],
+        9,
+        ['get', 'interchange'],
+        8,
+        ['==', ['get', 'kind'], 'bus'],
+        4.5,
+        6,
+      ],
       'circle-color': '#ffffff',
-      'circle-stroke-color': ['case', ['get', 'interchange'], '#111827', ['get', 'color']],
+      'circle-stroke-color': [
+        'case',
+        ['==', ['get', 'kind'], 'orphan'],
+        '#94a3b8',
+        ['get', 'interchange'],
+        '#111827',
+        ['get', 'color'],
+      ],
       'circle-stroke-width': ['case', ['get', 'selected'], 4, ['get', 'interchange'], 3.5, 3],
     },
   });
@@ -368,6 +468,49 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
     });
   }
+  // Validation markers, above stations and lines.
+  for (const sev of ['error', 'warning', 'recommendation', 'info'] as const)
+    if (!map.hasImage(`msg-finding-${sev}`))
+      map.addImage(`msg-finding-${sev}`, findingImage(sev), { pixelRatio: 1 });
+  add({
+    id: FINDING_CLUSTER_LAYER,
+    type: 'circle',
+    source: SRC.findings,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 10, 20, 16],
+      'circle-color': '#ffffff',
+      // Worst category in the cluster: thicker ring for errors (not colour alone).
+      'circle-stroke-color': ['match', ['get', 'worst'], 4, '#b91c1c', 3, '#d97706', 2, '#0284c7', '#475569'],
+      'circle-stroke-width': ['match', ['get', 'worst'], 4, 4, 3, 3, 2],
+    },
+  });
+  if (opts.labels)
+    add({
+      id: 'msg-findings-cluster-count',
+      type: 'symbol',
+      source: SRC.findings,
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': ['get', 'point_count_abbreviated'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        'text-allow-overlap': true,
+      },
+      paint: { 'text-color': '#111827' },
+    });
+  add({
+    id: FINDING_LAYER,
+    type: 'symbol',
+    source: SRC.findings,
+    filter: ['!', ['has', 'point_count']],
+    layout: {
+      'icon-image': ['concat', 'msg-finding-', ['get', 'severity']],
+      'icon-size': ['case', ['get', 'focused'], 1.5, 1],
+      'icon-allow-overlap': true,
+      'symbol-sort-key': ['-', 0, ['get', 'rank']],
+    },
+  });
   add({
     id: 'msg-vehicles-circle',
     type: 'circle',

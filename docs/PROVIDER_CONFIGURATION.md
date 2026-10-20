@@ -76,12 +76,22 @@ See [ROUTING.md](ROUTING.md). Disabled unless `MOBSIM_VALHALLA_URL` is set.
 
 ## Geocoding (Nominatim)
 
-`MOBSIM_GEOCODER_ENABLED`, `MOBSIM_NOMINATIM_URL`, `MOBSIM_CONTACT_EMAIL`.
+`MOBSIM_GEOCODER_ENABLED`, `MOBSIM_NOMINATIM_URL`, `MOBSIM_NOMINATIM_LOOKUP_URL` (boundaries), `MOBSIM_CONTACT_EMAIL`.
 The OSMF policy allows at most 1 request/second per application, requires an
 identifying User-Agent, caching, and forbids client-side autocomplete. The backend
 serialises requests to ≤ 1/s per process, caches for 7 days, and the UI searches
 only on submit. Without the backend, the offline parser accepts "latitude,
 longitude" and demo place names.
+
+**Place lookup for regions** (`GET /api/v1/geocode?q=…&places=true`) restricts
+results to settlements (cities, towns, districts, neighbourhoods) and returns the
+address type, the enclosing places and whether the result is an OSM relation.
+`GET /api/v1/geocode/boundary/{node|way|relation}/{id}` returns that object's
+polygon from Nominatim's `/lookup` (`polygon_geojson=1`, simplified by Nominatim
+with a tolerance of 0.00005°, a project choice reported in provenance), cached for
+7 days. When OSM has no polygon, `geometry` is `null` and the capability is
+`manual_input_required`; the app then centres the map on the place and offers
+drawing the region by hand. A boundary is never generated.
 
 ## Population (CAMARA Population Density Data)
 

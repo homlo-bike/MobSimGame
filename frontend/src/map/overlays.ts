@@ -9,11 +9,16 @@ import {
   orderedStops,
   placedCrossovers,
 } from '../domain/network';
-import { slicePath } from '../geo/geometry';
+import { distanceM, slicePath } from '../geo/geometry';
 import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
+import { stationKind } from '../domain/stationKinds';
+import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
+import type { Finding, Severity } from '../validation/validate';
+import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
+import { findingPosition } from '../validation/locate';
 import { stepsCoordinates, stepsSegments } from '../domain/serviceRouting';
 
 /**
@@ -41,10 +46,55 @@ export function tracksCollection(scenario: Scenario, selectedTrackId: string | n
         existing: t.origin.source === 'osm' && !t.origin.edited,
         arrow: t.direction === 'both' ? '‹ ›' : '›',
         color: '#334155',
-        offsetSign: 0,
+        // Arrows of the two tracks of a double track go to the outside (the running side).
+        offsetSign: t.groupId || t.direction === 'both' ? (net.runningSide === 'right' ? 1 : -1) : 0,
       },
     };
   });
+  return { type: 'FeatureCollection', features };
+}
+
+/** Visible regions with their style, for the fill, outline and label layers. */
+export function regionsCollection(scenario: Scenario, selectedRegionId: string | null): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: scenario.regions
+      .filter((r) => r.visible)
+      .map((r) => ({
+        type: 'Feature' as const,
+        id: r.id,
+        geometry: r.geometry,
+        properties: {
+          regionId: r.id,
+          name: r.style.showLabel ? r.name : '',
+          fill: r.style.fill,
+          outline: r.style.outline,
+          opacity: r.style.opacity,
+          locked: r.locked,
+          selected: r.id === selectedRegionId,
+        },
+      })),
+  };
+}
+
+/** One label point inside each visible region that shows its name. */
+export function regionLabelsCollection(scenario: Scenario): FeatureCollection {
+  const features: Feature[] = [];
+  for (const r of scenario.regions) {
+    if (!r.visible || !r.style.showLabel) continue;
+    let at: number[] | null = null;
+    try {
+      at = (pointOnSurface(r.geometry as never) as { coordinates?: number[] } | null)?.coordinates ?? null;
+    } catch {
+      at = null;
+    }
+    if (at)
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: at },
+        properties: { name: r.name },
+      });
+  }
   return { type: 'FeatureCollection', features };
 }
 
@@ -256,14 +306,29 @@ export function closuresCollection(
   return { type: 'FeatureCollection', features };
 }
 
-/** Distance between direction arrows along a track. */
-const ARROW_SPACING_M = 150;
+/** Default distance between direction arrows when no zoom-dependent spacing is given. */
+export const ARROW_SPACING_M = 150;
+
+export interface ArrowOptions {
+  /** Distance between arrows along each feature, metres (the map derives it from the zoom). */
+  spacingM?: number;
+  /** Points that arrows must keep clear of (stations, validation markers). */
+  avoid?: readonly LngLat[];
+  /** Clearance around `avoid` points, metres. */
+  avoidM?: number;
+}
 
 /**
- * Direction-of-travel arrows: points along each track with the bearing of
- * travel and the side of the line the track is drawn on.
+ * Direction-of-travel arrows: points along each feature with the bearing of
+ * travel. `offsetSign` places an arrow beside its track (+1 = right of travel), so
+ * arrows of two tracks, or of the two directions of a single track, never sit
+ * on top of each other. A feature drawn in both directions ('‹ ›') gets one
+ * arrow per direction, each on its own right-hand side.
  */
-export function arrowsCollection(segments: FeatureCollection): FeatureCollection {
+export function arrowsCollection(segments: FeatureCollection, options: ArrowOptions = {}): FeatureCollection {
+  const spacing = Math.max(1, options.spacingM ?? ARROW_SPACING_M);
+  const avoid = options.avoid ?? [];
+  const clear = options.avoidM ?? 0;
   const features: Feature[] = [];
   for (const f of segments.features) {
     if (f.geometry.type !== 'LineString') continue;
@@ -271,11 +336,19 @@ export function arrowsCollection(segments: FeatureCollection): FeatureCollection
     if (!p.arrow) continue;
     const path = measurePath(f.geometry.coordinates as LngLat[], false);
     const both = p.arrow === '‹ ›';
-    for (let d = ARROW_SPACING_M / 2; d < path.lengthM; d += ARROW_SPACING_M) {
+    // Both directions on one line: each arrow sits on the right of its own travel direction.
+    const side = both ? p.offsetSign || 1 : (p.offsetSign ?? 0);
+    for (let d = spacing / 2; d < path.lengthM; d += spacing) {
       const here = interpolate(path, d).position;
+      if (clear > 0 && avoid.some((a) => distanceM(a, here) < clear)) continue;
       const ahead = interpolate(path, Math.min(path.lengthM, d + 2)).position;
       const bearing = bearingDeg(here, ahead);
-      const props = { color: p.color, offsetSign: p.offsetSign ?? 0 };
+      const props = {
+        color: p.color,
+        offsetSign: side,
+        lineId: p.lineId ?? null,
+        trackId: p.trackId ?? null,
+      };
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: here },
@@ -290,6 +363,11 @@ export function arrowsCollection(segments: FeatureCollection): FeatureCollection
     }
   }
   return { type: 'FeatureCollection', features };
+}
+
+/** Metres per screen pixel at a zoom and latitude (MapLibre's 512-pixel world). */
+export function metresPerPixel(zoom: number, latitude: number): number {
+  return (40075016.686 * Math.cos((latitude * Math.PI) / 180)) / (512 * 2 ** zoom);
 }
 
 function bearingDeg(a: LngLat, b: LngLat): number {
@@ -341,6 +419,7 @@ export function stationsCollection(scenario: Scenario, selectedStationId: string
           interchange: isInterchange(scenario, s.id),
           color: lines[0]?.color ?? '#475569',
           lineCount: lines.length,
+          kind: stationKind(scenario, s),
           selected: s.id === selectedStationId,
         },
       };
@@ -403,6 +482,36 @@ export function transitCollection(routes: readonly TransitRoute[]): FeatureColle
       properties: { name: r.name, mode: r.mode },
     })),
   };
+}
+
+/**
+ * Validation markers: one point per finding at its position (or its object's), with
+ * its severity for the marker shape. Hidden categories are left out.
+ */
+export function findingsCollection(
+  findings: readonly Finding[],
+  scenario: Scenario,
+  visible: Record<Severity, boolean>,
+  focusedId: string | null,
+): FeatureCollection {
+  const features: Feature[] = [];
+  for (const f of findings) {
+    if (!visible[f.severity]) continue;
+    const position = findingPosition(f, scenario);
+    if (!position) continue;
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: position },
+      properties: {
+        findingId: f.id,
+        severity: f.severity,
+        rank: SEVERITY_ORDER.length - SEVERITY_ORDER.indexOf(f.severity),
+        focused: f.id === focusedId,
+        label: `${SEVERITY_LABELS[f.severity]}: ${f.message}`,
+      },
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 export const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };

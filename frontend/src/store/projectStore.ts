@@ -21,7 +21,17 @@ const log = createLogger('store');
 
 export const HISTORY_LIMIT = 100;
 
-export type Tool = 'select' | 'draw_line' | 'add_station' | 'new_service';
+export type Tool =
+  | 'select'
+  | 'draw_line'
+  | 'add_station'
+  | 'new_service'
+  | 'add_signal'
+  | 'draw_region'
+  /** Draw a polygon to cut out of the selected region. */
+  | 'region_hole'
+  /** Draw a line across the selected region to split it. */
+  | 'region_split';
 
 /** Options for drawing track (rail modes). */
 export interface TrackDrawOptions {
@@ -40,6 +50,7 @@ export interface PendingTrackDeletion {
 export type Selection =
   | { kind: 'line'; id: string }
   | { kind: 'track'; id: string }
+  | { kind: 'region'; id: string }
   | { kind: 'node'; id: string }
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
@@ -81,6 +92,10 @@ export interface AppState {
   /** Stations picked so far with the new_service tool, in order. */
   serviceDraft: string[];
   pendingTrackDeletion: PendingTrackDeletion | null;
+  /** The finding highlighted in the validation panel and on the map. */
+  focusedFindingId: string | null;
+  /** Which finding categories show markers on the map. */
+  markerVisibility: Record<'error' | 'warning' | 'recommendation' | 'info', boolean>;
   basemapId: string;
   layers: LayerToggles;
   view: View;
@@ -124,6 +139,8 @@ export interface AppState {
   setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
   setServiceDraft: (ids: string[]) => void;
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
+  setFocusedFinding: (id: string | null) => void;
+  setMarkerVisible: (severity: 'error' | 'warning' | 'recommendation' | 'info', visible: boolean) => void;
   setBasemap: (id: string) => void;
   toggleLayer: (k: keyof LayerToggles) => void;
   setView: (v: View) => void;
@@ -192,6 +209,8 @@ export const useStore = create<AppState>()((set, get) => {
     trackDraw: { double: true, radius: 'default', structure: 'default' },
     serviceDraft: [],
     pendingTrackDeletion: null,
+    focusedFindingId: null,
+    markerVisibility: { error: true, warning: true, recommendation: true, info: false },
     basemapId: DEFAULT_BASEMAP_ID,
     layers: {
       terrain: false,
@@ -274,7 +293,10 @@ export const useStore = create<AppState>()((set, get) => {
     select: (selection) => set({ selection }),
     setTool: (tool) => {
       // Lines belong to a project: ask for one first, then resume drawing.
-      if ((tool === 'draw_line' || tool === 'new_service') && !get().projectActive) {
+      if (
+        (tool === 'draw_line' || tool === 'new_service' || tool === 'draw_region') &&
+        !get().projectActive
+      ) {
         get().openProjectGate('create', tool);
         return;
       }
@@ -283,6 +305,9 @@ export const useStore = create<AppState>()((set, get) => {
     setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
     setServiceDraft: (serviceDraft) => set({ serviceDraft }),
     setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
+    setFocusedFinding: (focusedFindingId) => set({ focusedFindingId }),
+    setMarkerVisible: (severity, visible) =>
+      set({ markerVisibility: { ...get().markerVisibility, [severity]: visible } }),
     setNewLineMode: (newLineMode) => set({ newLineMode }),
     setStationTargetLine: (stationTargetLineId) => set({ stationTargetLineId }),
     setBasemap: (basemapId) => set({ basemapId }),

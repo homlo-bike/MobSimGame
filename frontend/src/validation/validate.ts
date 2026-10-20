@@ -21,6 +21,16 @@ import {
 } from '../geo/geometry';
 import { validateSegments } from '../geo/segments';
 import { validateTrackNetwork } from './trackValidation';
+import { servingLines } from '../domain/stationKinds';
+import { isVehicleCompatible } from '../domain/vehicles';
+import {
+  INFRASTRUCTURE_CLASS_LABELS,
+  serviceCanUse,
+  trackClass,
+  vehicleTrackIssues,
+} from '../domain/compatibility';
+import { lineFleet } from '../analysis/fleet';
+import { trackGeometry } from '../domain/tracks';
 
 interface CurvatureSample {
   index: number;
@@ -31,21 +41,40 @@ interface CurvatureSample {
 import { routeStatus } from '../domain/alignment';
 import { STRUCTURE_LABELS } from '../domain/modes';
 
-export type Severity = 'info' | 'recommendation' | 'warning' | 'blocking';
+export type Severity = 'info' | 'recommendation' | 'warning' | 'error';
 
 export const SEVERITY_LABELS: Record<Severity, string> = {
   info: 'Information',
   recommendation: 'Recommendation',
   warning: 'Warning',
-  blocking: 'Blocking geometry error',
+  error: 'Error',
 };
+
+export const SEVERITY_PLURALS: Record<Severity, string> = {
+  error: 'Errors',
+  warning: 'Warnings',
+  recommendation: 'Recommendations',
+  info: 'Information',
+};
+
+/** What each category means; shown as help wherever findings are summarised. */
+export const SEVERITY_DEFINITIONS: Record<Severity, string> = {
+  error: 'Prevents a valid route, service, simulation or export. Requires your action.',
+  warning:
+    'The project can continue, but the condition may be unrealistic, unsafe, incomplete or outside the configured preferred range.',
+  recommendation: 'An optional improvement; it does not make the project invalid.',
+  info: 'A neutral observation or calculated status.',
+};
+
+/** Most severe first. */
+export const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'recommendation', 'info'];
 
 /** Text symbols so severity is never conveyed by colour alone. */
 export const SEVERITY_SYMBOLS: Record<Severity, string> = {
   info: 'ℹ',
   recommendation: '◇',
   warning: '⚠',
-  blocking: '⛔',
+  error: '⛔',
 };
 
 export type FindingCategory =
@@ -123,7 +152,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   const path = pathCoordinates(line.coordinates, ring);
   if (!isValidPath(path) || (ring && line.coordinates.length < 3)) {
     add({
-      severity: 'blocking',
+      severity: 'error',
       category: 'geometry',
       message: ring
         ? 'A ring line needs at least three distinct vertices.'
@@ -140,7 +169,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     });
   }
   for (const err of validateSegments(line.segments)) {
-    add({ severity: 'blocking', category: 'geometry', message: `Segment table: ${err}.` });
+    add({ severity: 'error', category: 'geometry', message: `Segment table: ${err}.` });
   }
 
   // --- Stops and termination -------------------------------------------------
@@ -148,7 +177,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   const transitMode = !['cycling', 'pedestrian'].includes(line.mode);
   if (transitMode && stops.length < 2) {
     add({
-      severity: 'blocking',
+      severity: 'error',
       category: 'termination',
       message: `The line has ${stops.length} station(s); at least two are needed before it can be considered complete.`,
     });
@@ -160,7 +189,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     const end = path[path.length - 1]!;
     if (!first || distanceM(first.station.position, start) > terminalTol) {
       add({
-        severity: 'blocking',
+        severity: 'error',
         category: 'termination',
         position: start,
         message:
@@ -169,7 +198,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     }
     if (!last || distanceM(last.station.position, end) > terminalTol) {
       add({
-        severity: 'blocking',
+        severity: 'error',
         category: 'termination',
         position: end,
         message:
@@ -185,7 +214,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     const snap = head.length >= 2 ? snapToPath(head, false, end) : null;
     if (!snap || snap.offsetM > terminalTol) {
       add({
-        severity: 'blocking',
+        severity: 'error',
         category: 'termination',
         position: end,
         message:
@@ -350,7 +379,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   // --- Track services ----------------------------------------------------------
   if (line.alignment.kind === 'track' && line.alignment.status === 'unrouted') {
     add({
-      severity: existingInfrastructure(line) ? 'info' : 'blocking',
+      severity: existingInfrastructure(line) ? 'info' : 'error',
       category: 'geometry',
       message: `The service is not routed over the tracks: ${line.alignment.message || 'add stations on tracks and connect them.'}`,
     });
@@ -358,11 +387,69 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     add({ severity: 'warning', category: 'geometry', message: line.alignment.message });
   }
 
+  // --- Vehicles and fleet ------------------------------------------------------
+  const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
+  if (line.vehicleTypeId && !vehicle)
+    add({
+      severity: 'error',
+      category: 'operations',
+      message: 'The selected vehicle type no longer exists.',
+    });
+  if (vehicle && !isVehicleCompatible(vehicle, line.mode))
+    add({
+      severity: 'error',
+      category: 'operations',
+      message: `Vehicle "${vehicle.name}" is not compatible with ${MODES[line.mode].label} lines. Choose a ${MODES[line.mode].label.toLowerCase()} vehicle.`,
+    });
+  if (vehicle?.minRadiusM && line.alignment.kind === 'track') {
+    const net = scenario.trackNetwork;
+    const used = new Set(line.alignment.path.concat(line.alignment.returnPath ?? []).map((s) => s.trackId));
+    const tight = net.tracks
+      .filter((t) => used.has(t.id))
+      .flatMap((t) => trackGeometry(net, t).primitives)
+      .filter((p) => p.kind === 'arc' && p.radius < vehicle.minRadiusM!);
+    if (tight.length)
+      add({
+        severity: 'error',
+        category: 'curve_radius',
+        message: `Vehicle "${vehicle.name}" needs curves of at least ${vehicle.minRadiusM} m; the route has ${tight.length} tighter curve(s).`,
+      });
+  }
+  if (line.alignment.kind === 'track') {
+    // Infrastructure compatibility (domain/compatibility.ts): tracks the mode may not use, and
+    // vehicle gauge or electrification conflicts. Unknown track values never conflict.
+    const net = scenario.trackNetwork;
+    const used = new Set(line.alignment.path.concat(line.alignment.returnPath ?? []).map((s) => s.trackId));
+    const usedTracks = net.tracks.filter((t) => used.has(t.id));
+    const wrong = usedTracks.filter((t) => !serviceCanUse(net, line.mode, t));
+    if (wrong.length)
+      add({
+        severity: 'error',
+        category: 'operations',
+        message: `${MODES[line.mode].label} services may not use ${[...new Set(wrong.map((t) => INFRASTRUCTURE_CLASS_LABELS[trackClass(t)].toLowerCase()))].join(', ')} (${wrong.length} track(s)). Route the service again or change the infrastructure compatibility.`,
+      });
+    if (vehicle) {
+      const issues = new Map<string, number>();
+      for (const t of usedTracks)
+        for (const i of vehicleTrackIssues(vehicle, t))
+          issues.set(i.message, (issues.get(i.message) ?? 0) + 1);
+      for (const [msg, n] of issues)
+        add({ severity: 'error', category: 'operations', message: `${msg} (${n} track(s)).` });
+    }
+  }
+  const fleet = transitMode ? lineFleet(line, scenario) : null;
+  if (fleet && fleet.assigned !== null && fleet.shortfall > 0)
+    add({
+      severity: 'error',
+      category: 'operations',
+      message: `${fleet.assigned} vehicle(s) assigned, but ${fleet.peakRequired} are needed for the ${line.servicePatterns[0]!.peakHeadwayMin}-minute peak headway (cycle ≈ ${Math.round(fleet.cycleMin)} min with placeholder speeds). Add vehicles or lengthen the headway.`,
+    });
+
   // --- Street network ----------------------------------------------------------
   const route = routeStatus(line);
   if (route && route.unrouted > 0) {
     add({
-      severity: existingInfrastructure(line) ? 'info' : 'blocking',
+      severity: existingInfrastructure(line) ? 'info' : 'error',
       category: 'road_compatibility',
       message: `${route.unrouted} of ${route.total} section(s) between waypoints are not routed on the street network. Route them, or mark them as manual sketches, before the line counts as complete.`,
     });
@@ -480,7 +567,7 @@ function curveFindings(
     const kind = g.cls === 'below_minimum' ? 'minimum' : 'recommended';
     return {
       lineId: line.id,
-      severity: existing ? 'info' : g.cls === 'below_minimum' ? 'blocking' : 'warning',
+      severity: existing ? 'info' : g.cls === 'below_minimum' ? 'error' : 'warning',
       category: 'curve_radius',
       position: g.min.position,
       message: `${existing ? 'Existing infrastructure: curve' : 'Curve'} radius ≈${r} m at ${Math.round(g.min.chainageM)} m, below the ${kind} ${g.threshold} m (documented default: ${ruleSource(rule)}). ${estimate}`,
@@ -542,18 +629,31 @@ export function validateScenario(scenario: Scenario, options: ValidationOptions 
     ...validateTrackNetwork(scenario),
     ...scenario.lines.flatMap((l) => validateLine(l, scenario, options)),
   ];
-  const served = new Set(scenario.lines.flatMap((l) => l.stops.map((s) => s.stationId)));
   for (const st of scenario.stations) {
-    if (!served.has(st.id)) {
+    const lines = servingLines(scenario, st.id);
+    const trackLines = lines.filter((l) => l.alignment.kind === 'track');
+    if (!lines.length) {
       findings.push({
         id: `orphan-${st.id}`,
         severity: 'warning',
         category: 'station_alignment',
         stationId: st.id,
         position: st.position,
-        message: `Station "${st.name}" is not served by any line.`,
+        message: st.trackRefs.length
+          ? `Station "${st.name}" is on tracks but no service calls at it.`
+          : `Stop "${st.name}" is not served by any line. A bus stop needs a bus or BRT line passing through it; delete it or add it to a line.`,
       });
     }
+    // A rail station must reference tracks; after a track was deleted it must not look valid.
+    if (trackLines.length && !st.trackRefs.length)
+      findings.push({
+        id: `no-track-${st.id}`,
+        severity: 'error',
+        category: 'station_alignment',
+        stationId: st.id,
+        position: st.position,
+        message: `Station "${st.name}" is not on any track, but ${trackLines.map((l) => `"${l.name}"`).join(', ')} call at it. Draw track through it or assign tracks in the station inspector.`,
+      });
   }
   return findings;
 }
@@ -563,5 +663,5 @@ export function isLineComplete(
   scenario: Scenario,
   options?: ValidationOptions,
 ): boolean {
-  return !validateLine(line, scenario, options).some((f) => f.severity === 'blocking');
+  return !validateLine(line, scenario, options).some((f) => f.severity === 'error');
 }

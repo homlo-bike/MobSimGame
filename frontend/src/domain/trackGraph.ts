@@ -20,6 +20,7 @@ export function successors(
   net: TrackNetwork,
   track: PhysicalTrack,
   dir: Dir,
+  allow?: (t: PhysicalTrack) => boolean,
 ): { track: PhysicalTrack; dir: Dir }[] {
   const nodeId = dir === 1 ? track.toNodeId : track.fromNodeId;
   const node = net.nodes.find((n) => n.id === nodeId);
@@ -30,7 +31,7 @@ export function successors(
     if (e.trackId === track.id && e.end === arriving.end) continue;
     if (!isPermitted(node, arriving, e)) continue;
     const t = net.tracks.find((x) => x.id === e.trackId);
-    if (!t) continue;
+    if (!t || (allow && !allow(t))) continue;
     const d: Dir = e.end === 'start' ? 1 : -1;
     if (permits(t, d)) out.push({ track: t, dir: d });
   }
@@ -68,11 +69,13 @@ export function shortestPath(
   from: TrackPosition,
   to: TrackPosition,
   startDir?: Dir,
+  allow?: (t: PhysicalTrack) => boolean,
 ): GraphPath | null {
   const byId = new Map(net.tracks.map((t) => [t.id, t]));
   const start = byId.get(from.trackId);
   const goal = byId.get(to.trackId);
   if (!start || !goal) return null;
+  if (allow && (!allow(start) || !allow(goal))) return null;
   const lengths = new Map<string, number>();
   const len = (t: PhysicalTrack) => {
     let l = lengths.get(t.id);
@@ -102,7 +105,7 @@ export function shortestPath(
       if (ahead && (!best || atGoal < best.total)) best = { label: cur, total: atGoal };
     }
     const exit = cur.entry + len(cur.track);
-    for (const nx of successors(net, cur.track, cur.dir))
+    for (const nx of successors(net, cur.track, cur.dir, allow))
       if (!settled.has(`${nx.track.id}|${nx.dir}`))
         open.push({ track: nx.track, dir: nx.dir, entry: exit, prev: cur, start: false });
   }

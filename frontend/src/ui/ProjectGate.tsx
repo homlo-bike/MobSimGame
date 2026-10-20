@@ -85,7 +85,10 @@ export function ProjectGate() {
     });
   };
 
-  const resuming = gate.resume === 'draw_line';
+  // Drawing a line, region or service asks for a project first and resumes afterwards.
+  const resuming =
+    gate.resume === 'draw_line' || gate.resume === 'draw_region' || gate.resume === 'new_service';
+  const what = gate.resume === 'draw_region' ? 'region' : gate.resume === 'new_service' ? 'service' : 'line';
   return (
     <dialog
       ref={ref}
@@ -95,11 +98,15 @@ export function ProjectGate() {
     >
       <div className="p-4">
         <h2 id="gate-title" className="mb-1 text-lg font-semibold">
-          {resuming ? 'Choose a project for your line' : mode === 'create' ? 'New project' : 'Open a project'}
+          {resuming
+            ? `Choose a project for your ${what}`
+            : mode === 'create'
+              ? 'New project'
+              : 'Open a project'}
         </h2>
         {resuming && (
           <p className="mb-2 text-sm text-slate-700">
-            Lines are saved in a project. Create one or pick an existing one; drawing starts right after.
+            Your work is saved in a project. Create one or pick an existing one; drawing starts right after.
           </p>
         )}
         <div

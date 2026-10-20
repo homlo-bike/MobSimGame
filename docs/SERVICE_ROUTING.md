@@ -41,7 +41,7 @@ Services are routed again automatically when any of these change:
 - a node's movements;
 - a deletion with the *reroute* choice.
 
-An unrouted service is a blocking finding. The line stays visible as a thin sketch
+An unrouted service is an error. The line stays visible as a thin sketch
 between its stops.
 
 ## Deleting track that services use

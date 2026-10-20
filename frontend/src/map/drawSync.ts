@@ -34,12 +34,14 @@ export function reconcileDraw(
   scenario: Scenario,
   selectedLineId: string | null,
   selectedTrackId: string | null = null,
+  selectedRegionId: string | null = null,
 ) {
   draw.transact(
     () => {
       const wanted = new Set([
         ...scenario.lines.map((l) => l.id),
         ...scenario.trackNetwork.tracks.map((t) => t.id),
+        ...scenario.regions.filter((r) => r.visible).map((r) => r.id),
       ]);
       for (const f of draw.features.list()) {
         if (!wanted.has(f.id)) draw.features.delete(f.id);
@@ -50,6 +52,41 @@ export function reconcileDraw(
         const geometry: LineString = { type: 'LineString', coordinates };
         const style = lineStyle('#0f766e', track.id === selectedTrackId, false);
         upsert(draw, track.id, geometry, style, track.name || 'Track');
+      }
+      // Regions: their polygon is the editing handle (MapLibre draws the styled fill). Locked = not editable.
+      for (const r of scenario.regions) {
+        if (!r.visible) continue;
+        const selected = r.id === selectedRegionId;
+        const style = {
+          strokeColor: r.style.outline,
+          strokeWidth: selected ? 2 : 1,
+          strokeOpacity: selected ? 0.9 : 0,
+          fillColor: r.style.fill,
+          fillOpacity: 0,
+        };
+        const existing = draw.features.get(r.id);
+        if (!existing)
+          draw.features.create({
+            id: r.id,
+            type: r.geometry.type,
+            geometry: r.geometry,
+            style,
+            locked: r.locked,
+            properties: { name: r.name },
+          });
+        else {
+          const geomChanged = JSON.stringify(existing.geometry) !== JSON.stringify(r.geometry);
+          if (
+            geomChanged ||
+            existing.locked !== r.locked ||
+            existing.style.strokeOpacity !== style.strokeOpacity
+          )
+            draw.features.update(r.id, {
+              ...(geomChanged ? { geometry: r.geometry } : {}),
+              style,
+              locked: r.locked,
+            });
+        }
       }
       for (const line of scenario.lines) {
         // The handles are what the user edits: route waypoints or vertices (track services have none).

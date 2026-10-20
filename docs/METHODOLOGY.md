@@ -41,6 +41,13 @@ convention, **not** a probabilistic confidence interval. The relative spread
   largest deviation is noted on the line.
 - Stations on tracks: tracks within 20 m (owner requirement, adjustable) of the
   station on the same level, measured in the projected frame.
+- Region area: the polygon (minus holes) projected into the project frame and
+  measured there with the shoelace formula; never entered. "Calculated density"
+  is a stored population divided by this area and is labelled as calculated.
+  Splitting a region does not divide its statistics: numeric values are dropped
+  from the parts and text values kept, with a note. Merging does not add them up:
+  the first region's values are kept and a note asks the user to check them for the
+  merged area. No figure is invented.
 - Grades: `(Δ elevation / Δ chainage) × 100` between samples of ground elevation.
   Not a vertical alignment.
 - Shared track detection: sample one line every 25 m and test distance to the
@@ -48,8 +55,16 @@ convention, **not** a probabilistic confidence interval. The relative spread
 
 ## Validation
 
-Findings: *Information*, *Recommendation*, *Warning*, *Blocking geometry error*.
-A line is **complete** only without blocking findings:
+Findings have four categories, shown with a text label and a symbol (never colour alone):
+
+| Category | Meaning |
+| --- | --- |
+| ⛔ **Error** | Prevents a valid route, service, simulation or export; requires your action. |
+| ⚠ **Warning** | The project can continue, but the condition may be unrealistic, unsafe, incomplete or outside the configured preferred range. |
+| ◇ **Recommendation** | An optional improvement; it does not make the project invalid. |
+| ℹ **Information** | A neutral observation or calculated status. |
+
+A line is **complete** only without errors:
 
 - valid geometry (≥ 2 distinct vertices; rings ≥ 3);
 - at least two stations (transit modes);
@@ -77,8 +92,12 @@ Threshold checks use versioned mode profiles in `domain/modeProfiles.ts`:
   0.75 (dedicated track). Line running speed is the length-weighted harmonic mean.
 - Cycle time: two-ended lines `2 × (L / v + n × dwell) + 2 × layover`;
   rings `L / v + n × dwell + layover`.
-- Vehicles in service: `⌈cycle / peak headway⌉`.
-- Capacity (pphpd): `60 / headway × vehicle capacity` (placeholder vehicle types).
+- Vehicles in service: `⌈cycle / peak headway⌉` (also off-peak). A line's assigned
+  fleet below the peak figure is an error. The simulation does not yet limit
+  departures to the assigned fleet; that comes in work package P3-14.
+- Consist length = vehicle length × units per consist; consist capacity = vehicle
+  capacity × units. Capacity (pphpd) uses the consist.
+- Capacity (pphpd): `60 / headway × consist capacity` (placeholder vehicle types unless the user enters a profile).
 
 ## Exploratory demand (Phase 1, synthetic inputs)
 
@@ -131,7 +150,11 @@ bidirectional lines reverse at terminals. Services on double track return on the
 other track.
 
 - **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a
-  vehicle reaching a signal on red waits until the next green. Signals come from
+  vehicle reaching a signal on red waits until the next green. A signal with an
+  approximate delay holds each vehicle for that fixed time instead. A signal
+  attached to a line or track applies only there; one whose controls are set
+  applies only to the vehicles it controls (trams, buses). Signals are placed by
+  hand or found in OSM; the absence of a mapped signal does not mean there is none. Signals come from
   OSM (`highway=traffic_signals` within 15 m of the line); timings are assumptions
   (placeholder cycle 90 s, green 45 s, uncited) and offsets are spread
   deterministically from the signal id. **Transit signal priority** per line: green

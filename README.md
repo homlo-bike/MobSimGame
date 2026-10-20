@@ -53,6 +53,9 @@ set, labelled as such. See the [roadmap](#roadmap).
     order, and on double track the way back uses the other track
     ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
   - Rail lines cannot use "Follows streets" or "Straight segments".
+  - Each track has an infrastructure class (tram, light rail, metro, railway),
+    electrification and gauge. Services are routed only over track their mode may
+    use; the matrix is editable per project (*Infrastructure compatibility*).
 - **Bus and BRT** lines follow streets through waypoints, routed by a self-hosted
   Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)). Unrouted sections make a line
   incomplete until routed or marked manual. Cycling and walking corridors use straight
@@ -60,9 +63,16 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Drawing and point editing with snapping (`@sakuzu/maplibre-gl-draw`). The Table
   view creates track, stations on track, and lines from typed coordinates (no map
   needed).
-- **Directions:** each physical track has a running direction (arrows on the map,
-  both ways on single track). Street-routed and straight lines keep per-segment
-  track sides and can be reversed.
+- **Directions:** each physical track has a running direction. Arrows sit beside the
+  track on the running side, so the two directions of a single track, or the two
+  tracks of a double track, never overlap. Their spacing follows the zoom and they
+  keep clear of stations. The line inspector and the Table view say the direction
+  in words. Street-routed and straight lines keep per-segment track sides and can be
+  reversed; services on tracks reverse their stop order.
+- **Vehicle profiles** per mode (bus, BRT, tram, light rail, metro and train
+  categories) with dimensions, performance and compatibility. A line lists only
+  vehicles of its mode. You set the fleet and consist per line, and errors flag a
+  fleet too small for the headway or curves too tight for the vehicle.
 - **Parameters** (track spacing, station search distance, minimum separation) show
   their default, range, status and source and can be changed per project. Uncited
   values are marked placeholder.
@@ -76,16 +86,35 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Per-segment structure (surface, underground, elevated, bridge, bored tunnel,
   cut and cover), right of way and single/double track; split/merge segments.
 - Terminations: terminal/siding/turnback/depot ends, ring lines, user-defined loops.
-- Validation findings (information / recommendation / warning / blocking): terminal
-  or loop rule, geometry, stop spacing, **curve radius against cited minimum and
+- **Validation** in four labelled categories:
+  - ⛔ Error: prevents a valid route, service or export;
+  - ⚠ Warning;
+  - ◇ Recommendation;
+  - ℹ Information.
+
+  Each category shows its meaning, a count and a filter, and findings can be
+  sorted by line, station, segment, mode or severity. Every finding links to its
+  object and zooms the map to it.
+
+  **Markers on the map** have a distinct shape per category (square, triangle,
+  diamond, circle). They are grouped when crowded, can be hidden per category, and
+  open their object and finding when clicked. Direction arrows keep clear of them.
+
+  Checks include: terminal or loop rule, geometry, stop spacing, **curve radius against cited minimum and
   recommended values per mode** ([docs/CURVE_RADII.md](docs/CURVE_RADII.md)), grades
   (with elevation data), structure transitions, unrouted bus sections. Other
   thresholds are uncited placeholders and say so.
+- **Regions**: draw, cut holes, split, merge, lock, style and label polygons; give
+  them a type and user-entered statistics, each with unit, year, source, status and
+  confidence; GeoJSON import/export. Area is calculated in the project frame. Find a
+  city, district or neighbourhood and import its OpenStreetMap boundary as a
+  region; without a boundary the map centres there for drawing by hand.
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Trams
-  and buses stop at red **traffic signals** from OpenStreetMap with simulated cycles
+  and buses stop at red **traffic signals**, found in OpenStreetMap or placed by hand
+  (with type, controlled users, priority, delay and attachment), with simulated cycles
   (assumed, editable timings) and optional per-line **transit signal priority**.
   **Disruptions:** close a section and trains turn back at the nearest crossovers or
   share the remaining track. **Single track** used in both directions is occupied by

@@ -5,6 +5,7 @@
 import type { LngLat, Scenario, Station, TransportLine, TransportMode, Project, SharedTrack } from './schema';
 import { EMPTY_TRACK_NETWORK, PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
 import { MODES, defaultVehicleTypes } from './modes';
+import { compatibleVehicles } from './vehicles';
 import { newId, nowIso } from '../util/id';
 import {
   distanceM,
@@ -111,7 +112,7 @@ export function createLine(
   if (ring && coords.length > 3 && distanceM(coords[0]!, coords[coords.length - 1]!) <= 5) {
     coords = coords.slice(0, -1);
   }
-  const vehicle = scenario.vehicleTypes.find((v) => v.mode === input.mode) ?? null;
+  const vehicle = compatibleVehicles(scenario.vehicleTypes, input.mode)[0] ?? null;
   const built = buildAlignment(input.alignment ?? defaultAlignmentKind(input.mode), coords, ring);
   const line: TransportLine = {
     id: input.id ?? newId('line'),
@@ -152,6 +153,8 @@ export function createLine(
       },
     ],
     vehicleTypeId: vehicle?.id ?? null,
+    fleetSize: null,
+    consistUnits: null,
     dwellTimeS: mode.defaultDwellTimeS,
     maxSpeedKmh: mode.defaultMaxSpeedKmh,
     metadata: {},
@@ -287,6 +290,7 @@ export function addStationOnLine(
     position: snap.position,
     construction,
     platformType: 'unknown',
+    busStopType: 'unknown',
     verticalOffsetM: null,
     entrances: [],
     accessibility: { stepFree: null, elevators: null, tactilePaving: null },
@@ -487,6 +491,7 @@ export function joinLines(
   const b = scenario.lines.find((l) => l.id === bId);
   if (!a || !b || a.id === b.id) return { scenario, error: 'Choose two different lines' };
   if (isRing(a) || isRing(b)) return { scenario, error: 'Ring lines cannot be joined' };
+  if (a.mode !== b.mode) return { scenario, error: 'Lines of different modes cannot be joined' };
   if (a.alignment.kind === 'track' || b.alignment.kind === 'track')
     return { scenario, error: 'Services on tracks are extended by adding stops, not by joining lines' };
   const aEnd = a.coordinates[a.coordinates.length - 1]!;
@@ -622,6 +627,7 @@ export function emptyScenario(name = 'Scenario A'): Scenario {
     description: '',
     systems: [{ id: newId('sys'), name: 'Network', color: '#0f766e', visible: true }],
     trackNetwork: { ...EMPTY_TRACK_NETWORK },
+    regions: [],
     lines: [],
     stations: [],
     platforms: [],

@@ -8,6 +8,7 @@ import { samplePath } from '../geo/geometry';
 import { gradeSummary, validateScenario, type ElevationProfile } from '../validation/validate';
 import { mockProviders } from '../providers/registry';
 import { RangeChart } from './RangeChart';
+import { ValidationSummary } from './FindingsList';
 import { Badge, Section } from './primitives';
 
 function StatTile({ label, value, note }: { label: string; value: string; note: string }) {
@@ -28,8 +29,6 @@ function RealPlaceDashboard() {
   const scenario = useScenario();
   const unitSystem = useStore((s) => s.unitSystem);
   const findings = useMemo(() => validateScenario(scenario), [scenario]);
-  const counts = { blocking: 0, warning: 0, recommendation: 0, info: 0 };
-  for (const f of findings) counts[f.severity]++;
   const lines = scenario.lines.map((l) => {
     const stops = orderedStops(l, scenario.stations);
     const len = lineLengthM(l);
@@ -63,11 +62,10 @@ function RealPlaceDashboard() {
         />
         <StatTile label="Stations" value={String(served.size)} note="Shared stations counted once" />
         <StatTile label="Interchanges" value={String(interchanges)} note="Stations on ≥ 2 lines" />
-        <StatTile
-          label="Validation"
-          value={`${counts.blocking} ⛔ · ${counts.warning} ⚠`}
-          note={`${counts.recommendation} recommendations, ${counts.info} info`}
-        />
+        <div className="rounded border border-slate-300 bg-white p-2 md:col-span-2">
+          <p className="mb-1 text-xs text-slate-700">Validation</p>
+          <ValidationSummary findings={findings} />
+        </div>
       </div>
       <Section title="Lines (calculated from geometry)" id="dash-lines">
         <table className="w-full text-sm">
@@ -171,8 +169,6 @@ function DemoDashboard() {
     };
   }, [scenario, project.fictional]);
 
-  const counts = { blocking: 0, warning: 0, recommendation: 0, info: 0 };
-  for (const f of findings) counts[f.severity]++;
   const topStations = [...analysis.stations]
     .sort((a, b) => b.weekdayBoardings.central - a.weekdayBoardings.central)
     .slice(0, 12);
@@ -218,11 +214,10 @@ function DemoDashboard() {
           value={String(analysis.totals.vehicles)}
           note="Placeholder speeds and peak headway"
         />
-        <StatTile
-          label="Validation"
-          value={`${counts.blocking} ⛔ · ${counts.warning} ⚠`}
-          note={`${counts.recommendation} recommendations, ${counts.info} info`}
-        />
+        <div className="rounded border border-slate-300 bg-white p-2 md:col-span-2">
+          <p className="mb-1 text-xs text-slate-700">Validation</p>
+          <ValidationSummary findings={findings} />
+        </div>
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">

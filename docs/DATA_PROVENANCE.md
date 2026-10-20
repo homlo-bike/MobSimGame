@@ -46,6 +46,7 @@ Projects keep `datasetReferences` (a list of provenance records); analysis resul
 | Demo population, traffic, existing transit, elevation, OSM features | demonstration (synthetic) | `providers/mock.ts` |
 | Station-name suggestions (real places) | observed (OSM) | Overpass via backend, ODbL |
 | Geocoding | observed (OSM) | Nominatim via backend, ODbL |
+| Region boundaries from lookup | imported (OSM) | Nominatim `/lookup` polygon, ODbL; region source links the OSM object |
 
 ## Population figures
 

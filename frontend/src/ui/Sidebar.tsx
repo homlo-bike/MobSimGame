@@ -15,6 +15,14 @@ import { defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
 import { trackSpacingM } from '../domain/trackParameters';
 import { finishServiceDraft } from '../store/trackActions';
 import { CommitField } from './CommitField';
+import { SEVERITY_ORDER, SEVERITY_PLURALS, SEVERITY_SYMBOLS, type Severity } from '../validation/validate';
+
+const MARKER_SHAPES: Record<Severity, string> = {
+  error: 'square',
+  warning: 'triangle',
+  recommendation: 'diamond',
+  info: 'circle',
+};
 
 export function SearchBox() {
   const [q, setQ] = useState('');
@@ -260,6 +268,8 @@ export function LayerPanel() {
   const layers = useStore((s) => s.layers);
   const toggle = useStore((s) => s.toggleLayer);
   const fictional = useStore((s) => s.project.fictional);
+  const markerVisibility = useStore((s) => s.markerVisibility);
+  const setMarkerVisible = useStore((s) => s.setMarkerVisible);
   const synthetic = fictional
     ? 'Synthetic demonstration data'
     : 'No provider configured for real places (Phase 3); hidden';
@@ -306,6 +316,20 @@ export function LayerPanel() {
         checked={layers.catchments}
         onChange={() => toggle('catchments')}
       />
+      <fieldset className="mt-2">
+        <legend className="text-xs font-medium text-slate-800">Validation markers on the map</legend>
+        {SEVERITY_ORDER.map((sev) => (
+          <Checkbox
+            key={sev}
+            label={`${SEVERITY_SYMBOLS[sev]} ${SEVERITY_PLURALS[sev]} (${MARKER_SHAPES[sev]})`}
+            checked={markerVisibility[sev]}
+            onChange={(v) => setMarkerVisible(sev, v)}
+          />
+        ))}
+        <p className="text-xs text-slate-600">
+          Click a marker to open its object and finding; nearby markers are grouped until you zoom in.
+        </p>
+      </fieldset>
     </Section>
   );
 }
