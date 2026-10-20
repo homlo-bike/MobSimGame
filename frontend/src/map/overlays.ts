@@ -1,4 +1,5 @@
 /** Pure builders for the GeoJSON shown in MapLibre layers (no map access). */
+import { accessFacilities, accessIconId } from '../domain/stationAccess';
 import type { FeatureCollection, Feature } from 'geojson';
 import { circle } from '@turf/turf';
 import type { LngLat, Scenario, TransportMode } from '../domain/schema';
@@ -443,6 +444,8 @@ export function stationsCollection(scenario: Scenario, selectedStationId: string
           // Stations on top of each other on different levels share one label, top level first.
           label: labels.get(s.id) ?? s.name,
           level: s.layout ? stationObjectLevel(scenario, s) : 0,
+          // Elevator / escalator / ramp pictograms after the name (none on a hidden stacked label).
+          accessIcon: labels.get(s.id) === '' ? null : accessIconId(accessFacilities(s.accessibility)),
           interchange: isInterchange(scenario, s.id),
           color: lines[0]?.color ?? '#475569',
           lineCount: lines.length,

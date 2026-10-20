@@ -200,7 +200,7 @@ export function placeStation(
     },
     verticalOffsetM: null,
     entrances: [],
-    accessibility: { stepFree: null, elevators: null, tactilePaving: null },
+    accessibility: { stepFree: null, elevators: null, escalators: null, ramp: null, tactilePaving: null },
     catchmentRadiusM: MODES[input.mode].defaultCatchmentRadiusM,
     trackRefs: [],
     metadata: {},

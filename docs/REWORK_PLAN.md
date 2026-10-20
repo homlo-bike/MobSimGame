@@ -37,7 +37,7 @@ with each one.
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | this PR (ramps from level heights, gradient and station checks, portals; terrain follows) |
 | R7 | Trains drawn to scale (length, width, units per consist) | this PR (vehicles at scale from zoom 15.5; waiting shown by outline) |
-| R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | planned |
+| R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | this PR |
 | R9 | `.env` examples for development, test and production (including `MOBSIM_VALHALLA_URL=http://valhalla:8002`); full export with every calculated value and all metadata; **GTFS export** and **SUMO network/route export** (owner decision: interoperate with SUMO through files, no extra container); later optional import of SUMO vehicle output for playback | environment files and full export: this PR; GTFS and SUMO export follow |
 | R10 | Read-only demo viewer (Cloudflare Pages) | planned |
 | R11 | Schematic: select, move, pan and zoom; text alternative as the line with its stations and their symbols | planned |

@@ -3,6 +3,8 @@
  * basemap switch (style.load). Structure types use distinct dash patterns and
  * widths so they are distinguishable without colour.
  */
+import { accessImage } from './accessIcons';
+import { ACCESS_COMBINATIONS, accessIconId } from '../domain/stationAccess';
 import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
 import type { StructureType } from '../domain/schema';
@@ -669,7 +671,20 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       type: 'symbol',
       source: SRC.stations,
       layout: {
-        'text-field': ['coalesce', ['get', 'label'], ['get', 'name']],
+        'text-field': [
+          'case',
+          ['to-boolean', ['get', 'accessIcon']],
+          [
+            'format',
+            ['coalesce', ['get', 'label'], ['get', 'name']],
+            {},
+            ' ',
+            {},
+            ['image', ['get', 'accessIcon']],
+            {},
+          ],
+          ['coalesce', ['get', 'label'], ['get', 'name']],
+        ],
         'text-font': ['Noto Sans Regular'],
         'text-size': 12,
         'text-offset': [0, 1.2],
@@ -679,6 +694,11 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       },
       paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
     });
+  }
+  // Elevator / escalator / ramp pictograms after station names: every combination.
+  for (const facilities of ACCESS_COMBINATIONS) {
+    const id = accessIconId(facilities)!;
+    if (!map.hasImage(id)) map.addImage(id, accessImage(facilities), { pixelRatio: 1 });
   }
   // Validation markers, above stations and lines.
   for (const sev of ['error', 'warning', 'recommendation', 'info'] as const)
