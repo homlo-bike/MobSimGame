@@ -23,6 +23,7 @@ export const SRC = {
   signals: 'msg-signals',
   routeStatus: 'msg-route-status',
   guides: 'msg-guides',
+  ramps: 'msg-ramps',
   wires: 'msg-wires',
   stopDraft: 'msg-stop-draft',
   curveLabels: 'msg-curve-labels',
@@ -449,6 +450,40 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     filter: ['==', ['get', 'kind'], 'stop'],
     layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-allow-overlap': true },
     paint: { 'text-color': '#1e3a8a' },
+  });
+  // Ramps between levels: label (levels, gradient, length) and the portal at street level.
+  add({
+    id: 'msg-ramp-portal',
+    type: 'circle',
+    source: SRC.ramps,
+    filter: ['==', ['get', 'kind'], 'portal'],
+    paint: {
+      'circle-radius': 5,
+      'circle-color': '#ffffff',
+      'circle-stroke-color': '#0f172a',
+      'circle-stroke-width': 2,
+    },
+  });
+  add({
+    id: 'msg-ramp-label',
+    type: 'symbol',
+    source: SRC.ramps,
+    minzoom: 13,
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-size': 11,
+      'text-offset': [
+        'case',
+        ['==', ['get', 'kind'], 'portal'],
+        ['literal', [0, 1.1]],
+        ['literal', [0, -1.1]],
+      ],
+    },
+    paint: {
+      'text-color': ['case', ['==', ['get', 'fits'], false], '#991b1b', '#0f172a'],
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 2,
+    },
   });
   // The drawing guide the cursor is snapped to.
   add({
