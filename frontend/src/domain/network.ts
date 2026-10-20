@@ -5,6 +5,7 @@
 import type { LngLat, Scenario, Station, TransportLine, TransportMode, Project, SharedTrack } from './schema';
 import { EMPTY_TRACK_NETWORK, PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
 import { MODES, defaultVehicleTypes } from './modes';
+import { parameterValue } from './trackParameters';
 import { compatibleVehicles } from './vehicles';
 import { newId, nowIso } from '../util/id';
 import {
@@ -25,8 +26,10 @@ import {
   type AlignmentKind,
 } from './alignment';
 
-/** A click within this distance of an existing station reuses it (shared station). */
-export const STATION_MERGE_RADIUS_M = 60;
+/** A click within this distance of an existing station reuses it (project parameter, default 20 m). */
+export function stationMergeRadiusM(scenario: Pick<Scenario, 'trackNetwork'>): number {
+  return parameterValue(scenario.trackNetwork, 'stopMergeRadiusM');
+}
 /** A station further than this from a line it serves is flagged by validation. */
 export const STATION_ON_LINE_TOLERANCE_M = 80;
 
@@ -247,7 +250,7 @@ export interface AddStationResult {
 
 /**
  * Add a stop to a line at the point nearest to `at`. If an existing station is
- * within STATION_MERGE_RADIUS_M of the snapped point it is shared instead of
+ * within the stop merge distance (`stationMergeRadiusM`) of the snapped point it is shared instead of
  * duplicated (stations are referenced entities).
  */
 export function addStationOnLine(
@@ -271,7 +274,7 @@ export function addStationOnLine(
   }
   const existing = scenario.stations
     .map((s) => ({ s, d: distanceM(s.position, snap.position) }))
-    .filter((x) => x.d <= STATION_MERGE_RADIUS_M)
+    .filter((x) => x.d <= stationMergeRadiusM(scenario))
     .sort((a, b) => a.d - b.d)[0]?.s;
   if (existing) {
     if (line.stops.some((s) => s.stationId === existing.id)) {
