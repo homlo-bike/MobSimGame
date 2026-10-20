@@ -228,7 +228,7 @@ function ProfileEditor({ v }: { v: VehicleType }) {
   );
 }
 
-export function VehicleProfilesPanel() {
+export function VehicleProfilesPanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const scenario = useScenario();
   const commit = useStore((s) => s.commitScenario);
   const [mode, setMode] = useState<TransportMode>('bus');
@@ -272,7 +272,7 @@ export function VehicleProfilesPanel() {
       title={`Vehicle profiles (${scenario.vehicleTypes.length})`}
       id="vehicle-profiles"
       collapsible
-      defaultOpen={false}
+      defaultOpen={defaultOpen}
     >
       <p className="mb-1 text-xs text-slate-600">
         A line can only use vehicles of its mode. Unknown values stay empty; built-in profiles are

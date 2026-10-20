@@ -383,6 +383,16 @@ export const TrackNetworkSchema = z.object({
   runningSide: z.enum(['right', 'left']).default('right'),
   /** User overrides of the parameters in domain/trackParameters.ts, by id. */
   parameterOverrides: z.record(z.string(), z.number()).default({}),
+  /** Project defaults for new track of a mode (Project properties); unset = not specified. */
+  modeDefaults: z
+    .record(
+      z.string(),
+      z.object({
+        gaugeMm: z.number().int().positive().nullable().default(null),
+        electrification: ElectrificationSchema.default('unknown'),
+      }),
+    )
+    .default({}),
 });
 export type TrackNetwork = z.infer<typeof TrackNetworkSchema>;
 
@@ -393,6 +403,7 @@ export const EMPTY_TRACK_NETWORK: TrackNetwork = {
   groups: [],
   runningSide: 'right',
   parameterOverrides: {},
+  modeDefaults: {},
 };
 
 /**

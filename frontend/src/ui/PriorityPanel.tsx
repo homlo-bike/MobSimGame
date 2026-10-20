@@ -4,12 +4,12 @@ import { MODE_PRIORITY, moveModePriority } from '../domain/modeSeparation';
 import { useScenario, useStore } from '../store/projectStore';
 import { Button, Section } from './primitives';
 
-export function PriorityPanel() {
+export function PriorityPanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const scenario = useScenario();
   const commit = useStore((s) => s.commitScenario);
   const order = scenario.modePriority ?? MODE_PRIORITY;
   return (
-    <Section title="Crossing priority" id="crossing-priority" collapsible defaultOpen={false}>
+    <Section title="Crossing priority" id="crossing-priority" collapsible defaultOpen={defaultOpen}>
       <p className="mb-1 text-xs text-slate-600">
         Where lines cross or merge on the same level, the higher mode goes first and the other waits until the
         crossing is clear. Between vehicles of the same mode, the one that arrives first goes first. Crossings

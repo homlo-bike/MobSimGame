@@ -480,7 +480,7 @@ export function TrackDeletionDialog() {
 }
 
 /** User-adjustable track parameters with default, range, status and source. */
-export function TrackParametersPanel() {
+export function TrackParametersPanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commitScenario);
   const scenario = project.scenarios.find((x) => x.id === project.activeScenarioId)!;
@@ -492,7 +492,7 @@ export function TrackParametersPanel() {
     commit({ ...scenario, trackNetwork: { ...net, parameterOverrides: next } }, 'Track parameter changed');
   };
   return (
-    <Section title="Project settings" id="project-settings" collapsible defaultOpen={false}>
+    <Section title="Project settings" id="project-settings" collapsible defaultOpen={defaultOpen}>
       <p className="mb-2 text-xs text-slate-600">
         Defaults are cited where a source exists; values marked placeholder are not from a source. Changes
         apply to new track, stops and stations, and to the simulation.
