@@ -8,6 +8,7 @@
  * movements (`node.movements`), so a geometric crossing is never a connection.
  */
 import type {
+  Electrification,
   LngLat,
   Movement,
   PhysicalTrack,
@@ -51,6 +52,15 @@ export const isRailMode = (mode: TransportMode) => RAIL_MODES.includes(mode);
 export function defaultRadiusM(mode: TransportMode): number | null {
   const rule = CURVE_RADIUS_RULES[mode];
   return rule ? (rule.recommendedM ?? rule.minimumM) : null;
+}
+
+/** Gauge and electrification of new track of a mode: the project default (Project properties). */
+export function newTrackDefaults(
+  net: Pick<TrackNetwork, 'modeDefaults'>,
+  mode: TransportMode,
+): { gaugeMm: number | null; electrification: Electrification } {
+  const d = net.modeDefaults?.[mode];
+  return { gaugeMm: d?.gaugeMm ?? null, electrification: d?.electrification ?? 'unknown' };
 }
 
 export function levelOfStructure(structure: StructureType): number {
@@ -573,8 +583,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     rightOfWay: MODES[input.mode].defaultRightOfWay,
     designMode: input.mode,
     infrastructureClass: null,
-    gaugeMm: null,
-    electrification: 'unknown' as const,
+    ...newTrackDefaults(net, input.mode),
     speedLimitKmh: null,
     groupId: null as string | null,
     stationId: null as string | null,

@@ -38,13 +38,14 @@ with each one.
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | planned |
 | R7 | Trains drawn to scale (length, width, units per consist) | this PR (vehicles at scale from zoom 15.5; waiting shown by outline) |
 | R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | planned |
-| R9 | `.env` examples for development, test and production (including `MOBSIM_VALHALLA_URL=http://valhalla:8002`); full export with every calculated value and all metadata | planned |
+| R9 | `.env` examples for development, test and production (including `MOBSIM_VALHALLA_URL=http://valhalla:8002`); full export with every calculated value and all metadata; **GTFS export** and **SUMO network/route export** (owner decision: interoperate with SUMO through files, no extra container); later optional import of SUMO vehicle output for playback | planned |
 | R10 | Read-only demo viewer (Cloudflare Pages) | planned |
 | R11 | Schematic: select, move, pan and zoom; text alternative as the line with its stations and their symbols | planned |
-| R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status; traffic-aware simulation | planned |
+| R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status | this PR (Parameters, Modes with gauge and electrification of new track, Vehicles, Crossing priority) |
+| R13 | Realistic vehicle movement from SUMO's **published models, not its code** (owner decision): acceleration and braking from the vehicle profiles, then car following (Intelligent Driver Model / Krauss, cited); parameters in Project properties; per-crossing priority overrides | planned |
 
 Order after R4b (owner, 2026-10-20): stop merge distance setting, R4b wire, **R7 next**,
-then R12 project properties, then the rest.
+then R12 project properties, R13 vehicle movement, R9 environment files and export (GTFS, SUMO), then R8, R5, R6, R11, R10.
 
 Known limitation: a loop or curve too tight for double track is refused with a
 message saying how large it must be (owner: drawing a bigger loop fixes it).

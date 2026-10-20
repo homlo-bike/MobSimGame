@@ -1,4 +1,4 @@
-import { PriorityPanel } from './ui/PriorityPanel';
+import { ProjectPropertiesDialog } from './ui/ProjectPropertiesDialog';
 import { stationMode } from './domain/modeSeparation';
 import { MODES } from './domain/modes';
 import type { TransportMode } from './domain/schema';
@@ -14,15 +14,8 @@ import { fetchSharedProject } from './api/projects';
 import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
 import { LineInspector } from './ui/LineInspector';
-import { VehicleProfilesPanel } from './ui/VehicleProfiles';
 import { RegionInspector, RegionsPanel } from './ui/RegionInspector';
-import {
-  NodeInspector,
-  TrackDeletionDialog,
-  LoopDialog,
-  TrackInspector,
-  TrackParametersPanel,
-} from './ui/TrackInspector';
+import { NodeInspector, TrackDeletionDialog, LoopDialog, TrackInspector } from './ui/TrackInspector';
 import { StationInspector } from './ui/StationInspector';
 import { SimulationControls } from './ui/SimulationControls';
 import { SchematicView } from './ui/SchematicView';
@@ -317,9 +310,7 @@ export default function App() {
           <NetworkLists />
           <RegionsPanel />
           <SignalsPanel />
-          <TrackParametersPanel />
-          <PriorityPanel />
-          <VehicleProfilesPanel />
+          <ProjectPropertiesEntry />
           <ScenarioPanel />
           <LayerPanel />
         </aside>
@@ -392,10 +383,32 @@ export default function App() {
       </div>
       <Toast />
       <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
+      <ProjectPropertiesDialog />
       {projectGateOpen && <ProjectGate />}
       <TrackDeletionDialog />
       <LoopDialog />
       {examplesOpen && <ExampleDialog open={examplesOpen} onClose={() => setExamplesOpen(false)} />}
     </div>
+  );
+}
+
+/** Sidebar entry to the Project properties dialog (parameters, modes, vehicles, priority). */
+function ProjectPropertiesEntry() {
+  const open = useStore((s) => s.openProperties);
+  return (
+    <section aria-labelledby="pp-entry" className="border-b border-slate-200 px-3 py-2">
+      <h2 id="pp-entry" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Project properties
+      </h2>
+      <p className="mb-1 text-xs text-slate-600">
+        All defaults with their sources: parameters, modes, vehicles and crossing priority.
+      </p>
+      <div className="flex flex-wrap gap-1">
+        <Button onClick={() => open('parameters')}>Parameters</Button>
+        <Button onClick={() => open('modes')}>Modes</Button>
+        <Button onClick={() => open('vehicles')}>Vehicles</Button>
+        <Button onClick={() => open('priority')}>Priority</Button>
+      </div>
+    </section>
   );
 }

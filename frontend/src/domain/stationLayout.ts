@@ -25,6 +25,7 @@ import {
   setTrackPoints,
   trackGeometry,
   updateTrack,
+  newTrackDefaults,
 } from './tracks';
 import { parameterValue, platformLengthM, trackSpacingM } from './trackParameters';
 import { deleteStation, uniqueStationName } from './network';
@@ -233,8 +234,7 @@ function rebuildStation(scenario: Scenario, stationId: string): Scenario {
         rightOfWay: 'dedicated_track',
         designMode: layout.mode,
         infrastructureClass: null,
-        gaugeMm: null,
-        electrification: 'unknown',
+        ...newTrackDefaults(sc.trackNetwork, layout.mode),
         speedLimitKmh: null,
         groupId: null,
         stationId: st.id,

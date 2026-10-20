@@ -8,7 +8,7 @@ at the kerb on the side of the street where the vehicle stops. Esc, Enter, a
 right-click or **Finish line** ends the drawing; Backspace removes the last stop,
 and fewer than two stops cancel. The line runs one way through the stops and then
 returns to the first stop (a one-way loop), so every stop is served from one side
-of the street. A click within 20 m (the stop merge distance in Project settings) of an existing stop of the same mode reuses
+of the street. A click within 20 m (the stop merge distance in Project properties → Parameters) of an existing stop of the same mode reuses
 that stop; stops of other modes are never shared. A stop keeps its place in the
 order even where the route passes it again on the way back.
 
