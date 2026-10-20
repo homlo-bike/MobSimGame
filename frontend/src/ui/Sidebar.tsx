@@ -285,6 +285,7 @@ export function ToolPanel() {
 export function LayerPanel() {
   const basemapId = useStore((s) => s.basemapId);
   const setBasemap = useStore((s) => s.setBasemap);
+  const background = basemapOptions().find((o) => o.id === basemapId)?.kind ?? 'map';
   const layers = useStore((s) => s.layers);
   const toggle = useStore((s) => s.toggleLayer);
   const fictional = useStore((s) => s.project.fictional);
@@ -296,23 +297,29 @@ export function LayerPanel() {
   return (
     <Section title={t('layers')} id="layers" collapsible defaultOpen={false}>
       <SelectField
-        label="Basemap"
+        label="Background"
         value={basemapId}
         onChange={(e) => setBasemap(e.target.value)}
         options={basemapOptions().map((o) => ({ value: o.id, label: o.label }))}
+        hint={
+          'One background at a time (map, aerial or terrain): only the visible one is downloaded.' +
+          (terrainSource() ? '' : ' Terrain relief needs elevation tiles (not configured).')
+        }
       />
-      <Checkbox
-        label="Terrain (3D, visual only)"
-        checked={layers.terrain}
-        onChange={() => toggle('terrain')}
-        hint={terrainSource() ? 'Tilt the map to see relief' : 'Terrain tiles not configured'}
-      />
-      <Checkbox label="Buildings (basemap)" checked={layers.buildings} onChange={() => toggle('buildings')} />
-      <Checkbox
-        label="Parking and land use (basemap, where mapped)"
-        checked={layers.parkingLandUse}
-        onChange={() => toggle('parkingLandUse')}
-      />
+      {background === 'map' && (
+        <>
+          <Checkbox
+            label="Buildings (basemap)"
+            checked={layers.buildings}
+            onChange={() => toggle('buildings')}
+          />
+          <Checkbox
+            label="Parking and land use (basemap, where mapped)"
+            checked={layers.parkingLandUse}
+            onChange={() => toggle('parkingLandUse')}
+          />
+        </>
+      )}
       <Checkbox
         label="Existing public transport"
         checked={layers.existingTransit}

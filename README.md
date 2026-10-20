@@ -269,7 +269,7 @@ coordinate parser; sharing and reports are unavailable).
 - Backend: `MOBSIM_*` — see [.env.example](.env.example) and
   [docs/PROVIDER_CONFIGURATION.md](docs/PROVIDER_CONFIGURATION.md).
 - Frontend build: `VITE_API_BASE_URL`, `VITE_EXTRA_BASEMAPS`,
-  `VITE_TERRAIN_TILES_URL`, `VITE_SOURCE_URL`, `VITE_LOG_LEVEL` — public values only
+  `VITE_TERRAIN_TILES_URL`, `VITE_ESRI_IMAGERY`, `VITE_SOURCE_URL`, `VITE_LOG_LEVEL` — public values only
   ([frontend/.env.example](frontend/.env.example)).
 
 ## Logging

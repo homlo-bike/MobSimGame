@@ -77,6 +77,8 @@ export type ProviderKind =
 export interface BasemapOption {
   id: string;
   label: string;
+  /** Map (vector OSM style), aerial imagery, terrain relief, or no basemap. Only one is shown at a time. */
+  kind: 'map' | 'aerial' | 'terrain' | 'plain';
   /** MapLibre style URL or inline style object. */
   style: string | object;
   attribution: string;

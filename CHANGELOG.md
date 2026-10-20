@@ -8,6 +8,18 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Aerial imagery background**: Sentinel-2 cloudless 2016 by EOX (10 m, CC BY 4.0,
+  keyless). Esri World Imagery can be offered by a deployment that accepts Esri's
+  terms (`VITE_ESRI_IMAGERY=1`).
+
+### Changed
+
+- **One background at a time**: the Layers panel's "Background" choice is a map
+  (OpenStreetMap styles), aerial imagery, terrain relief or none. Terrain is now a
+  background (hillshading, 3D when tilted) instead of an extra layer on top of the
+  map, so only the visible background is downloaded. Basemap building and land-use
+  options show only with a map background.
+
 - **Following the vehicle ahead** (R13 part 2). Buses, BRT, trolleybuses, trams and
   light rail keep the Intelligent Driver Model's steady-state gap (2.5 m + speed ×
   1.0 s, SUMO defaults, plus the length of the vehicle ahead) instead of a fixed
