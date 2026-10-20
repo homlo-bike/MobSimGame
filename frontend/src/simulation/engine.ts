@@ -27,7 +27,7 @@ import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates } from '../domain/serviceRouting';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
-import { minSeparationM, parameterValue } from '../domain/trackParameters';
+import { following, parameterValue, type Following } from '../domain/trackParameters';
 import { consistLengthM } from '../domain/vehicles';
 import { trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
@@ -152,8 +152,10 @@ export interface LineSimulationModel {
   returnPath: MeasuredPath | null;
   /** Shared resources along the path per travel direction (line chainage, from < to). */
   spans: { forward: ResourceSpan[]; backward: ResourceSpan[] };
-  /** Minimum distance to the vehicle ahead, metres (placeholder parameter). */
-  separationM: number;
+  /** How vehicles keep their distance to the one ahead (on sight or signalled). */
+  following: Following;
+  /** Length of one consist (m): the vehicle ahead occupies this much before the gap starts. */
+  vehicleLengthM: number;
   /** Shared scheduling context (one per scenario, or private for a single line). */
   context: SimulationContext;
   /** Priority at crossings and merges: 0 = highest (mode order). Higher ranks are scheduled first. */
@@ -510,15 +512,22 @@ function occupancyInputs(
   line: TransportLine,
   scenario: Scenario,
   path: MeasuredPath,
-): Pick<LineSimulationModel, 'returnPath' | 'spans' | 'separationM'> {
+): Pick<LineSimulationModel, 'returnPath' | 'spans' | 'following' | 'vehicleLengthM'> {
   const back = line.direction === 'bidirectional' ? returnCoordinates(scenario, line) : null;
   const returnPath = back && back.length >= 2 ? measurePath(back, false) : null;
-  const separationM = minSeparationM(scenario.trackNetwork, line.mode);
+  const separation = {
+    following: following(scenario.trackNetwork, line.mode),
+    vehicleLengthM:
+      consistLengthM(
+        line,
+        scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId),
+      ) ?? parameterValue(scenario.trackNetwork, 'unknownVehicleLengthM'),
+  };
   if (line.alignment.kind !== 'track' || !line.alignment.path.length) {
     const whole = (sign: 1 | -1): ResourceSpan[] => [
       { fromM: 0, toM: path.lengthM, resourceId: `line:${line.id}:${sign}`, sign, opposing: false },
     ];
-    return { returnPath, separationM, spans: { forward: whole(1), backward: whole(-1) } };
+    return { returnPath, ...separation, spans: { forward: whole(1), backward: whole(-1) } };
   }
   const net = scenario.trackNetwork;
   const blocks = singleTrackBlocks(net);
@@ -552,7 +561,7 @@ function occupancyInputs(
   };
   const forward = toSpans(line.alignment.path, false);
   const backward = line.alignment.returnPath?.length ? toSpans(line.alignment.returnPath, true) : [];
-  return { returnPath, separationM, spans: { forward, backward } };
+  return { returnPath, ...separation, spans: { forward, backward } };
 }
 
 function emptyModel(
@@ -574,7 +583,8 @@ function emptyModel(
     cache: new Map(),
     returnPath: null,
     spans: { forward: [], backward: [] },
-    separationM: 0,
+    following: { kind: 'signalled', distanceM: 0 },
+    vehicleLengthM: 0,
     context: privateContext(),
     rank: 0,
     consist: null,
@@ -690,7 +700,14 @@ function buildTrip(
           ? cruiseS + (inside.length + 1) * stopLossS(vSpan, model.rates.accelMs2, model.rates.decelMs2)
           : cruiseS;
         const lengthM = Math.max(1e-6, sp.toM - sp.fromM);
-        const separationS = (model.separationM * runS) / lengthM;
+        // Time to keep behind the vehicle ahead: on sight, the steady-state gap of the
+        // Intelligent Driver Model (minimum gap + speed × time gap) plus that vehicle's length.
+        const vAvg = lengthM / Math.max(cruiseS, 1e-6);
+        const f = model.following;
+        const separationS =
+          f.kind === 'on_sight'
+            ? f.timeGapS + (f.minGapM + model.vehicleLengthM) / Math.max(vAvg, 0.1)
+            : (f.distanceM * runS) / lengthM;
         const start = model.context.ledger.reserve(
           sp.resourceId,
           sp.sign,

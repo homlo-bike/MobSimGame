@@ -156,7 +156,11 @@ function ModeDefaults() {
                 {RIGHT_OF_WAY_LABELS[r.rightOfWay as RightOfWay].toLowerCase()}
               </td>
               <td className="pe-2">{r.platformLengthM != null ? `${r.platformLengthM} m` : '—'}</td>
-              <td className="pe-2">{r.separationM} m</td>
+              <td className="pe-2">
+                {r.following.kind === 'on_sight'
+                  ? `${r.following.minGapM} m + speed × ${r.following.timeGapS} s`
+                  : `${r.following.distanceM} m (signalled)`}
+              </td>
               <td className="pe-2">
                 {r.rates.accelMs2} / {r.rates.decelMs2} m/s² <Badge>Documented</Badge>
                 <div className="text-xs text-slate-600">

@@ -6,7 +6,7 @@ import type { Electrification, Scenario, TransportMode } from './schema';
 import { MODES } from './modes';
 import { CURVE_RADIUS_RULES } from './modeProfiles';
 import { isRailMode, newTrackDefaults } from './tracks';
-import { minSeparationM, platformLengthM } from './trackParameters';
+import { following, platformLengthM, type Following } from './trackParameters';
 import { MODE_TABS } from './modeSeparation';
 import { defaultRates, type Rates } from '../simulation/kinematics';
 
@@ -23,8 +23,8 @@ export interface ModeDefaultRow {
   rightOfWay: string;
   /** Default platform length (rail), from Project settings. */
   platformLengthM: number | null;
-  /** Minimum distance between following vehicles in the simulation, from Project settings. */
-  separationM: number;
+  /** How vehicles keep their distance to the one ahead in the simulation (Parameters). */
+  following: Following;
   gaugeMm: number | null;
   electrification: Electrification;
   /** Default acceleration and service braking (m/s²) when a vehicle profile gives none. */
@@ -56,7 +56,7 @@ export function modeDefaultRows(scenario: Scenario): ModeDefaultRow[] {
       structure: m.defaultStructure,
       rightOfWay: m.defaultRightOfWay,
       platformLengthM: rail ? platformLengthM(net, mode) : null,
-      separationM: minSeparationM(net, mode),
+      following: following(net, mode),
       ...newTrackDefaults(net, mode),
       rates: defaultRates(mode),
     };
