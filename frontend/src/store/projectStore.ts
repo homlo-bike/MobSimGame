@@ -12,12 +12,24 @@ import { activeScenario, duplicateScenario, emptyScenario, replaceScenario } fro
 import { SCHEMA_VERSION } from '../domain/schema';
 import { newId, nowIso } from '../util/id';
 import { loadFromLocalStorage } from './persistence';
+import { stationMode } from '../domain/modeSeparation';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock } from '../simulation/runtime';
 import { createLogger } from '../util/logger';
 import { DEFAULT_BASEMAP_ID } from '../providers/basemaps';
 
 const log = createLogger('store');
+
+function selectionMode(sc: Scenario, sel: NonNullable<Selection>): TransportMode | null {
+  if (sel.kind === 'line') return sc.lines.find((l) => l.id === sel.id)?.mode ?? null;
+  if (sel.kind === 'segment') return sc.lines.find((l) => l.id === sel.lineId)?.mode ?? null;
+  if (sel.kind === 'track') return sc.trackNetwork.tracks.find((t) => t.id === sel.id)?.designMode ?? null;
+  if (sel.kind === 'station') {
+    const st = sc.stations.find((s) => s.id === sel.id);
+    return st ? stationMode(sc, st) : null;
+  }
+  return null;
+}
 
 export const HISTORY_LIMIT = 100;
 
@@ -304,7 +316,12 @@ export const useStore = create<AppState>()((set, get) => {
       log.debug('redo', { remaining: future.length - 1 });
       set({ project: next, past: [...past, project], future: future.slice(1), announcement: 'Redone' });
     },
-    select: (selection) => set({ selection }),
+    select: (selection) => {
+      // Selecting a line, track or station switches to its mode's tab (modes are edited separately).
+      const sc = activeScenario(get().project);
+      const mode = selection ? selectionMode(sc, selection) : null;
+      set(mode && mode !== get().newLineMode ? { selection, newLineMode: mode } : { selection });
+    },
     setTool: (tool) => {
       // Lines belong to a project: ask for one first, then resume drawing.
       if (

@@ -58,9 +58,9 @@ set, labelled as such. See the [roadmap](#roadmap).
     their ends; platforms shorter than the trains are an error.
   - Drawing guides (relative to the last leg, parallel to nearby straight track)
     and curve labels with drag handles and a radius editor on the map.
-  - Each track has an infrastructure class (tram, light rail, metro, railway),
-    electrification and gauge. Services are routed only over track their mode may
-    use; the matrix is editable per project (*Infrastructure compatibility*).
+  - One editor tab per mode (Bus, BRT, Trolleybus, Tram, Light rail, Metro,
+    Commuter rail): modes never share infrastructure, stations or lines; other
+    modes are shown faded. Tracks record electrification and gauge.
 - **Bus and BRT** lines follow streets through waypoints, routed by a self-hosted
   Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)). Unrouted sections make a line
   incomplete until routed or marked manual. Cycling and walking corridors use straight

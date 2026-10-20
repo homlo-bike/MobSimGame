@@ -8,6 +8,17 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Every transport mode is kept separate** (owner decision). The editor has one
+  tab per mode (Bus, BRT, Trolleybus, Tram, Light rail, Metro, Commuter rail, and
+  other modes in a list). The tab decides what the tools create; other modes are
+  drawn faded and get no editing handles. Selecting an object switches to its tab;
+  an object of another tab is shown read-only with a button to switch. Track joins
+  only track of its own mode, services only call at stations of their mode, and a
+  line's or track's mode can no longer be changed. Tram and light rail no longer
+  share track, and the infrastructure compatibility panel is gone.
+- **Trolleybus is its own mode** (street-routed, its own vehicle categories). Its
+  overhead-wire network follows with the click-stop bus lines (R4b).
+
 - **Vehicle type** in the line inspector lists only vehicles compatible with the
   line's mode; changing the mode replaces an incompatible vehicle.
 - **Validation categories are now Errors, Warnings, Recommendations and

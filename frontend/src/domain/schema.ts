@@ -88,6 +88,7 @@ export type DatasetReference = z.infer<typeof DatasetReferenceSchema>;
 export const TransportModeSchema = z.enum([
   'bus',
   'brt',
+  'trolleybus',
   'tram',
   'light_rail',
   'metro',
@@ -308,6 +309,7 @@ export const InfrastructureClassSchema = z.enum([
   'railway',
   'bus',
   'brt',
+  'trolleybus',
   'cycling',
   'walking',
 ]);
@@ -381,8 +383,6 @@ export const TrackNetworkSchema = z.object({
   runningSide: z.enum(['right', 'left']).default('right'),
   /** User overrides of the parameters in domain/trackParameters.ts, by id. */
   parameterOverrides: z.record(z.string(), z.number()).default({}),
-  /** User overrides of which infrastructure classes a service mode may use (domain/compatibility.ts). */
-  serviceCompatibility: z.partialRecord(TransportModeSchema, z.array(InfrastructureClassSchema)).default({}),
 });
 export type TrackNetwork = z.infer<typeof TrackNetworkSchema>;
 
@@ -393,7 +393,6 @@ export const EMPTY_TRACK_NETWORK: TrackNetwork = {
   groups: [],
   runningSide: 'right',
   parameterOverrides: {},
-  serviceCompatibility: {},
 };
 
 /**

@@ -197,6 +197,7 @@ const placeholder = (
 export const MODE_PROFILES: Record<TransportMode, ModeProfile> = {
   bus: placeholder('bus', 'generic bus', [6, 10], [300, 150], [800, 1500]),
   brt: placeholder('brt', 'generic articulated bus', [6, 10], [400, 250], [1200, 2000]),
+  trolleybus: placeholder('trolleybus', 'generic trolleybus', [6, 10], [300, 150], [800, 1500]),
   tram: placeholder('tram', 'generic low-floor tram', [4, 7], [300, 200], [900, 1500]),
   light_rail: placeholder('light_rail', 'generic light-rail vehicle', [4, 6], [500, 300], [1500, 2500]),
   metro: placeholder('metro', 'generic metro train', [3, 4], [700, 400], [2000, 3500]),

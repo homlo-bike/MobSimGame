@@ -274,10 +274,14 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
           ['case', ['get', 'selected'], 4, 3],
         ],
         'line-opacity': [
-          'case',
-          ['==', ['get', 'track'], 'band'],
-          0.6,
-          ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.75 : 1,
+          '*',
+          ['case', ['get', 'dim'], 0.25, 1],
+          [
+            'case',
+            ['==', ['get', 'track'], 'band'],
+            0.6,
+            ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.75 : 1,
+          ],
         ],
         'line-offset': TRACK_OFFSET,
         ...(dash ? { 'line-dasharray': dash } : {}),
@@ -304,7 +308,12 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
           17,
           ['case', ['get', 'selected'], 4.5, 2],
         ],
-        'line-opacity': ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.7 : 1,
+        'line-opacity': [
+          'case',
+          ['get', 'dim'],
+          0.25,
+          ['underground', 'tunnel', 'cut_and_cover'].includes(s) ? 0.7 : 1,
+        ],
         ...(dash ? { 'line-dasharray': dash } : {}),
       },
     });
@@ -329,6 +338,8 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-color': ['case', ['==', ['get', 'kind'], 'end'], '#ffffff', '#1e293b'],
       'circle-stroke-color': ['case', ['get', 'selected'], '#0f766e', '#1e293b'],
       'circle-stroke-width': ['case', ['==', ['get', 'kind'], 'junction'], 2.5, 1.5],
+      'circle-opacity': ['case', ['get', 'dim'], 0.3, 1],
+      'circle-stroke-opacity': ['case', ['get', 'dim'], 0.3, 1],
     },
   });
   // Rotation handles at the ends of the selected station object.
@@ -471,7 +482,7 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     source: SRC.platforms,
     paint: {
       'fill-color': ['case', ['get', 'selected'], '#fde68a', '#e2e8f0'],
-      'fill-opacity': 0.95,
+      'fill-opacity': ['case', ['get', 'dim'], 0.3, 0.95],
     },
   });
   add({
@@ -506,6 +517,8 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
         ['get', 'color'],
       ],
       'circle-stroke-width': ['case', ['get', 'selected'], 4, ['get', 'interchange'], 3.5, 3],
+      'circle-opacity': ['case', ['get', 'dim'], 0.35, 1],
+      'circle-stroke-opacity': ['case', ['get', 'dim'], 0.35, 1],
     },
   });
   if (opts.labels) {

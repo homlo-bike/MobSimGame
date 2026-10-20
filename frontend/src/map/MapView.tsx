@@ -81,6 +81,7 @@ import {
   regionsCollection,
   regionLabelsCollection,
   curveLabelsCollection,
+  dimOtherModes,
   platformsCollection,
   stationHandlesCollection,
   trackNodesCollection,
@@ -91,6 +92,7 @@ import {
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
+import { stationMode } from '../domain/modeSeparation';
 import {
   nearbyTrackBearing,
   placeStation,
@@ -473,7 +475,7 @@ export default function MapView() {
           lastTravelPx = Infinity;
           if (wasClick) {
             // A click, not a drag: put the handles back where they were.
-            reconcileDraw(draw, sc, null, track.id);
+            reconcileDraw(draw, sc, null, track.id, null, state.newLineMode);
             return;
           }
           const moved = applyTrackHandles(sc, track.id, handles);
@@ -499,7 +501,7 @@ export default function MapView() {
         const sc = activeScenario(state.project);
         const region = sc.regions.find((r) => r.id === feature.id);
         if (region) {
-          if (region.locked) reconcileDraw(draw, sc, null, null, null);
+          if (region.locked) reconcileDraw(draw, sc, null, null, null, state.newLineMode);
           else {
             state.commitScenario(deleteRegion(sc, region.id), `Region "${region.name}" deleted`);
             state.select(null);
@@ -509,7 +511,7 @@ export default function MapView() {
         if (sc.trackNetwork.tracks.some((t) => t.id === feature.id)) {
           requestTrackDeletion([feature.id]);
           // Until the user decides, the drawing shows the track again.
-          reconcileDraw(draw, sc, null, null);
+          reconcileDraw(draw, sc, null, null, null, state.newLineMode);
         } else if (sc.lines.some((l) => l.id === feature.id)) deleteLineWithNotice(feature.id);
       }),
       draw.on('selection.changed', ({ selection: sel }) => {
@@ -605,6 +607,12 @@ export default function MapView() {
         }
         if (!st.trackRefs.length) {
           state.announce(`"${st.name}" is not on a track.`);
+          return;
+        }
+        if (stationMode(sc, st) !== state.newLineMode) {
+          state.announce(
+            `"${st.name}" belongs to another mode; services only call at stations of their mode.`,
+          );
           return;
         }
         const draft = state.serviceDraft;
@@ -740,6 +748,8 @@ export default function MapView() {
 
     const startStationDrag = (e: maplibregl.MapLayerMouseEvent) => {
       if (useStore.getState().tool !== 'select' || rotating) return;
+      // Other modes are locked: switch to their tab to move them.
+      if (e.features?.[0]?.properties?.dim) return;
       const id = e.features?.[0]?.properties?.stationId;
       if (!id) return;
       e.preventDefault();
@@ -906,12 +916,17 @@ export default function MapView() {
     const map = mapRef.current;
     const draw = drawRef.current;
     if (!map || !draw || !map.getSource(SRC.segments)) return;
-    const segments = segmentsCollection(scenario, selectedLineId);
-    const tracks = tracksCollection(scenario, selectedTrackId);
+    // Other modes are drawn faded (and get no editing handles): the tab's mode is being edited.
+    const segments = dimOtherModes(segmentsCollection(scenario, selectedLineId), scenario, newLineMode);
+    const tracks = dimOtherModes(tracksCollection(scenario, selectedTrackId), scenario, newLineMode);
     setData(map, SRC.regions, regionsCollection(scenario, selectedRegionId));
     setData(map, SRC.regionLabels, regionLabelsCollection(scenario));
     setData(map, SRC.tracks, tracks);
-    setData(map, SRC.trackNodes, trackNodesCollection(scenario, selectedNodeId));
+    setData(
+      map,
+      SRC.trackNodes,
+      dimOtherModes(trackNodesCollection(scenario, selectedNodeId), scenario, newLineMode),
+    );
     setData(map, SRC.curveLabels, curveLabelsCollection(scenario, selectedTrackId));
     setData(map, SRC.segments, segments);
     const markers = findingsCollection(findings, scenario, markerVisibility, focusedFindingId);
@@ -931,11 +946,19 @@ export default function MapView() {
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
-    setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
-    setData(map, SRC.platforms, platformsCollection(scenario, selectedStationId));
+    setData(
+      map,
+      SRC.stations,
+      dimOtherModes(stationsCollection(scenario, selectedStationId), scenario, newLineMode),
+    );
+    setData(
+      map,
+      SRC.platforms,
+      dimOtherModes(platformsCollection(scenario, selectedStationId), scenario, newLineMode),
+    );
     setData(map, SRC.stationHandles, stationHandlesCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
-    reconcileDraw(draw, scenario, selectedLineId, selectedTrackId, selectedRegionId);
+    reconcileDraw(draw, scenario, selectedLineId, selectedTrackId, selectedRegionId, newLineMode);
   }, [
     scenario,
     findings,
@@ -951,6 +974,7 @@ export default function MapView() {
     styleVersion,
     layers.catchments,
     closures,
+    newLineMode,
   ]);
 
   // --- Context layers --------------------------------------------------------------

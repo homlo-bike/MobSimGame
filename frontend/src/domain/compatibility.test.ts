@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  allowedClasses,
-  serviceCanUse,
-  setServiceCompatibility,
-  trackClass,
-  vehicleTrackIssues,
-} from './compatibility';
+import { allowedClasses, serviceCanUse, trackClass, vehicleTrackIssues } from './compatibility';
 import { createLine } from './network';
-import { rerouteServices, setServiceStops } from './serviceRouting';
+import { setServiceStops } from './serviceRouting';
 import { updateTrack } from './tracks';
 import { validateScenario } from '../validation/validate';
 import { railLine, xy } from '../test/fixtures/tracks';
@@ -28,15 +22,14 @@ describe('infrastructure compatibility', () => {
   it('derives the class from the design mode and applies the default matrix', () => {
     const t = { infrastructureClass: null, designMode: 'elevated_metro' as const };
     expect(trackClass(t)).toBe('metro');
-    const net = { serviceCompatibility: {} };
-    expect(serviceCanUse(net, 'tram', { infrastructureClass: 'light_rail', designMode: 'tram' })).toBe(true);
-    expect(serviceCanUse(net, 'tram', t)).toBe(false);
-    expect(serviceCanUse(net, 'commuter_rail', { infrastructureClass: null, designMode: 'tram' })).toBe(
-      false,
-    );
-    // Rail never uses bus infrastructure and the reverse.
-    expect(allowedClasses(net, 'metro')).not.toContain('bus');
-    expect(allowedClasses(net, 'bus')).not.toContain('tram');
+    // Every mode keeps to its own infrastructure: no sharing, not even tram and light rail.
+    expect(serviceCanUse('tram', { infrastructureClass: null, designMode: 'tram' })).toBe(true);
+    expect(serviceCanUse('tram', { infrastructureClass: 'light_rail', designMode: 'tram' })).toBe(false);
+    expect(serviceCanUse('tram', t)).toBe(false);
+    expect(serviceCanUse('commuter_rail', { infrastructureClass: null, designMode: 'tram' })).toBe(false);
+    expect(allowedClasses('metro')).toEqual(['metro']);
+    expect(allowedClasses('bus')).toEqual(['bus']);
+    expect(allowedClasses('trolleybus')).toEqual(['trolleybus']);
   });
 
   it('routes a service only over track its mode may use', () => {
@@ -47,15 +40,6 @@ describe('infrastructure compatibility', () => {
     expect(tram.alignment.kind === 'track' && tram.alignment.message).toMatch(
       /has no track this tram \/ streetcar service may use/,
     );
-  });
-
-  it('routes again when the project allows the mode on that class, and keeps the own class', () => {
-    const { s, tramId } = metroWithTram();
-    const allowed = rerouteServices(setServiceCompatibility(s, 'tram', ['metro']));
-    expect(allowed.trackNetwork.serviceCompatibility.tram).toEqual(['tram', 'metro']);
-    expect(allowed.lines.find((l) => l.id === tramId)!.alignment).toMatchObject({ status: 'routed' });
-    const reset = setServiceCompatibility(allowed, 'tram', null);
-    expect(reset.trackNetwork.serviceCompatibility.tram).toBeUndefined();
   });
 
   it('reports an error when a routed service runs on track of a class it may not use', () => {

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 // WebGL is unavailable in jsdom; the map is covered by the Playwright smoke test.
 vi.mock('./map/MapView', () => ({ default: () => <div data-testid="map">map</div> }));
 
+import { MODES } from './domain/modes';
 import App from './App';
 import { blankProject, useStore } from './store/projectStore';
 import { notify, useNotifications } from './store/notifications';
@@ -505,20 +506,27 @@ describe('regions', () => {
   });
 });
 
-describe('infrastructure compatibility', () => {
-  it('edits which track a mode may use and resets it', async () => {
+describe('mode tabs', () => {
+  it('switch the mode, follow the selection and lock objects of other modes', async () => {
     const user = userEvent.setup();
+    useStore.setState({ project: buildDemoProject() });
     render(<App />);
-    await user.click(screen.getByText('Infrastructure compatibility'));
-    const own = screen.getByRole('checkbox', { name: /Tram \/ streetcar may use tram track/ });
-    expect(own).toBeChecked();
-    expect(own).toBeDisabled();
-    await user.click(screen.getByRole('checkbox', { name: /Tram \/ streetcar may use railway track/ }));
-    expect(useStore.getState().project.scenarios[0]!.trackNetwork.serviceCompatibility.tram).toContain(
-      'railway',
-    );
-    await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(useStore.getState().project.scenarios[0]!.trackNetwork.serviceCompatibility.tram).toBeUndefined();
+    const metro = screen.getByRole('tab', { name: /^Metro/ });
+    await user.click(metro);
+    expect(metro).toHaveAttribute('aria-selected', 'true');
+    expect(useStore.getState().newLineMode).toBe('metro');
+    // Selecting a line switches to its mode's tab.
+    const sc = useStore.getState().project.scenarios[0]!;
+    const line = sc.lines.find((l) => l.mode !== 'metro')!;
+    const label = MODES[line.mode].label;
+    act(() => useStore.getState().select({ kind: 'line', id: line.id }));
+    expect(useStore.getState().newLineMode).toBe(line.mode);
+    // Changing the tab while it stays selected shows it read-only.
+    await user.click(screen.getByRole('tab', { name: /^Metro/ }));
+    expect(screen.getByText(/Modes are edited separately/)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: `${label}, read-only` })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: `Switch to ${label}` }));
+    expect(useStore.getState().newLineMode).toBe(line.mode);
   });
 });
 

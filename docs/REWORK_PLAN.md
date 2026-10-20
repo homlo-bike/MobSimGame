@@ -19,6 +19,8 @@ with each one.
 | Trolleybus | Separate mode with its own overhead-wire network; a line without wire is an error |
 | Traffic in the simulation | Transit vehicles, signals, track occupancy, following distance and road speeds by time of day; no individual cars |
 | Drawing guides | Relative to the last leg; parallel to straight **track** within 100 m of the cursor (no streets); can be switched off |
+| Modes | Every mode keeps to its own infrastructure; nothing is shared (tram and light rail included) |
+| Same-level intersections between modes | Allowed; created automatically as crossings; the lower-priority vehicle waits until the crossing is clear. Default order commuter rail > metro > light rail > tram > trolleybus and BRT > bus, editable per project and per crossing |
 | UI conventions | Web GIS style (Felt, Google My Maps, Mapbox Studio): tools in a bar, side panels, right-click menu, Esc cancels, Enter or right-click finishes, Delete removes |
 
 ## Items
@@ -27,8 +29,10 @@ with each one.
 | --- | --- | --- |
 | R1 | Track drawing: tangent connections (drawing and dragging), loop confirmation, draw mode stays on, connect to track ends and along a track, no jump on click; unrouted services shown as gaps; missing return path is an error | merged (#15) |
 | R2 | Drawing guides (relative, parallel to track ≤ 100 m, toggle); curve handles and labels on the map, radius editor with slider; double track edited as a pair | merged (#16) |
-| R3 | Station objects: tracks and platforms (side and island platforms, counts ≥ 1), free placement, move and rotate (with guides), platform dimensions, gradient and radius in project settings, platform shorter than the train is an error, station symbols by layout | this PR (gradient and curve checks for platforms, and elevator/escalator symbols, follow with R6/R8) |
-| R4 | Mode tabs (Bus/BRT, Trolleybus, Tram, Light rail, Metro): separate infrastructure, stations and lines; services only offer stations of their mode; modes never convert; walking interchange links | planned |
+| R3 | Station objects: tracks and platforms (side and island platforms, counts ≥ 1), free placement, move and rotate (with guides), platform dimensions, gradient and radius in project settings, platform shorter than the train is an error, station symbols by layout | merged (#17; gradient and curve checks for platforms, and elevator/escalator symbols, follow with R6/R8) |
+| R4a | Mode tabs, strict separation, trolleybus mode | this PR |
+| R4c | Automatic same-level crossings between modes with priority; lower priority waits in the simulation | planned |
+| R4d | Walking links between stations of different modes | planned |
 | R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | planned |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | planned |

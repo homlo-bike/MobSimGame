@@ -329,8 +329,11 @@ export function snapStationBearing(
   const frame = networkFrame(net, position);
   const c = frame.toMetres(position);
   let best: { b: number; d: number } | null = null;
+  const own = scenario.stations.find((s) => s.id === stationId)?.layout?.mode;
   for (const t of net.tracks) {
     if (stationId && t.stationId === stationId) continue;
+    // Line up with track of the station's own mode only.
+    if (own && t.designMode !== own) continue;
     for (const p of trackGeometry(net, t).primitives) {
       if (p.kind !== 'line') continue;
       const dx = p.end[0] - p.start[0];
@@ -362,7 +365,12 @@ export function nearbyTrackBearing(scenario: Scenario, position: LngLat): number
  * facing the rest of the drawing, not to the middle of its platform tracks: the end point is
  * moved to that end (the middle of its track ends for double track, else the nearest track end).
  */
-export function snapDrawingToStations(scenario: Scenario, points: LngLat[], double: boolean): LngLat[] {
+export function snapDrawingToStations(
+  scenario: Scenario,
+  points: LngLat[],
+  double: boolean,
+  mode?: TransportMode,
+): LngLat[] {
   if (points.length < 2) return points;
   const net = scenario.trackNetwork;
   const frame = networkFrame(net, points[0]!);
@@ -370,7 +378,8 @@ export function snapDrawingToStations(scenario: Scenario, points: LngLat[], doub
     const q = frame.toMetres(p);
     const w = frame.toMetres(toward);
     for (const st of scenario.stations) {
-      if (!st.layout) continue;
+      // Only stations of the track's own mode.
+      if (!st.layout || (mode && st.layout.mode !== mode)) continue;
       const g = stationGeometry(net, st.position, st.layout);
       const c = frame.toMetres(st.position);
       const d = dirOf(st.layout.bearingDeg);

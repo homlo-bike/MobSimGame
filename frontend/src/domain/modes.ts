@@ -54,6 +54,18 @@ export const MODES: Record<TransportMode, ModeDefaults> = {
     defaultMaxSpeedKmh: 60,
     prefersStreetNetwork: true,
   },
+  trolleybus: {
+    label: 'Trolleybus',
+    color: '#a16207',
+    guided: false,
+    defaultStructure: 'at_grade',
+    defaultRightOfWay: 'mixed_traffic',
+    defaultCatchmentRadiusM: 400,
+    catchmentSource: CATCHMENT_SOURCE,
+    defaultDwellTimeS: 20,
+    defaultMaxSpeedKmh: 50,
+    prefersStreetNetwork: true,
+  },
   tram: {
     label: 'Tram / streetcar',
     color: '#15803d',

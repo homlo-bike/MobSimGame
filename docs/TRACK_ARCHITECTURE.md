@@ -111,12 +111,12 @@ afterwards:
   elevated metro builds metro track, commuter rail builds railway track). Bus,
   BRT, cycling and walking classes exist for the matrix, but those modes are not
   part of the track graph.
-- A **service mode ↔ class** matrix decides which track a service may use.
-  Routing (`routeThroughStations`, `shortestPath` with a track filter) ignores
-  other track, and a station without allowed track makes the service unrouted
-  with a message. The defaults (each mode its own class; tram ↔ light rail) are a
-  modelling convention of this tool, not a cited rule. Projects override them per
-  mode (`trackNetwork.serviceCompatibility`); a mode always keeps its own class.
+- **Every mode keeps to its own infrastructure** (owner decision: modes need
+  different track, power supply, sensors and speeds). A service uses only track of
+  its own mode; tram and light rail do not share. Track drawing and dragging join
+  only track of the same mode, stations snap only to track of their mode, and a
+  track's or a line's mode cannot be changed after creation. Where different modes
+  meet on the same level they cross; crossings with priority are planned (R4c).
 - **Vehicle ↔ track**: a known vehicle gauge must match a known track gauge, and
   a vehicle with an overhead or third-rail supply needs that electrification.
   Unknown values never conflict. Violations are errors.

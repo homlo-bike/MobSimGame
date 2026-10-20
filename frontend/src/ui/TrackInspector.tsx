@@ -7,14 +7,12 @@ import { useEffect, useRef } from 'react';
 import { bbox, lineString } from '@turf/turf';
 import type {
   Electrification,
-  InfrastructureClass,
   PhysicalTrack,
   RightOfWay,
   Scenario,
   StructureType,
   TrackDirection,
   TrackNode,
-  TransportMode,
 } from '../domain/schema';
 import { MODES, RIGHT_OF_WAY_LABELS, STRUCTURE_LABELS } from '../domain/modes';
 import {
@@ -23,7 +21,6 @@ import {
   levelOfStructure,
   nodeEnds,
   outwardHeading,
-  RAIL_MODES,
   setMovement,
   setCurveRadius,
   splitTrack,
@@ -34,12 +31,7 @@ import {
   movementHas,
 } from '../domain/tracks';
 import { afterTrackEdit } from '../domain/serviceRouting';
-import {
-  DEFAULT_CLASS_FOR_MODE,
-  ELECTRIFICATION_LABELS,
-  INFRASTRUCTURE_CLASS_LABELS,
-  RAIL_CLASSES,
-} from '../domain/compatibility';
+import { ELECTRIFICATION_LABELS, INFRASTRUCTURE_CLASS_LABELS, trackClass } from '../domain/compatibility';
 import { parameter, TRACK_PARAMETERS, type TrackParameterId } from '../domain/trackParameters';
 import { CURVE_RADIUS_RULES } from '../domain/modeProfiles';
 import { formatDistance } from '../analysis/units';
@@ -166,26 +158,11 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
             onChange={(e) => patch({ rightOfWay: e.target.value as RightOfWay })}
             options={Object.entries(RIGHT_OF_WAY_LABELS).map(([value, label]) => ({ value, label }))}
           />
-          <SelectField
-            label="Design rules"
-            value={track.designMode}
-            onChange={(e) => patch({ designMode: e.target.value as TransportMode })}
-            options={RAIL_MODES.map((m) => ({ value: m, label: MODES[m].label }))}
-          />
-          <SelectField
-            label="Infrastructure class"
-            value={track.infrastructureClass ?? ''}
-            onChange={(e) =>
-              patch({ infrastructureClass: (e.target.value || null) as InfrastructureClass | null })
-            }
-            options={[
-              {
-                value: '',
-                label: `From design rules (${INFRASTRUCTURE_CLASS_LABELS[DEFAULT_CLASS_FOR_MODE[track.designMode]]})`,
-              },
-              ...RAIL_CLASSES.map((c) => ({ value: c, label: INFRASTRUCTURE_CLASS_LABELS[c] })),
-            ]}
-          />
+          <p className="col-span-2 text-sm">
+            <span className="font-medium">Mode:</span> {MODES[track.designMode].label} track (
+            {INFRASTRUCTURE_CLASS_LABELS[trackClass(track)].toLowerCase()}). The mode is fixed: only{' '}
+            {MODES[track.designMode].label} services use it.
+          </p>
           <SelectField
             label="Electrification"
             value={track.electrification}

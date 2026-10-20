@@ -15,6 +15,7 @@ import { defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
 import { trackSpacingM } from '../domain/trackParameters';
 import { finishServiceDraft } from '../store/trackActions';
 import { layoutError, MAX_PLATFORMS } from '../domain/stationLayout';
+import { MODE_TABS, modeCounts, stationsForMode } from '../domain/modeSeparation';
 import { CommitField } from './CommitField';
 import { SEVERITY_ORDER, SEVERITY_PLURALS, SEVERITY_SYMBOLS, type Severity } from '../validation/validate';
 
@@ -108,7 +109,8 @@ export function ToolPanel() {
   const setDraft = useStore((s) => s.setServiceDraft);
   const rail = isRailMode(mode);
   const hasTracks = scenario.trackNetwork.tracks.length > 0;
-  const onTrackStations = scenario.stations.filter((st) => st.trackRefs.length > 0);
+  // A service of the active mode can only call at stations of that mode.
+  const onTrackStations = stationsForMode(scenario, mode);
   const tools: { id: typeof tool; label: string; disabled?: boolean }[] = [
     { id: 'select', label: t('toolSelect') },
     { id: 'draw_line', label: rail ? 'Draw track' : t('toolDrawLine') },
@@ -124,6 +126,14 @@ export function ToolPanel() {
   const spacing = trackSpacingM(scenario.trackNetwork, mode);
   return (
     <Section title={t('tools')} id="tools" hideTitle>
+      <ModeTabs
+        mode={mode}
+        onChange={(m) => {
+          setMode(m);
+          setTool('select');
+          setDraft([]);
+        }}
+      />
       <div
         className="mb-3 grid grid-cols-2 gap-0.5 rounded-md bg-slate-100 p-0.5"
         role="group"
@@ -146,19 +156,13 @@ export function ToolPanel() {
           </button>
         ))}
       </div>
-      <SelectField
-        label="Mode"
-        value={mode}
-        onChange={(e) => setMode(e.target.value as TransportMode)}
-        options={MODE_LIST.map((m) => ({ value: m, label: MODES[m].label }))}
-        hint={
-          rail
-            ? 'Track mode: draw physical track, place stations on it, then create services with “New service”.'
-            : MODES[mode].prefersStreetNetwork
-              ? 'Road-based mode: the drawn line follows streets once routed.'
-              : undefined
-        }
-      />
+      <p className="mb-2 text-xs text-slate-600">
+        {rail
+          ? `${MODES[mode].label}: draw track, place stations, then create services with “New service”. Other modes are shown faded and cannot be edited here.`
+          : MODES[mode].prefersStreetNetwork
+            ? `${MODES[mode].label}: lines follow streets once routed. Other modes are shown faded.`
+            : `${MODES[mode].label}. Other modes are shown faded.`}
+      </p>
       {rail && (tool === 'draw_line' || tool === 'select') && (
         <fieldset className="mb-2 rounded border border-slate-200 p-2">
           <legend className="px-1 text-xs font-medium text-slate-800">New track</legend>
@@ -235,7 +239,7 @@ export function ToolPanel() {
             value=""
             onChange={(e) => e.target.value && setDraft([...draft, e.target.value])}
             options={[
-              { value: '', label: 'Choose a station on tracks…' },
+              { value: '', label: `Choose a ${MODES[mode].label} station…` },
               ...onTrackStations.map((st) => ({ value: st.id, label: st.name })),
             ]}
             hint="Or click stations on the map."
@@ -515,5 +519,62 @@ function StationDraftOptions() {
         </p>
       )}
     </fieldset>
+  );
+}
+
+/**
+ * One tab per transport mode. Each mode has its own tracks, stations and lines; the tab
+ * decides what the tools create and edit. Keyboard: arrow keys move between tabs.
+ */
+function ModeTabs({ mode, onChange }: { mode: TransportMode; onChange: (m: TransportMode) => void }) {
+  const scenario = useScenario();
+  const counts = modeCounts(scenario);
+  const tabs = MODE_TABS;
+  const others = MODE_LIST.filter((m) => !tabs.some((t) => t.mode === m));
+  const inTabs = tabs.some((t) => t.mode === mode);
+  const move = (dir: 1 | -1) => {
+    const i = tabs.findIndex((t) => t.mode === mode);
+    const next = tabs[(i + dir + tabs.length) % tabs.length]!;
+    onChange(next.mode);
+    document.getElementById(`mode-tab-${next.mode}`)?.focus();
+  };
+  return (
+    <div className="mb-2">
+      <div role="tablist" aria-label="Transport mode" className="flex flex-wrap gap-0.5">
+        {tabs.map((t) => (
+          <button
+            key={t.mode}
+            id={`mode-tab-${t.mode}`}
+            type="button"
+            role="tab"
+            aria-selected={mode === t.mode}
+            tabIndex={mode === t.mode || (!inTabs && t === tabs[0]) ? 0 : -1}
+            onClick={() => onChange(t.mode)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight') move(1);
+              else if (e.key === 'ArrowLeft') move(-1);
+            }}
+            className={`rounded-t border-b-2 px-2 py-1 text-xs ${
+              mode === t.mode
+                ? 'border-current font-semibold text-slate-900'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+            style={mode === t.mode ? { color: MODES[t.mode].color } : undefined}
+          >
+            {t.label}
+            {counts[t.mode] ? <span className="ms-1 text-slate-500">({counts[t.mode]})</span> : null}
+          </button>
+        ))}
+      </div>
+      <SelectField
+        label="Other modes"
+        value={inTabs ? '' : mode}
+        onChange={(e) => e.target.value && onChange(e.target.value as TransportMode)}
+        options={[
+          { value: '', label: 'Choose…' },
+          ...others.map((m) => ({ value: m, label: MODES[m].label })),
+        ]}
+      />
+    </div>
   );
 }

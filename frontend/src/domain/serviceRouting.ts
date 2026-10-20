@@ -191,7 +191,7 @@ export function routeThroughStations(
   if (missing) return { steps: [], error: `Station "${missing.name}" is not on a track.` };
   // Only tracks whose infrastructure class the service mode may use (domain/compatibility.ts).
   const byTrack = new Map(net.tracks.map((t) => [t.id, t]));
-  const allow = mode ? (t: PhysicalTrack) => serviceCanUse(net, mode, t) : undefined;
+  const allow = mode ? (t: PhysicalTrack) => serviceCanUse(mode, t) : undefined;
   const refsOf = (s: Station) =>
     allow
       ? s.trackRefs.filter((r) => {
