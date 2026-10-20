@@ -214,6 +214,8 @@ export function importGeoJSON(
         color:
           typeof props.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(props.color) ? props.color : undefined,
         ring: props.termination === 'ring' ? true : undefined,
+        // Imported bus geometry is kept as drawn; it can be switched to street routing in the inspector.
+        alignment: modeParse.success && ['bus', 'brt'].includes(modeParse.data) ? 'polyline' : undefined,
       });
       next = res.scenario;
       report.linesAdded++;

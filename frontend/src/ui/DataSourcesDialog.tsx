@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/projectStore';
 import { providerStatusRows } from '../providers/registry';
-import { CAPABILITY_LABELS } from '../providers/types';
+import { CAPABILITY_LABELS, type Capability } from '../providers/types';
+import { backendCapability } from '../providers/backend';
 import { Badge, Button } from './primitives';
 import { t } from '../i18n';
 
@@ -12,6 +13,20 @@ const SOURCE_URL =
 export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const project = useStore((s) => s.project);
+  const [live, setLive] = useState<Record<string, Capability>>({});
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    // Live state of backend providers (e.g. whether street routing runs on this server).
+    for (const row of providerStatusRows(project.fictional)) {
+      if (!row.backendId) continue;
+      const id = row.backendId;
+      void backendCapability(id).then((c) => !cancelled && setLive((l) => ({ ...l, [id]: c })));
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [open, project.fictional]);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -41,7 +56,18 @@ export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: (
             Alignments are conceptual sketches. Validation findings are advisory; nothing here is declared
             safe, buildable or construction-ready.
           </li>
-          <li>All Phase 1 analysis uses a synthetic demonstration assumption set and is labelled as such.</li>
+          <li>
+            Real places show no estimated ridership, cost or emission figures (input required); fictional
+            projects use a synthetic demonstration assumption set, labelled as such.
+          </li>
+          <li>
+            Curve radii are checked against cited documented defaults; other thresholds and signal timings are
+            placeholders and say so.
+          </li>
+          <li>
+            Example networks come from OpenStreetMap as mapped today and may be incomplete; their findings are
+            informational until you edit a line.
+          </li>
           <li>Distances use a spherical-earth approximation (sketch accuracy).</li>
           <li>Missing OpenStreetMap tags do not mean a feature does not exist.</li>
         </ul>
@@ -124,31 +150,37 @@ export function DataSourcesDialog({ open, onClose }: { open: boolean; onClose: (
             </tr>
           </thead>
           <tbody>
-            {providerStatusRows(project.fictional).map((r) => (
-              <tr key={r.kind} className="align-top">
-                <th scope="row" className="text-start font-normal">
-                  {r.label}
-                </th>
-                <td>{r.implementation}</td>
-                <td>
-                  <Badge
-                    tone={r.state === 'demonstration' ? 'demo' : r.state === 'available' ? 'ok' : 'warn'}
-                  >
-                    {CAPABILITY_LABELS[r.state]}
-                  </Badge>
-                  <span className="block text-xs text-slate-600">{r.note}</span>
-                </td>
-                <td>{r.phase}</td>
-              </tr>
-            ))}
+            {providerStatusRows(project.fictional)
+              .map((r) =>
+                r.backendId && live[r.backendId]
+                  ? { ...r, state: live[r.backendId]!.state, note: live[r.backendId]!.message }
+                  : r,
+              )
+              .map((r) => (
+                <tr key={r.kind} className="align-top">
+                  <th scope="row" className="text-start font-normal">
+                    {r.label}
+                  </th>
+                  <td>{r.implementation}</td>
+                  <td>
+                    <Badge
+                      tone={r.state === 'demonstration' ? 'demo' : r.state === 'available' ? 'ok' : 'warn'}
+                    >
+                      {CAPABILITY_LABELS[r.state]}
+                    </Badge>
+                    <span className="block text-xs text-slate-600">{r.note}</span>
+                  </td>
+                  <td>{r.phase}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
         <h3 className="font-semibold">Privacy</h3>
         <p className="mb-2 text-sm">
           Projects are stored in this browser (local storage). Nothing is sent to MobSimGame’s backend unless
-          you choose “Share”. Search text goes to the configured geocoder; station-name lookups send the
-          station’s coordinates (not the project) to Overpass through the backend. Basemap and terrain tiles
-          are requested from their hosts. No tracking or analytics.
+          you sign in and choose File › Save to server and share. Search text goes to the configured geocoder;
+          station-name lookups send the station’s coordinates (not the project) to Overpass through the
+          backend. Basemap and terrain tiles are requested from their hosts. No tracking or analytics.
         </p>
         <h3 className="font-semibold">Project datasets</h3>
         <ul className="list-disc ps-5 text-sm">

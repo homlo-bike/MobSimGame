@@ -7,9 +7,10 @@ export const en = {
   viewMap: 'Map',
   viewSchematic: 'Schematic',
   viewDashboard: 'Dashboard',
-  viewTable: 'Table (non-map editing)',
+  viewTable: 'Table',
+  viewTableHint: 'Edit lines and stations without the map',
   tools: 'Tools',
-  toolSelect: 'Select / edit',
+  toolSelect: 'Select',
   toolDrawLine: 'Draw line',
   toolAddStation: 'Add station',
   layers: 'Map layers',
@@ -21,6 +22,8 @@ export const en = {
   findings: 'Validation findings',
   simulation: 'Vehicle animation',
   dataSources: 'Data sources, licences and limitations',
+  disclaimerShort: 'Exploratory sketch tool, not engineering design or official forecasting.',
+  limitationsLink: 'Limitations, data & licences',
   disclaimer:
     'Exploratory sketch tool. Not transport-demand modelling, engineering design, environmental assessment, financial appraisal or official forecasting.',
 } as const;

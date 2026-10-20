@@ -20,6 +20,10 @@ MobSimGame: browser-first mobility scenario sketch tool. Read
   `useStore().commitScenario` (this gives undo/redo).
 - Stations and shared track are referenced entities; never duplicate geometry.
 - Segments are stored as fractions of line length covering [0, 1].
+- `line.coordinates` is the derived geometry; `line.alignment` holds what the user
+  edits (spline control points, route waypoints). Recompute via `domain/alignment.ts`.
+- Lines imported from OSM (`origin.source = 'osm'`, not edited) report findings as
+  information only.
 - The simulation engine is a pure function of simulated time; never tie it to frame rate.
 - Backend: providers live in `app/providers/`, every response carries `Provenance`
   and `Capability`; outbound HTTP only via `fetch_with_retry` (allowlist, SSRF guard).
@@ -46,6 +50,8 @@ Run all relevant checks before committing. In this sandbox Playwright needs
 - **Data transparency.** New data must carry Provenance (provider, dataset,
   licence, attribution, dates, status, limitations, confidence). Real-place
   projects must not show synthetic data; report a capability state instead.
+- **Saving to the server requires the login** (`app/auth.py`); never weaken it or log
+  tokens/passwords. Shared links stay public.
 - **No browser-side secrets.** Only whitelisted `VITE_*` variables
   (see `src/App.test.tsx`); credentials stay in backend `MOBSIM_*` env vars.
 - **Mapping attribution** must stay visible (OSM/ODbL, OpenFreeMap/OpenMapTiles,

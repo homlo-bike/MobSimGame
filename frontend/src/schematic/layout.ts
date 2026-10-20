@@ -36,6 +36,7 @@ export interface SchematicLine {
   ring: boolean;
   stationIds: string[];
   points: { x: number; y: number }[];
+  crossovers: { stationId: string; side: 'before' | 'after' }[];
 }
 
 export interface SchematicLayout {
@@ -138,6 +139,7 @@ export function computeSchematic(
     ring: isRing(line),
     stationIds: stops.map((s) => s.station.id),
     points: [],
+    crossovers: line.crossovers.map((c) => ({ stationId: c.stationId, side: c.side })),
   }));
 
   for (const [id, off] of Object.entries(manualOffsets)) {
@@ -202,6 +204,26 @@ export function computeSchematic(
   };
 }
 
+/** Position of a crossover marker: a third of the way from its station toward the neighbour. */
+export function crossoverPoint(
+  layout: SchematicLayout,
+  line: SchematicLine,
+  c: { stationId: string; side: 'before' | 'after' },
+): { x: number; y: number } | null {
+  const i = line.stationIds.indexOf(c.stationId);
+  const s = layout.stations.find((x) => x.id === c.stationId);
+  if (i < 0 || !s) return null;
+  const n = line.stationIds.length;
+  const j = c.side === 'before' ? i - 1 : i + 1;
+  const neighbourId = line.ring ? line.stationIds[(j + n) % n] : line.stationIds[j];
+  const nb = layout.stations.find((x) => x.id === neighbourId);
+  if (!nb) {
+    // Beyond a terminal: place the marker just past the end along the line's last direction.
+    return { x: s.x + (c.side === 'before' ? -GRID / 2 : GRID / 2), y: s.y };
+  }
+  return { x: s.x + (nb.x - s.x) / 3, y: s.y + (nb.y - s.y) / 3 };
+}
+
 /** Plain-text alternative describing the schematic for screen readers and reports. */
 export function describeSchematic(layout: SchematicLayout): string {
   const byId = new Map(layout.stations.map((s) => [s.id, s]));
@@ -210,7 +232,10 @@ export function describeSchematic(layout: SchematicLayout): string {
       const s = byId.get(id)!;
       return s.interchange ? `${s.name} (interchange)` : s.name;
     });
-    return `${l.name}${l.ring ? ' (ring)' : ''}: ${names.join(' → ')}${l.ring ? ' → back to start' : ''}.`;
+    const xo = l.crossovers.map((c) => `${c.side} ${byId.get(c.stationId)?.name ?? '?'}`);
+    return `${l.name}${l.ring ? ' (ring)' : ''}: ${names.join(' → ')}${l.ring ? ' → back to start' : ''}.${
+      xo.length ? ` Crossovers ${xo.join(', ')}.` : ''
+    }`;
   });
   return parts.join(' ');
 }

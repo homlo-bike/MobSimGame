@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     )
     log_format: LogFormat = "auto"
 
+    # Saving and sharing to the server requires this login. Change the password in .env;
+    # the API refuses to start in production while it is still the default.
+    admin_username: str = "admin"
+    admin_password: SecretStr = SecretStr("admin")
+    # Signs login sessions. Unset: a random key per process (sessions end on restart).
+    session_secret: SecretStr | None = None
+    session_ttl_s: int = 8 * 3600
+    login_attempts_per_minute: int = 10
+
     # Request limits
     max_request_bytes: int = 5 * 1024 * 1024
     rate_limit_per_minute: int = 120
@@ -60,6 +69,9 @@ class Settings(BaseSettings):
     overpass_max_bbox_km2: float = 25.0
     overpass_max_radius_m: int = 1000
     overpass_cache_ttl_s: int = 24 * 3600
+    # Example city networks (full tram/metro/bus networks) are large queries: cache them long.
+    examples_timeout_s: int = 180
+    examples_cache_ttl_s: int = 7 * 24 * 3600
 
     # Nominatim
     geocoder_enabled: bool = True
@@ -75,6 +87,13 @@ class Settings(BaseSettings):
     camara_token_url: str | None = None
     camara_client_id: str | None = None
     camara_client_secret: SecretStr | None = None
+
+    # Street routing for bus and BRT: a self-hosted Valhalla on the private network
+    # (Compose profile "routing"), e.g. http://valhalla:8002. Disabled when unset.
+    valhalla_url: str | None = None
+    valhalla_timeout_s: int = 20
+    routing_max_waypoints: int = 50
+    routing_cache_ttl_s: int = 7 * 24 * 3600
 
     # transport.rest (disabled by default; best-effort community service)
     transport_rest_enabled: bool = False
@@ -99,6 +118,8 @@ class Settings(BaseSettings):
 
     @field_validator(
         "contact_email",
+        "session_secret",
+        "valhalla_url",
         "arcgis_token",
         "camara_population_url",
         "camara_token_url",
@@ -122,6 +143,12 @@ class Settings(BaseSettings):
                 raise ValueError(f"{name} must use https")
             if parsed.hostname not in self.outbound_allowlist:
                 raise ValueError(f"{name} host {parsed.hostname!r} is not in MOBSIM_OUTBOUND_ALLOWLIST")
+        if self.valhalla_url and urlparse(self.valhalla_url).scheme not in ("http", "https"):
+            raise ValueError("valhalla_url must be an http(s) URL")
+        if self.environment == "production" and self.admin_password.get_secret_value() == "admin":
+            raise ValueError("Set MOBSIM_ADMIN_PASSWORD: the default password is not allowed in production")
+        if not self.admin_username.strip() or not self.admin_password.get_secret_value():
+            raise ValueError("MOBSIM_ADMIN_USERNAME and MOBSIM_ADMIN_PASSWORD must not be empty")
         if self.environment == "production" and "*" in self.cors_origins:
             raise ValueError("Wildcard CORS origins are not allowed in production")
         if self.max_request_bytes > 50 * 1024 * 1024:

@@ -2,12 +2,12 @@
  * Validation engine for conceptual alignments.
  *
  * Findings are advisory. Thresholds come from versioned mode profiles
- * (domain/modeProfiles.ts); in Phase 1 those are uncited placeholders, which is
- * stated on every threshold-based finding. Nothing here declares an alignment
+ * (domain/modeProfiles.ts): curve radii are cited documented defaults, the other
+ * thresholds are uncited placeholders, which every such finding states. Nothing here declares an alignment
  * safe, buildable or construction-ready.
  */
 import type { LngLat, Scenario, TransportLine } from '../domain/schema';
-import { MODE_PROFILES, type ModeProfile } from '../domain/modeProfiles';
+import { MODE_PROFILES, type CurveRadiusRule, type ModeProfile } from '../domain/modeProfiles';
 import { MODES } from '../domain/modes';
 import { isRing, lineLengthM, orderedStops, STATION_ON_LINE_TOLERANCE_M } from '../domain/network';
 import {
@@ -15,10 +15,13 @@ import {
   isValidPath,
   pathCoordinates,
   positionAtFraction,
+  slicePath,
   snapToPath,
   vertexCurvatures,
 } from '../geo/geometry';
 import { validateSegments } from '../geo/segments';
+import { sampledCurvature, type CurvatureSample } from '../geo/spline';
+import { routeStatus } from '../domain/alignment';
 import { STRUCTURE_LABELS } from '../domain/modes';
 
 export type Severity = 'info' | 'recommendation' | 'warning' | 'blocking';
@@ -81,6 +84,23 @@ export function validateLine(
   scenario: Scenario,
   options: ValidationOptions = {},
 ): Finding[] {
+  const findings = checkLine(line, scenario, options);
+  if (!existingInfrastructure(line)) return findings;
+  // Imported, unedited lines describe what exists: report, but do not block or warn.
+  return findings.map((f) =>
+    f.severity === 'info'
+      ? f
+      : {
+          ...f,
+          severity: 'info',
+          message: f.message.startsWith('Existing infrastructure')
+            ? f.message
+            : `Existing infrastructure: ${f.message}`,
+        },
+  );
+}
+
+function checkLine(line: TransportLine, scenario: Scenario, options: ValidationOptions): Finding[] {
   const findings: Finding[] = [];
   const profile = options.profiles?.[line.mode] ?? MODE_PROFILES[line.mode];
   const terminalTol = options.terminalToleranceM ?? 60;
@@ -150,9 +170,10 @@ export function validateLine(
   if (line.termination.kind === 'loop') {
     // A user-defined loop: the alignment's end must return to an earlier part of itself.
     const end = path[path.length - 1]!;
-    const head = path.slice(0, Math.max(2, path.length - 2));
-    const snap = snapToPath(head, false, end);
-    if (!snap || snap.offsetM > terminalTol || snap.chainageM > total - 150) {
+    // Everything except the last 150 m, so the end cannot "return" to itself.
+    const head = total > 150 ? slicePath(path, false, 0, (total - 150) / total) : [];
+    const snap = head.length >= 2 ? snapToPath(head, false, end) : null;
+    if (!snap || snap.offsetM > terminalTol) {
       add({
         severity: 'blocking',
         category: 'termination',
@@ -233,26 +254,9 @@ export function validateLine(
   }
 
   // --- Curvature --------------------------------------------------------------
-  for (const c of vertexCurvatures(line.coordinates, ring)) {
-    const r = profile.minCurveRadiusM;
-    if (c.radiusM < r.warning) {
-      add({
-        severity: 'warning',
-        category: 'curve_radius',
-        position: c.position,
-        message: `Estimated curve radius ≈${Math.round(c.radiusM)} m at vertex ${c.index + 1}, below ${r.warning} m ${profileNote(profile)}. Vertex-based estimate of a sketched polyline.`,
-        profile: profileRef(profile),
-      });
-    } else if (c.radiusM < r.preferred) {
-      add({
-        severity: 'recommendation',
-        category: 'curve_radius',
-        position: c.position,
-        message: `Estimated curve radius ≈${Math.round(c.radiusM)} m at vertex ${c.index + 1}; ${r.preferred} m or more is preferred ${profileNote(profile)}.`,
-        profile: profileRef(profile),
-      });
-    }
-  }
+  findings.push(
+    ...curveFindings(line, scenario, profile, total).map((f) => ({ ...f, id: `${line.id}-${n++}` })),
+  );
 
   // --- Grade (only with elevation data) ---------------------------------------
   const elevation = options.elevation?.[line.id];
@@ -329,12 +333,25 @@ export function validateLine(
   }
 
   // --- Street network ----------------------------------------------------------
-  if (MODES[line.mode].prefersStreetNetwork && ['bus', 'brt'].includes(line.mode)) {
+  const route = routeStatus(line);
+  if (route && route.unrouted > 0) {
+    add({
+      severity: existingInfrastructure(line) ? 'info' : 'blocking',
+      category: 'road_compatibility',
+      message: `${route.unrouted} of ${route.total} section(s) between waypoints are not routed on the street network. Route them, or mark them as manual sketches, before the line counts as complete.`,
+    });
+  } else if (route && route.manual > 0) {
+    add({
+      severity: 'info',
+      category: 'road_compatibility',
+      message: `${route.manual} section(s) are manual sketches that do not follow the street network.`,
+    });
+  } else if (!route && ['bus', 'brt'].includes(line.mode)) {
     add({
       severity: 'warning',
       category: 'road_compatibility',
       message:
-        'This road-vehicle alignment has not been routed on the street network. It is a conceptual sketch, not a drivable route (street routing is planned for Phase 2).',
+        'This bus alignment uses straight segments instead of following streets. Switch the alignment to "Follows streets" to route it.',
     });
   }
 
@@ -356,6 +373,116 @@ export function validateLine(
   }
 
   return findings;
+}
+
+/** Imported, unedited lines describe existing infrastructure: findings are informational. */
+export function existingInfrastructure(line: TransportLine): boolean {
+  return line.origin.source === 'osm' && !line.origin.edited;
+}
+
+function ruleSource(rule: CurveRadiusRule): string {
+  return rule.sources.map((s) => `${s.publisher}, ${s.title} (${s.year}) ${s.section}`).join('; ');
+}
+
+type CurveClass = 'below_minimum' | 'below_recommended';
+
+/** Curve-radius findings from the cited rule of the line's mode. */
+function curveFindings(
+  line: TransportLine,
+  scenario: Scenario,
+  profile: ModeProfile,
+  totalM: number,
+): Omit<Finding, 'id'>[] {
+  const rule = profile.curveRadius;
+  if (!rule || totalM <= 0) return [];
+  const ring = isRing(line);
+  const polyline = line.alignment.kind === 'polyline';
+  const samples: CurvatureSample[] = polyline
+    ? vertexCurvatures(line.coordinates, ring).map((v) => ({
+        index: v.index,
+        chainageM: 0,
+        radiusM: v.radiusM,
+        position: v.position,
+      }))
+    : sampledCurvature(line.coordinates, ring);
+  if (polyline) {
+    // Chainage of each vertex, for segment lookup.
+    let acc = 0;
+    const chain = [0];
+    for (let i = 1; i < line.coordinates.length; i++) {
+      acc += distanceM(line.coordinates[i - 1]!, line.coordinates[i]!);
+      chain.push(acc);
+    }
+    for (const s of samples) s.chainageM = chain[s.index] ?? 0;
+  }
+  const minimumAt = (chainageM: number) => {
+    if (rule.embeddedMinimumM === null) return rule.minimumM;
+    const f = chainageM / totalM;
+    const seg = line.segments.find((x) => f >= x.fromFraction && f <= x.toFraction);
+    const street = seg && seg.structure === 'at_grade' && seg.rightOfWay !== 'dedicated_track';
+    return street ? rule.embeddedMinimumM : rule.minimumM;
+  };
+  const classify = (s: CurvatureSample): CurveClass | null => {
+    if (s.radiusM < minimumAt(s.chainageM)) return 'below_minimum';
+    if (rule.recommendedM !== null && s.radiusM < rule.recommendedM) return 'below_recommended';
+    return null;
+  };
+  // Group consecutive samples of the same class into one curve.
+  const groups: { cls: CurveClass; min: CurvatureSample; threshold: number }[] = [];
+  let prev: CurveClass | null = null;
+  for (const s of samples) {
+    const cls = classify(s);
+    if (cls && cls === prev) {
+      const g = groups[groups.length - 1]!;
+      if (s.radiusM < g.min.radiusM) {
+        g.min = s;
+        g.threshold = cls === 'below_minimum' ? minimumAt(s.chainageM) : rule.recommendedM!;
+      }
+    } else if (cls) {
+      groups.push({
+        cls,
+        min: s,
+        threshold: cls === 'below_minimum' ? minimumAt(s.chainageM) : rule.recommendedM!,
+      });
+    }
+    prev = cls;
+  }
+  const existing = existingInfrastructure(line);
+  const ref = { id: profile.id, version: profile.version, cited: true };
+  const estimate = polyline
+    ? 'Vertex-based estimate on straight segments; switch to a smooth curve for a better estimate.'
+    : 'Estimated on the sketched curve (no transition curves or cant).';
+  const out: Omit<Finding, 'id'>[] = groups.map((g) => {
+    const r = Math.round(g.min.radiusM);
+    const kind = g.cls === 'below_minimum' ? 'minimum' : 'recommended';
+    return {
+      lineId: line.id,
+      severity: existing ? 'info' : g.cls === 'below_minimum' ? 'blocking' : 'warning',
+      category: 'curve_radius',
+      position: g.min.position,
+      message: `${existing ? 'Existing infrastructure: curve' : 'Curve'} radius ≈${r} m at ${Math.round(g.min.chainageM)} m, below the ${kind} ${g.threshold} m (documented default: ${ruleSource(rule)}). ${estimate}`,
+      profile: ref,
+    };
+  });
+  if (rule.stationRecommendedM !== null && samples.length) {
+    for (const s of orderedStops(line, scenario.stations)) {
+      const nearest = samples.reduce((a, b) =>
+        Math.abs(b.chainageM - s.chainageM) < Math.abs(a.chainageM - s.chainageM) ? b : a,
+      );
+      if (nearest.radiusM < rule.stationRecommendedM) {
+        out.push({
+          lineId: line.id,
+          severity: existing ? 'info' : 'warning',
+          category: 'curve_radius',
+          stationId: s.station.id,
+          position: s.station.position,
+          message: `Station "${s.station.name}" lies on a curve of radius ≈${Math.round(nearest.radiusM)} m; ${rule.stationRecommendedM} m or more is recommended at stations (documented default: ${ruleSource(rule)}).`,
+          profile: ref,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 export function segmentGrades(profile: ElevationProfile) {

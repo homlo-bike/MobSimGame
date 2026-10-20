@@ -3,7 +3,7 @@ import { useStore, useScenario } from '../store/projectStore';
 import { analyseScenario } from '../analysis/demoAnalysis';
 import { formatRange } from '../analysis/ranges';
 import { formatDistance } from '../analysis/units';
-import { isRing, lineLengthM } from '../domain/network';
+import { isRing, lineLengthM, orderedStops } from '../domain/network';
 import { samplePath } from '../geo/geometry';
 import { gradeSummary, validateScenario, type ElevationProfile } from '../validation/validate';
 import { mockProviders } from '../providers/registry';
@@ -20,7 +20,117 @@ function StatTile({ label, value, note }: { label: string; value: string; note: 
   );
 }
 
+/**
+ * Real places never show synthetic figures: only quantities calculated from the
+ * drawn network, and an "input required" state for everything that needs local data.
+ */
+function RealPlaceDashboard() {
+  const scenario = useScenario();
+  const unitSystem = useStore((s) => s.unitSystem);
+  const findings = useMemo(() => validateScenario(scenario), [scenario]);
+  const counts = { blocking: 0, warning: 0, recommendation: 0, info: 0 };
+  for (const f of findings) counts[f.severity]++;
+  const lines = scenario.lines.map((l) => {
+    const stops = orderedStops(l, scenario.stations);
+    const len = lineLengthM(l);
+    const spacing = stops.length > 1 ? len / (stops.length - (isRing(l) ? 0 : 1)) : null;
+    return { line: l, len, stops: stops.length, spacing };
+  });
+  const total = lines.reduce((s, x) => s + x.len, 0);
+  const served = new Set(scenario.lines.flatMap((l) => l.stops.map((s) => s.stationId)));
+  const interchanges = scenario.stations.filter(
+    (st) => scenario.lines.filter((l) => l.stops.some((x) => x.stationId === st.id)).length >= 2,
+  ).length;
+  return (
+    <div className="h-full overflow-auto bg-slate-50 p-3">
+      <div
+        role="note"
+        className="mb-3 rounded border-2 border-amber-600 bg-amber-50 p-3 text-sm text-amber-950"
+      >
+        <p className="font-bold">Input required: no figures are estimated for real places yet.</p>
+        <p>
+          Ridership, capacity use, costs and emissions need local data (population, travel demand, unit costs,
+          emission factors). MobSimGame does not substitute synthetic values for a real place. The figures
+          below are calculated from the network geometry only.
+        </p>
+      </div>
+      <h2 className="mb-2 text-lg font-semibold">Scenario: {scenario.name}</h2>
+      <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <StatTile
+          label="Route length"
+          value={formatDistance(total, unitSystem)}
+          note="Calculated from geometry"
+        />
+        <StatTile label="Stations" value={String(served.size)} note="Shared stations counted once" />
+        <StatTile label="Interchanges" value={String(interchanges)} note="Stations on ≥ 2 lines" />
+        <StatTile
+          label="Validation"
+          value={`${counts.blocking} ⛔ · ${counts.warning} ⚠`}
+          note={`${counts.recommendation} recommendations, ${counts.info} info`}
+        />
+      </div>
+      <Section title="Lines (calculated from geometry)" id="dash-lines">
+        <table className="w-full text-sm">
+          <caption className="sr-only">Length, stations and mean stop spacing per line</caption>
+          <thead>
+            <tr>
+              <th scope="col" className="text-start">
+                Line
+              </th>
+              <th scope="col" className="text-end">
+                Length
+              </th>
+              <th scope="col" className="text-end">
+                Stations
+              </th>
+              <th scope="col" className="text-end">
+                Mean stop spacing
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map(({ line, len, stops, spacing }) => (
+              <tr key={line.id}>
+                <th scope="row" className="text-start font-normal">
+                  <span
+                    aria-hidden
+                    className="me-1 inline-block h-2 w-3"
+                    style={{ background: line.color }}
+                  />
+                  {line.name}
+                </th>
+                <td className="text-end">{formatDistance(len, unitSystem)}</td>
+                <td className="text-end">{stops}</td>
+                <td className="text-end">{spacing === null ? '–' : formatDistance(spacing, unitSystem)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+      <Section title="Estimates" id="dash-estimates">
+        <ul className="list-disc ps-5 text-sm">
+          {['Weekday boardings', 'Peak capacity use', 'Capital cost', 'Operating cost', 'Emissions'].map(
+            (x) => (
+              <li key={x}>
+                {x}: <Badge tone="warn">Input required</Badge>
+              </li>
+            ),
+          )}
+        </ul>
+        <p className="mt-1 text-xs text-slate-600">
+          Editable, sourced assumption sets for real places are planned (Phase 4).
+        </p>
+      </Section>
+    </div>
+  );
+}
+
 export function Dashboard() {
+  const project = useStore((s) => s.project);
+  return project.fictional ? <DemoDashboard /> : <RealPlaceDashboard />;
+}
+
+function DemoDashboard() {
   const scenario = useScenario();
   const project = useStore((s) => s.project);
   const unitSystem = useStore((s) => s.unitSystem);

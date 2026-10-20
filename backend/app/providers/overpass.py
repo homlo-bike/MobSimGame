@@ -9,6 +9,8 @@ import a regional PBF extract (planned, Phase 3).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from typing import Any
 
@@ -228,3 +230,69 @@ class OverpassProvider:
         query = build_query(filters, f"{s:.6f},{w:.6f},{n:.6f},{e:.6f}", self.settings.overpass_timeout_s)
         key = f"bbox:{w:.4f}:{s:.4f}:{e:.4f}:{n:.4f}:{','.join(sorted(categories))}"
         return await self._run(query, key)
+
+
+class TrafficSignal(BaseModel):
+    id: str
+    position: tuple[float, float]
+
+
+def signals_query(paths: list[list[tuple[float, float]]], radius_m: int, timeout_s: int) -> str:
+    """Traffic signals within radius_m of polylines (Overpass "around" with a linestring)."""
+    parts = []
+    for path in paths:
+        coords = ",".join(f"{lat:.6f},{lon:.6f}" for lon, lat in path)
+        parts.append(f'node["highway"="traffic_signals"](around:{radius_m},{coords});')
+    return f"[out:json][timeout:{timeout_s}];({''.join(parts)});out qt;"
+
+
+async def traffic_signals_along(
+    provider: OverpassProvider, paths: list[list[tuple[float, float]]], radius_m: int
+) -> ProviderResponse[list[TrafficSignal]]:
+    """Road traffic signals along the given lines (only on explicit user request)."""
+    if not provider.settings.overpass_enabled:
+        raise ProviderError("Overpass disabled", CapabilityState.not_configured)
+    key = "signals:" + hashlib.sha256(json.dumps([paths, radius_m]).encode()).hexdigest()
+    cached = provider.cache.get(key)
+    if cached is not None:
+        return ProviderResponse[list[TrafficSignal]](
+            data=cached,
+            provenance=_signals_provenance(provider, True),
+            capability=Capability(state=CapabilityState.using_cache, message="Using cached result"),
+        )
+    res = await fetch_with_retry(
+        provider.client,
+        "POST",
+        provider.settings.overpass_url,
+        provider.settings,
+        data={"data": signals_query(paths, radius_m, provider.settings.examples_timeout_s)},
+        timeout=provider.settings.examples_timeout_s + 15,
+        retries=1,
+    )
+    if res.status_code != 200:
+        raise ProviderError(f"Overpass returned HTTP {res.status_code}", CapabilityState.temporarily_unavailable)
+    signals = [
+        TrafficSignal(id=f"node/{el['id']}", position=(float(el["lon"]), float(el["lat"])))
+        for el in res.json().get("elements", [])
+        if el.get("type") == "node" and "lat" in el
+    ]
+    log.info("traffic signals loaded", extra={"signals": len(signals), "paths": len(paths)})
+    provider.cache.set(key, signals, provider.settings.examples_cache_ttl_s)
+    return ProviderResponse[list[TrafficSignal]](
+        data=signals, provenance=_signals_provenance(provider, False), capability=provider.capability()
+    )
+
+
+def _signals_provenance(provider: OverpassProvider, cached: bool) -> Provenance:
+    p = provider._provenance(cached)
+    return p.model_copy(
+        update={
+            "dataset": "OpenStreetMap highway=traffic_signals",
+            "limitations": [
+                "Signal positions only: OSM has no signal timings; the simulation uses assumed cycles.",
+                "Volunteered data: a missing signal does not mean there is none.",
+                *(["Served from the MobSimGame cache."] if cached else []),
+            ],
+            "cacheExpiresAt": expires_iso(provider.settings.examples_cache_ttl_s),
+        }
+    )

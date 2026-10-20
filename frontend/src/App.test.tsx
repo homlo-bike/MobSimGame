@@ -9,7 +9,7 @@ vi.mock('./map/MapView', () => ({ default: () => <div data-testid="map">map</div
 
 import App from './App';
 import { useStore } from './store/projectStore';
-import { buildDemoProject } from './domain/demo';
+import { buildDemoProject } from './test/fixtures/demoProject';
 import { loadFromLocalStorage, parseProjectText, serializeProject, STORAGE_KEY } from './store/persistence';
 import { geocode } from './providers/registry';
 import { parseCoordinateList } from './ui/TableView';
@@ -26,9 +26,7 @@ describe('application shell', () => {
     render(<App />);
     expect(screen.getByText(/Fictional demonstration project/)).toBeInTheDocument();
     expect(screen.getAllByText(/FICTIONAL DEMO/).length).toBeGreaterThan(0);
-    expect(
-      screen.getByRole('button', { name: /Data sources, licences and limitations/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Limitations, data & licences/ })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Lines' })).toBeInTheDocument();
     expect(await screen.findByTestId('map')).toBeInTheDocument();
   });
@@ -124,6 +122,84 @@ describe('application shell', () => {
     expect(within(dialog).getByText(/Open Database Licence/)).toBeInTheDocument();
     expect(within(dialog).getByText('Traffic')).toBeInTheDocument();
     expect(within(dialog).getAllByText(/Demonstration data/).length).toBeGreaterThan(0);
+  });
+});
+
+describe('File menu', () => {
+  it('keeps import and export behind a dropdown until opened', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(screen.queryByRole('menuitem', { name: /Export GeoJSON/ })).not.toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'File' });
+    expect(button).toHaveAttribute('aria-haspopup', 'menu');
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    await user.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    const menu = screen.getByRole('menu', { name: 'File' });
+    const labels = within(menu)
+      .getAllByRole('menuitem')
+      .map((el) => el.textContent);
+    expect(labels).toEqual([
+      'New project',
+      'Open real network…OSM',
+      'Open project….json',
+      'Save project.json',
+      'Import GeoJSON…',
+      'Export GeoJSON',
+      'Export coordinates.csv',
+      'Save to server and share…',
+      'Print report',
+      'Sign in…server',
+    ]);
+  });
+
+  it('asks for the server login before sharing', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: /Save to server and share/ }));
+    expect(screen.getByRole('heading', { name: 'Sign in to save on the server' })).toBeInTheDocument();
+    // Nothing was sent before signing in.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
+    vi.unstubAllGlobals();
+  });
+
+  it('supports keyboard navigation and returns focus on Escape', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const button = screen.getByRole('button', { name: 'File' });
+    button.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('menuitem', { name: 'New project' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: /Open real network/ })).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(screen.getByRole('menuitem', { name: /Sign in/ })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'New project' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(button).toHaveFocus();
+  });
+
+  it('runs the chosen action and closes', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: 'New project' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(useStore.getState().project.name).toBe('Untitled project');
+  });
+
+  it('closes when clicking outside', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'File' }));
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 });
 

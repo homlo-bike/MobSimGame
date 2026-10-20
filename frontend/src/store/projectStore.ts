@@ -10,12 +10,12 @@ import { create } from 'zustand';
 import type { Project, Scenario, TransportMode } from '../domain/schema';
 import { activeScenario, duplicateScenario, emptyScenario, replaceScenario } from '../domain/network';
 import { SCHEMA_VERSION } from '../domain/schema';
-import { buildDemoProject } from '../domain/demo';
 import { newId, nowIso } from '../util/id';
 import { loadFromLocalStorage } from './persistence';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock } from '../simulation/runtime';
 import { createLogger } from '../util/logger';
+import { DEFAULT_BASEMAP_ID } from '../providers/basemaps';
 
 const log = createLogger('store');
 
@@ -27,6 +27,7 @@ export type Selection =
   | { kind: 'line'; id: string }
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
+  | { kind: 'signal'; id: string }
   | null;
 
 export interface LayerToggles {
@@ -40,6 +41,16 @@ export interface LayerToggles {
 }
 
 export type View = 'map' | 'schematic' | 'dashboard' | 'table';
+
+/** A closed section in the disruption simulation (not part of the project, not undoable). */
+export interface SectionClosure {
+  id: string;
+  lineId: string;
+  fromStationId: string;
+  toStationId: string;
+  /** turnback: both tracks closed; single_track: one track closed, trains share the other. */
+  kind: 'turnback' | 'single_track';
+}
 
 export interface AppState {
   project: Project;
@@ -61,12 +72,12 @@ export interface AppState {
   simulationEpoch: number;
   /** Polite screen-reader announcements. */
   announcement: string;
+  closures: SectionClosure[];
 
   commitScenario: (scenario: Scenario, label?: string) => void;
   commitProject: (project: Project, label?: string) => void;
   loadProject: (project: Project) => void;
   newProject: () => void;
-  loadDemo: () => void;
   undo: () => void;
   redo: () => void;
   select: (s: Selection) => void;
@@ -82,6 +93,8 @@ export interface AppState {
   setSimulationMultiplier: (m: number) => void;
   resetSimulation: () => void;
   announce: (msg: string) => void;
+  addClosure: (c: Omit<SectionClosure, 'id'>) => void;
+  removeClosure: (id: string) => void;
   duplicateActiveScenario: () => void;
   setActiveScenario: (id: string) => void;
   deleteScenario: (id: string) => void;
@@ -111,7 +124,7 @@ const prefersReducedMotion = () =>
     : false;
 
 function initialProject(): Project {
-  return loadFromLocalStorage() ?? buildDemoProject();
+  return loadFromLocalStorage() ?? blankProject();
 }
 
 export const useStore = create<AppState>()((set, get) => {
@@ -134,7 +147,7 @@ export const useStore = create<AppState>()((set, get) => {
     tool: 'select',
     newLineMode: 'tram',
     stationTargetLineId: null,
-    basemapId: initial.fictional ? 'plain' : 'ofm-liberty',
+    basemapId: DEFAULT_BASEMAP_ID,
     layers: {
       terrain: false,
       buildings: true,
@@ -151,6 +164,7 @@ export const useStore = create<AppState>()((set, get) => {
     simulationMultiplier: 30,
     simulationEpoch: 0,
     announcement: '',
+    closures: [],
 
     commitScenario: (scenario, label) => push(replaceScenario(get().project, scenario), label),
     commitProject: (project, label) => push(project, label),
@@ -166,16 +180,13 @@ export const useStore = create<AppState>()((set, get) => {
         past: [],
         future: [],
         selection: null,
-        basemapId: project.fictional
-          ? 'plain'
-          : get().basemapId === 'plain'
-            ? 'ofm-liberty'
-            : get().basemapId,
+        closures: [],
+        // Keep the user's basemap choice across projects; the OSM map is the default.
+        basemapId: get().basemapId,
         announcement: `Loaded project ${project.name}`,
       });
     },
     newProject: () => get().loadProject(blankProject()),
-    loadDemo: () => get().loadProject(buildDemoProject()),
     undo: () => {
       const { past, project, future } = get();
       const prev = past[past.length - 1];
@@ -206,6 +217,13 @@ export const useStore = create<AppState>()((set, get) => {
       set({ simulationEpoch: get().simulationEpoch + 1 });
     },
     announce: (announcement) => set({ announcement }),
+    addClosure: (c) =>
+      set({
+        closures: [...get().closures.filter((x) => x.lineId !== c.lineId), { ...c, id: newId('closure') }],
+        announcement: 'Section closed in the simulation',
+      }),
+    removeClosure: (id) =>
+      set({ closures: get().closures.filter((c) => c.id !== id), announcement: 'Section reopened' }),
     duplicateActiveScenario: () => {
       const p = get().project;
       push(duplicateScenario(p, p.activeScenarioId), 'Scenario duplicated');

@@ -25,19 +25,24 @@ import { snapToPath } from '../geo/geometry';
 import { basemapOptions, terrainSource } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
-import { simulationClock } from '../simulation/runtime';
+import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
 import {
   ensureLayers,
   setBasemapSourceLayersVisible,
   setData,
   setVisible,
+  SIGNAL_LAYER,
   SRC,
   STATION_LAYER,
 } from './layers';
 import {
+  arrowsCollection,
   catchmentsCollection,
+  closuresCollection,
+  crossoversCollection,
   EMPTY,
+  signalsCollection,
   populationCollection,
   segmentsCollection,
   stationsCollection,
@@ -47,6 +52,7 @@ import {
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { createLogger, errorContext } from '../util/logger';
+import { autoRoute } from '../routing/autoRoute';
 
 const log = createLogger('map');
 
@@ -73,6 +79,7 @@ export default function MapView() {
   const running = useStore((s) => s.simulationRunning);
   const reducedMotion = useStore((s) => s.reducedMotion);
   const simulationEpoch = useStore((s) => s.simulationEpoch);
+  const closures = useStore((s) => s.closures);
 
   // --- Create map and draw once -------------------------------------------
   useEffect(() => {
@@ -153,6 +160,7 @@ export default function MapView() {
         log.debug('line drawn', { lineId: line.id, mode: line.mode, vertices: coords.length });
         state.select({ kind: 'line', id: line.id });
         state.setTool('select');
+        if (line.alignment.kind === 'routed') void autoRoute(line.id);
       }),
       draw.on('feature.updated', ({ feature, source, intermediate }) => {
         if (source === REMOTE || intermediate) return;
@@ -161,8 +169,10 @@ export default function MapView() {
         const line = sc.lines.find((l) => l.id === feature.id);
         if (!line) return;
         const coords = featureLineCoords(feature, isRing(line));
-        if (coords && coords.length >= 2)
+        if (coords && coords.length >= 2) {
           state.commitScenario(updateLineGeometry(sc, line.id, coords), `Line "${line.name}" edited`);
+          if (line.alignment.kind === 'routed') void autoRoute(line.id);
+        }
       }),
       draw.on('feature.deleted', ({ feature, source }) => {
         if (source === REMOTE) return;
@@ -215,8 +225,10 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station!.id });
         return;
       }
-      const hit = map.queryRenderedFeatures(e.point, { layers: [STATION_LAYER] })[0];
+      const hit = map.queryRenderedFeatures(e.point, { layers: [STATION_LAYER, SIGNAL_LAYER] })[0];
       if (hit?.properties?.stationId) state.select({ kind: 'station', id: String(hit.properties.stationId) });
+      else if (hit?.properties?.signalId)
+        state.select({ kind: 'signal', id: String(hit.properties.signalId) });
     };
     map.on('click', onClick);
 
@@ -312,15 +324,29 @@ export default function MapView() {
   const selectedLineId =
     selection?.kind === 'line' ? selection.id : selection?.kind === 'segment' ? selection.lineId : null;
   const selectedStationId = selection?.kind === 'station' ? selection.id : null;
+  const selectedSignalId = selection?.kind === 'signal' ? selection.id : null;
   useEffect(() => {
     const map = mapRef.current;
     const draw = drawRef.current;
     if (!map || !draw || !map.getSource(SRC.segments)) return;
-    setData(map, SRC.segments, segmentsCollection(scenario, selectedLineId));
+    const segments = segmentsCollection(scenario, selectedLineId);
+    setData(map, SRC.segments, segments);
+    setData(map, SRC.arrows, arrowsCollection(segments));
+    setData(map, SRC.crossovers, crossoversCollection(scenario));
+    setData(map, SRC.closures, closuresCollection(scenario, closures));
+    setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
     reconcileDraw(draw, scenario, selectedLineId);
-  }, [scenario, selectedLineId, selectedStationId, styleVersion, layers.catchments]);
+  }, [
+    scenario,
+    selectedLineId,
+    selectedStationId,
+    selectedSignalId,
+    styleVersion,
+    layers.catchments,
+    closures,
+  ]);
 
   // --- Context layers --------------------------------------------------------------
   useEffect(() => {
@@ -390,9 +416,11 @@ export default function MapView() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    let models: LineSimulationModel[] = buildScenarioModels(scenario);
+    const simOptions = simulationOptions(scenario, closures);
+    let models: LineSimulationModel[] = buildScenarioModels(scenario, simOptions);
     let frame = 0;
     let lastDraw = 0;
+    let lastSignals = 0;
     const render = () => {
       const t = simulationClock.tick();
       const now = performance.now();
@@ -401,6 +429,11 @@ export default function MapView() {
         setData(map, SRC.vehicles, vehiclesCollection(models.flatMap((m) => vehicleStates(m, t))));
         lastDraw = now;
       }
+      // Signal states change every few simulated seconds: refresh them a few times per second.
+      if (scenario.trafficSignals.length && now - lastSignals > 300) {
+        setData(map, SRC.signals, signalsCollection(scenario, t, null));
+        lastSignals = now;
+      }
       if (simulationClock.running) frame = requestAnimationFrame(render);
     };
     if (running) {
@@ -408,7 +441,7 @@ export default function MapView() {
       frame = requestAnimationFrame(render);
     } else {
       simulationClock.pause();
-      models = buildScenarioModels(scenario);
+      models = buildScenarioModels(scenario, simOptions);
       if (map.getSource(SRC.vehicles)) {
         const t = simulationClock.timeS;
         setData(
@@ -419,7 +452,7 @@ export default function MapView() {
       }
     }
     return () => cancelAnimationFrame(frame);
-  }, [running, scenario, reducedMotion, styleVersion, simulationEpoch]);
+  }, [running, scenario, reducedMotion, styleVersion, simulationEpoch, closures]);
 
   return (
     <div className="relative h-full w-full">

@@ -96,9 +96,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Create the external network used by docker-compose.yml
+        run: docker network create public
       - name: Validate Compose files
         run: |
           cp .env.example .env
+          # Production mode refuses the default admin password: use a CI-only one.
+          echo "MOBSIM_ADMIN_PASSWORD=ci-only-admin-password" >> .env
           docker compose config -q
           docker compose --profile dev config -q
       - name: Build images

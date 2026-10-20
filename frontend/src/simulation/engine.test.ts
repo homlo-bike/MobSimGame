@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { Scenario } from '../domain/schema';
-import { addStationOnLine, createLine, emptyScenario, updateLine } from '../domain/network';
-import { buildLineModel, SimulationClock, vehicleStates } from './engine';
+import {
+  addStationOnLine,
+  createLine,
+  emptyScenario,
+  orderedStops,
+  toggleCrossover,
+  updateLine,
+} from '../domain/network';
+import {
+  buildLineModel,
+  roundTripS,
+  signalWaitS,
+  SimulationClock,
+  tripPhases,
+  vehicleStates,
+  type LineSimulationModel,
+} from './engine';
 
 function scenarioWith(direction: 'one_way' | 'bidirectional', ring = false) {
   let s: Scenario = emptyScenario();
@@ -34,21 +49,25 @@ function scenarioWith(direction: 'one_way' | 'bidirectional', ring = false) {
   return { s, line: s.lines[0]! };
 }
 
+const phasesOf = (m: LineSimulationModel) => tripPhases(m, m.services[0]!, 0);
+
 describe('simulation engine', () => {
   it('bidirectional lines reverse at terminals', () => {
     const { s, line } = scenarioWith('bidirectional');
     const m = buildLineModel(line, s, { layoverS: 60 })!;
     const directions = new Set<number>();
-    for (let t = 0; t < m.cycleS; t += 30) directions.add(vehicleStates(m, t)[0]!.direction);
+    const trip = roundTripS(m);
+    for (let t = 0; t < trip; t += 30) for (const v of vehicleStates(m, t)) directions.add(v.direction);
     expect(directions).toEqual(new Set([1, -1]));
-    // Back at the start after a full cycle.
-    expect(vehicleStates(m, m.cycleS)[0]!.chainageM).toBeCloseTo(vehicleStates(m, 0)[0]!.chainageM, 3);
+    // Same positions one headway later, shifted by one trip (steady service).
+    const at = (t: number) => vehicleStates(m, t).map((v) => Math.round(v.chainageM));
+    expect(at(1000 + m.headwayS).sort()).toEqual(at(1000).sort());
   });
 
   it('one-way lines only run forward', () => {
     const { s, line } = scenarioWith('one_way');
     const m = buildLineModel(line, s)!;
-    for (let t = 0; t < m.cycleS; t += 20) {
+    for (let t = 0; t < roundTripS(m); t += 20) {
       for (const v of vehicleStates(m, t)) expect(v.direction).toBe(1);
     }
   });
@@ -56,29 +75,89 @@ describe('simulation engine', () => {
   it('circular lines wrap around without reversing', () => {
     const { s, line } = scenarioWith('bidirectional', true);
     const m = buildLineModel(line, s)!;
-    expect(m.phases.every((p) => p.direction === 1)).toBe(true);
-    expect(m.phases.some((p) => p.kind === 'layover')).toBe(false);
+    expect(phasesOf(m).every((p) => p.direction === 1)).toBe(true);
+    expect(phasesOf(m).some((p) => p.kind === 'layover')).toBe(false);
   });
 
   it('dwells at stations', () => {
     const { s, line } = scenarioWith('bidirectional');
     const m = buildLineModel(line, s)!;
-    const dwell = m.phases.filter((p) => p.kind === 'dwell');
+    const dwell = phasesOf(m).filter((p) => p.kind === 'dwell');
     expect(dwell.length).toBe(6); // three stops each way
     expect(dwell[0]!.durationS).toBe(line.dwellTimeS);
   });
 
-  it('runs several vehicles spaced by the headway', () => {
+  it('runs one vehicle per headway along the round trip', () => {
     const { s, line } = scenarioWith('bidirectional');
     const m = buildLineModel(line, s)!;
-    expect(m.vehicleCount).toBe(Math.ceil(m.cycleS / m.headwayS));
-    expect(vehicleStates(m, 100)).toHaveLength(m.vehicleCount);
+    const expected = Math.ceil(roundTripS(m) / m.headwayS);
+    const n = vehicleStates(m, 5000).length;
+    expect(Math.abs(n - expected)).toBeLessThanOrEqual(1);
   });
 
   it('is a pure function of simulated time (frame-rate independent)', () => {
     const { s, line } = scenarioWith('bidirectional');
     const m = buildLineModel(line, s)!;
+    const other = buildLineModel(line, s)!;
+    expect(vehicleStates(m, 1234.5)).toEqual(vehicleStates(other, 1234.5));
     expect(vehicleStates(m, 1234.5)).toEqual(vehicleStates(m, 1234.5));
+  });
+
+  it('stops vehicles at red signals and lets them pass on green', () => {
+    const sig = { cycleS: 90, greenS: 40, offsetS: 0 };
+    expect(signalWaitS(sig, 10)).toBe(0);
+    expect(signalWaitS(sig, 50)).toBe(40);
+    // Priority extends green and shortens red.
+    expect(signalWaitS(sig, 45, 10)).toBe(0);
+    expect(signalWaitS(sig, 60, 10)).toBe(20);
+    const { s, line } = scenarioWith('bidirectional');
+    const withSignal = buildLineModel(line, s, {
+      signals: [{ ...sig, position: [0.005, 0.00001] }],
+    })!;
+    const plain = buildLineModel(line, s)!;
+    const waits = [...Array(20).keys()].flatMap((j) =>
+      tripPhases(withSignal, withSignal.services[0]!, j).filter((p) => p.kind === 'signal'),
+    );
+    expect(waits.length).toBeGreaterThan(0);
+    expect(roundTripS(withSignal)).toBeGreaterThanOrEqual(roundTripS(plain));
+  });
+
+  it('closures turn trains back at crossovers or block service without them', () => {
+    const { s, line } = scenarioWith('bidirectional');
+    const stops = orderedStops(line, s.stations);
+    const closure = {
+      lineId: line.id,
+      fromStationId: stops[1]!.station.id,
+      toStationId: stops[2]!.station.id,
+      kind: 'turnback' as const,
+    };
+    const none = buildLineModel(line, s, { closures: [closure] })!;
+    expect(none.services).toHaveLength(0);
+    expect(none.notes.join(' ')).toMatch(/No crossover/);
+    // A crossover just before the closed section lets the western part keep running.
+    const withXo = toggleCrossover(s, line.id, stops[1]!.station.id, 'before');
+    const m = buildLineModel(withXo.lines[0]!, withXo, { closures: [closure] })!;
+    expect(m.services.map((x) => x.id)).toEqual(['west']);
+    expect(m.services[0]!.endM).toBeLessThan(stops[1]!.chainageM);
+  });
+
+  it('single-track working holds trains for the opposite direction', () => {
+    const { s, line } = scenarioWith('bidirectional');
+    const stops = orderedStops(line, s.stations);
+    let sc = toggleCrossover(s, line.id, stops[1]!.station.id, 'before');
+    sc = toggleCrossover(sc, line.id, stops[2]!.station.id, 'before');
+    const m = buildLineModel(sc.lines[0]!, sc, {
+      closures: [
+        {
+          lineId: line.id,
+          fromStationId: stops[1]!.station.id,
+          toStationId: stops[1]!.station.id,
+          kind: 'single_track',
+        },
+      ],
+    })!;
+    expect(m.services.map((x) => x.id)).toEqual(['single-track']);
+    expect(phasesOf(m).filter((p) => p.kind === 'hold')).toHaveLength(2);
   });
 
   it('clock supports pause, resume, reset and speed multiplier', () => {

@@ -17,13 +17,14 @@ fair-use policy, and renders reports.
 └───────────────┬─────────────────────────────────────────────┘
                 │ /api (same origin via nginx or Vite proxy)
 ┌───────────────▼──────────── FastAPI (backend/app) ──────────┐
-│ health · projects (share) · providers (Overpass, Nominatim, │
-│ CAMARA, ArcGIS*, transport.rest*) · reports (HTML, PDF 501)  │
+│ health · auth · projects (share, login) · providers         │
+│ (Overpass, examples, signals, Nominatim, Valhalla*, CAMARA*, │
+│ ArcGIS*, transport.rest*) · reports (HTML, PDF 501)          │
 │ security: headers, CSP, CORS, size + rate limits, SSRF guard │
 └───────────────┬─────────────────────────────────────────────┘
                 │ SQLAlchemy / GeoAlchemy2 / Alembic
          PostgreSQL 16 + PostGIS 3.4 (shared projects, audit log)
-* disabled unless configured
+* disabled unless configured; Valhalla runs as an optional internal service
 ```
 
 ## Coordinates and units
@@ -42,11 +43,13 @@ fair-use policy, and renders reports.
 
 | Module | Responsibility |
 | --- | --- |
-| `domain/` | Zod schema (Project, Scenario, TransportSystem, TransportLine, TrackSegment, Station, Platform, Interchange, Depot, SharedTrack, ServicePattern, VehicleType, AssumptionSet, DatasetReference, AnalysisResult, Provenance), mode metadata, placeholder mode profiles, network operations, fictional demo |
-| `geo/` | Geometry (length, snapping, slicing, curvature, overlap), segment table operations, GeoJSON/CSV I/O |
+| `domain/` | Zod schema v2 (Project, Scenario, TransportLine with `alignment` (spline / routed / polyline), origin, crossovers, TrackSegment, Station, TrafficSignal, SignalSettings, …), v1→v2 migration, alignment operations, mode metadata, mode profiles with cited curve radii, network operations, signals, example-network conversion |
+| `routing/` | Street-routing requests for bus/BRT lines (backend client + store glue) |
+| `api/` | Backend clients: sharing (with login), auth session, example networks |
+| `geo/` | Geometry (length, snapping, slicing, curvature, overlap), centripetal Catmull–Rom splines, segment table operations, GeoJSON/CSV I/O |
 | `validation/` | Findings engine (information / recommendation / warning / blocking) |
 | `analysis/` | Range arithmetic, units, deterministic formulas, demonstration assumptions and analysis |
-| `simulation/` | Time-based vehicle model and simulation clock |
+| `simulation/` | Trip-based vehicle model (signals, closures, crossovers) and simulation clock |
 | `schematic/` | Octilinear schematic layout and text alternative |
 | `providers/` | Interfaces, provenance helpers, mock providers, backend clients, basemaps |
 | `map/` | MapLibre map, draw adapter, layer definitions, overlay builders |
@@ -68,9 +71,21 @@ forwards edits; it does not decide domain rules.
 | `api/` | Routers: health, projects, providers, reports |
 | `models.py`, `db.py`, `alembic/` | Persistence (JSONB document + PostGIS extent, audit log) |
 
+## Line geometry
+
+`TransportLine.coordinates` is always the resulting geometry used by every
+measurement, renderer and the simulation. `alignment` keeps what the user edits:
+spline control points (track modes), route waypoints with per-section status and
+geometry (bus/BRT), or nothing for straight segments. The draw library edits these
+handles; `domain/alignment.ts` recomputes the geometry. Double track is not stored
+twice: the map draws each double-track segment as two offset tracks, one per
+direction of travel.
+
 ## Data flow for sharing
 
-1. User clicks **Share**. The browser POSTs the project JSON.
+1. User signs in (`POST /api/v1/auth/login`, signed expiring bearer token kept for the
+   tab) and chooses **File › Save to server and share**. The browser POSTs the project
+   JSON with the token.
 2. The API validates identity, geometry ranges and sizes (unknown fields are kept),
    stores it with an unguessable id and returns a separate edit token (only its
    SHA-256 hash is stored). An audit entry with a hashed client id is written.

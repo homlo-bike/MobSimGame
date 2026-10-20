@@ -10,10 +10,11 @@ const EPS = 1e-9;
 export type SegmentAttributes = Pick<
   TrackSegment,
   'structure' | 'rightOfWay' | 'tracks' | 'speedLimitKmh' | 'notes'
->;
+> &
+  Partial<Pick<TrackSegment, 'flipped'>>;
 
 export function initialSegments(attrs: SegmentAttributes): TrackSegment[] {
-  return [{ id: newId('seg'), fromFraction: 0, toFraction: 1, ...attrs }];
+  return [{ id: newId('seg'), fromFraction: 0, toFraction: 1, flipped: false, ...attrs }];
 }
 
 /** Repair ordering, gaps and overlaps so the invariant holds. */

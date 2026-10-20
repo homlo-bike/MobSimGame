@@ -21,15 +21,22 @@ import {
   lineLengthM,
   orderedStops,
   removeStopFromLine,
+  reverseLineDirection,
+  setLineAlignmentKind,
+  toggleCrossover,
   splitLine,
   updateLine,
 } from '../domain/network';
+import { ALIGNMENT_LABELS, defaultAlignmentKind, type AlignmentKind } from '../domain/alignment';
 import { mergeWithNext, splitSegmentsAt, updateSegment } from '../geo/segments';
 import { pathCoordinates } from '../geo/geometry';
 import { formatDistance } from '../analysis/units';
 import { useStore } from '../store/projectStore';
 import { getMapInstance } from '../map/mapInstance';
-import { Badge, Button, SelectField, Section } from './primitives';
+import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
+import { DisruptionPanel } from './DisruptionPanel';
+import { RoutePanel } from './RoutePanel';
+import { SIGNAL_MODES } from '../domain/signals';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { validateLine } from '../validation/validate';
@@ -116,11 +123,48 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             className="h-8 w-16 rounded border border-slate-500"
           />
         </div>
+        {line.origin.source === 'osm' && (
+          <p className="mb-2 text-xs text-slate-700">
+            <Badge>{line.origin.edited ? 'Edited OSM line' : 'Existing (OpenStreetMap)'}</Badge>{' '}
+            {line.origin.status && <strong>{line.origin.status}. </strong>}
+            {line.origin.edited
+              ? 'Findings apply in full because the geometry was changed.'
+              : 'Findings are informational until you edit the geometry.'}
+          </p>
+        )}
         <SelectField
           label="Transport mode"
           value={line.mode}
-          onChange={(e) => patch({ mode: e.target.value as TransportMode }, 'Mode changed')}
+          onChange={(e) => {
+            const mode = e.target.value as TransportMode;
+            let next = updateLine(scenario, line.id, { mode });
+            // Keep the alignment kind in step with the mode unless the user chose another one.
+            if (line.alignment.kind === defaultAlignmentKind(line.mode))
+              next = setLineAlignmentKind(next, line.id, defaultAlignmentKind(mode));
+            commit(next, 'Mode changed');
+          }}
           options={MODE_LIST.map((m) => ({ value: m, label: MODES[m].label }))}
+        />
+        <SelectField
+          label="Alignment"
+          value={line.alignment.kind}
+          onChange={(e) =>
+            commit(
+              setLineAlignmentKind(scenario, line.id, e.target.value as AlignmentKind),
+              'Alignment changed',
+            )
+          }
+          options={(Object.keys(ALIGNMENT_LABELS) as AlignmentKind[]).map((k) => ({
+            value: k,
+            label: ALIGNMENT_LABELS[k],
+          }))}
+          hint={
+            line.alignment.kind === 'spline'
+              ? 'The track runs on a smooth curve through the points you place.'
+              : line.alignment.kind === 'routed'
+                ? 'The route follows streets between the waypoints you place.'
+                : 'Straight segments between the points you place.'
+          }
         />
         {line.mode === 'custom' && (
           <CommitField
@@ -139,9 +183,19 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 checked={line.direction === d}
                 onChange={() => patch({ direction: d }, 'Direction changed')}
               />
-              {d === 'one_way' ? 'One-way (drawn direction)' : 'Bidirectional'}
+              {d === 'one_way' ? 'One-way (drawn direction)' : 'Both directions'}
             </label>
           ))}
+          <p className="text-xs text-slate-600">
+            Each track carries one direction. With both directions, double-track segments get a parallel track
+            for the return (arrows on the map show the direction of travel).
+          </p>
+          <Button
+            className="mt-1"
+            onClick={() => commit(reverseLineDirection(scenario, line.id), 'Line direction reversed')}
+          >
+            ⇄ Reverse drawn direction
+          </Button>
         </fieldset>
         <SelectField
           label="Running side"
@@ -185,6 +239,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
         </p>
       </Section>
 
+      <RoutePanel line={line} scenario={scenario} />
       <Section title="Service (illustrative)" id="line-service">
         <div className="grid grid-cols-2 gap-2">
           <CommitField
@@ -238,6 +293,19 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             onCommit={(v) => patch({ maxSpeedKmh: Number(v) })}
           />
         </div>
+        {SIGNAL_MODES.includes(line.mode) && (
+          <Checkbox
+            label="Transit signal priority"
+            checked={line.transitSignalPriority}
+            onChange={(v) =>
+              patch(
+                { transitSignalPriority: v },
+                v ? 'Signal priority switched on' : 'Signal priority switched off',
+              )
+            }
+            hint={`At traffic signals green is extended or red shortened by up to ${scenario.signalSettings.priorityAdjustmentS} s (set under Traffic signals).`}
+          />
+        )}
         <SelectField
           label="Vehicle type"
           value={line.vehicleTypeId ?? ''}
@@ -306,6 +374,21 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                   ]}
                 />
               </div>
+              {seg.tracks === 'double' && line.direction === 'bidirectional' && (
+                <Checkbox
+                  label="Swap track sides on this segment"
+                  hint={`Trains run on the ${
+                    (line.runningSide === 'right') !== seg.flipped ? 'right' : 'left'
+                  } here (e.g. through a flying junction).`}
+                  checked={seg.flipped}
+                  onChange={(v) =>
+                    patch(
+                      { segments: updateSegment(line.segments, seg.id, { flipped: v }) },
+                      v ? 'Track sides swapped on segment' : 'Track sides restored on segment',
+                    )
+                  }
+                />
+              )}
               <CommitField
                 label="Speed limit"
                 unit="km/h, empty = line maximum"
@@ -377,6 +460,32 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 {i + 1}. {s.station.name}
               </button>
               <span className="text-xs text-slate-600">{formatDistance(s.chainageM, unitSystem)}</span>
+              {MODES[line.mode].guided &&
+                (['before', 'after'] as const).map((side) => {
+                  const on = line.crossovers.some((c) => c.stationId === s.station.id && c.side === side);
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      aria-pressed={on}
+                      title={`Crossover ${side} ${s.station.name}: trains can change track and turn back here`}
+                      aria-label={`Crossover ${side} ${s.station.name}`}
+                      onClick={() =>
+                        commit(
+                          toggleCrossover(scenario, line.id, s.station.id, side),
+                          on
+                            ? `Crossover ${side} ${s.station.name} removed`
+                            : `Crossover ${side} ${s.station.name} added`,
+                        )
+                      }
+                      className={`rounded border px-1 text-xs ${
+                        on ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      {side === 'before' ? '×◂' : '▸×'}
+                    </button>
+                  );
+                })}
               <Button
                 variant="ghost"
                 aria-label={`Remove ${s.station.name} from ${line.name}`}
@@ -387,6 +496,12 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             </li>
           ))}
         </ol>
+        {MODES[line.mode].guided && (
+          <p className="mb-1 text-xs text-slate-600">
+            ×◂ / ▸× add a crossover before or after a station (in drawn direction). Trains use them to change
+            track and turn back when a section is closed.
+          </p>
+        )}
         <CommitField
           label="Add a station at chainage"
           unit="m from line start"
@@ -487,6 +602,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
           </p>
         )}
       </Section>
+      <DisruptionPanel line={line} scenario={scenario} />
       <Section title="Validation" id="line-findings">
         <FindingsList findings={findings} />
       </Section>

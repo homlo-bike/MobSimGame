@@ -174,3 +174,74 @@ export class BackendGeocoderProvider implements GeocoderProvider {
     >;
   }
 }
+
+const RoutedLegSchema = z.object({
+  status: z.enum(['routed', 'failed']),
+  coordinates: z.array(z.tuple([z.number(), z.number()])),
+  lengthM: z.number().nullable(),
+  durationS: z.number().nullable(),
+  message: z.string(),
+});
+export type RoutedLeg = z.infer<typeof RoutedLegSchema>;
+
+/**
+ * Route each leg between consecutive waypoints on the street network (self-hosted
+ * Valhalla behind the backend). Waypoints never go to a third party.
+ */
+export async function routeLegs(
+  waypoints: readonly LngLat[],
+  mode: 'bus' | 'brt',
+): Promise<ProviderResponse<RoutedLeg[]>> {
+  const res = await apiFetch(
+    '/api/v1/routing/route',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waypoints, mode }),
+    },
+    60000,
+  );
+  if (res.status === 422) throw new ProviderError('Too many or invalid waypoints', 'manual_input_required');
+  return (await parse(res, ResponseSchema(z.array(RoutedLegSchema)))) as ProviderResponse<RoutedLeg[]>;
+}
+
+/** Capability of one backend provider by id (e.g. "valhalla"); never throws. */
+export async function backendCapability(id: string): Promise<Capability> {
+  try {
+    const res = await apiFetch('/api/v1/providers', undefined, 5000);
+    const body = (await res.json()) as { providers: { id: string; capability: Capability }[] };
+    return (
+      body.providers.find((p) => p.id === id)?.capability ?? {
+        state: 'not_configured',
+        message: 'Not available on this server',
+        checkedAt: new Date().toISOString(),
+      }
+    );
+  } catch (e) {
+    return {
+      state: e instanceof ProviderError ? e.state : 'temporarily_unavailable',
+      message: e instanceof ProviderError ? e.message : 'Backend not reachable',
+      checkedAt: new Date().toISOString(),
+    };
+  }
+}
+
+const SignalSchema = z.object({ id: z.string(), position: z.tuple([z.number(), z.number()]) });
+
+/** Road traffic signals along the given paths, from OpenStreetMap (sends the paths to Overpass). */
+export async function fetchTrafficSignals(
+  paths: readonly LngLat[][],
+): Promise<ProviderResponse<{ id: string; position: LngLat }[]>> {
+  const res = await apiFetch(
+    '/api/v1/osm/traffic-signals',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths, radius_m: 15 }),
+    },
+    240000,
+  );
+  return (await parse(res, ResponseSchema(z.array(SignalSchema)))) as ProviderResponse<
+    { id: string; position: LngLat }[]
+  >;
+}

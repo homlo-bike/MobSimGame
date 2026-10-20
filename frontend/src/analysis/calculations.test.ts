@@ -19,7 +19,7 @@ import {
 } from './calculations';
 import { formatArea, formatDistance, kmhToMs, kmToMiles, milesToKm, msToKmh, sqmToHectares } from './units';
 import { analyseScenario, catchmentPopulations } from './demoAnalysis';
-import { buildDemoScenario } from '../domain/demo';
+import { buildDemoScenario } from '../test/fixtures/demoProject';
 import type { Station } from '../domain/schema';
 
 describe('unit conversions', () => {

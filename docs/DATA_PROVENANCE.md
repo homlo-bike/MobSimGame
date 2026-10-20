@@ -35,9 +35,14 @@ Projects keep `datasetReferences` (a list of provenance records); analysis resul
 | Line length, station counts, chainages | calculated | Drawn geometry |
 | Mode defaults (colour, dwell, max speed, catchment radius) | documented default / placeholder | `domain/modes.ts`; catchment radii cite a common rule of thumb (Guerra, Cervero & Tischler 2012) |
 | Vehicle types and capacities | demonstration placeholder | `domain/modes.ts` |
-| Mode validation profiles | uncited placeholder (v0.1.0) | `domain/modeProfiles.ts` |
+| Curve-radius thresholds | documented default (cited) | `domain/modeProfiles.ts`, [CURVE_RADII.md](CURVE_RADII.md) |
+| Other validation thresholds (grade, stop spacing, segment length) | uncited placeholder (v0.1.0) | `domain/modeProfiles.ts` |
+| Example city networks (lines, stations, names, positions) | observed (OSM) | Overpass via backend, ODbL; one direction per route kept |
+| Street routes for bus/BRT | calculated | Self-hosted Valhalla on an OSM extract, ODbL |
+| Traffic signal positions | observed (OSM) | Overpass via backend, ODbL |
+| Traffic signal timings and priority seconds | placeholder (assumed, uncited) | `domain/schema.ts` (`PLACEHOLDER_SIGNAL_SETTINGS`) |
 | Right-of-way speed factors | placeholder | `simulation/speeds.ts` |
-| All dashboard assumptions | demonstration | `analysis/demoAssumptions.ts` |
+| All dashboard assumptions | demonstration (fictional projects only; real places show "input required") | `analysis/demoAssumptions.ts` |
 | Demo population, traffic, existing transit, elevation, OSM features | demonstration (synthetic) | `providers/mock.ts` |
 | Station-name suggestions (real places) | observed (OSM) | Overpass via backend, ODbL |
 | Geocoding | observed (OSM) | Nominatim via backend, ODbL |

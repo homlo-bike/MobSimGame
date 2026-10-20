@@ -72,3 +72,12 @@ def client(make_client: Callable[[Settings], TestClient], settings: Settings) ->
 def demo_project() -> dict[str, Any]:
     data: dict[str, Any] = json.loads((FIXTURES / "demo-project.json").read_text())
     return data
+
+
+@pytest.fixture
+def admin(client: TestClient) -> TestClient:
+    """The test client, logged in with the default development credentials."""
+    res = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin"})
+    assert res.status_code == 200
+    client.headers["Authorization"] = f"Bearer {res.json()['token']}"
+    return client

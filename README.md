@@ -13,20 +13,36 @@ proxies data providers and renders reports.
 > environmental-impact assessment, financial appraisal or official ridership
 > forecasts. Every estimate shows its assumptions, status and method.
 
-![Screenshot placeholder: map editor with the fictional demo network](docs/images/screenshot-placeholder.svg)
+![Screenshot placeholder: map editor with a tram network](docs/images/screenshot-placeholder.svg)
 
 ## Status
 
-**Phase 1 (v0.1.0): map and network editor — working vertical slice.**
-All analysis figures in this release come from a **synthetic demonstration
-assumption set** and are labelled as such. See the [roadmap](#roadmap).
+**Phase 2 in progress: realistic alignments, real networks, routing.**
+Real places show no estimated ridership, cost or emission figures ("input
+required"); only fictional projects use the synthetic demonstration assumption
+set, labelled as such. See the [roadmap](#roadmap).
 
 ### Implemented
 
-- MapLibre map with OpenFreeMap basemaps, offline plain and high-contrast styles,
-  3D terrain toggle, buildings and land-use toggles, pan/zoom/rotate/tilt.
+- MapLibre map with the OpenStreetMap vector basemap (OpenFreeMap Liberty) by
+  default, other OpenFreeMap styles, offline plain and high-contrast styles, 3D
+  terrain toggle, buildings and land-use toggles, pan/zoom/rotate/tilt.
+- **Real networks:** File › Open real network loads today's tram, metro or bus network
+  of Berlin, Paris, London, New York City, Los Angeles or Bogotá live from
+  OpenStreetMap (real line and station names; Bogotá Metro Line 1 labelled as under
+  construction; TransMilenio as BRT). Imported lines are existing infrastructure.
+- **Alignments:** trams, light rail, metro and rail run on smooth curves (centripetal
+  Catmull–Rom splines through the points you place; older projects are converted);
+  bus and BRT lines follow streets through waypoints, routed by a self-hosted
+  Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)); unrouted sections make a line
+  incomplete until routed or marked manual. Cycling and walking corridors use straight
+  segments.
 - Line drawing and vertex editing with snapping (`@sakuzu/maplibre-gl-draw`);
   lines from typed coordinates (Table view, no map needed).
+- **Directions and tracks:** every track carries one direction; double-track segments
+  are drawn as two parallel tracks with direction arrows, single track shows both
+  directions; swap track sides per segment; reverse a line.
+- **Crossovers** before or after each station (map and schematic).
 - Stations snapped to lines (click or chainage); shared stations become
   interchanges; drag to move; delete; name suggestions from nearby features
   (OSM via backend, synthetic in the demo) that never overwrite user-edited names.
@@ -36,26 +52,32 @@ assumption set** and are labelled as such. See the [roadmap](#roadmap).
   cut and cover), right of way and single/double track; split/merge segments.
 - Terminations: terminal/siding/turnback/depot ends, ring lines, user-defined loops.
 - Validation findings (information / recommendation / warning / blocking): terminal
-  or loop rule, geometry, stop spacing, curve radius, grades (with elevation data),
-  structure transitions, unrouted bus alignments. Thresholds are uncited
-  placeholders in Phase 1 and say so.
+  or loop rule, geometry, stop spacing, **curve radius against cited minimum and
+  recommended values per mode** ([docs/CURVE_RADII.md](docs/CURVE_RADII.md)), grades
+  (with elevation data), structure transitions, unrouted bus sections. Other
+  thresholds are uncited placeholders and say so.
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
-  sampled-coordinate CSV export, share links (backend).
-- Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode).
+  sampled-coordinate CSV export, share links (backend; saving needs the server login).
+- Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Trams
+  and buses stop at red **traffic signals** from OpenStreetMap with simulated cycles
+  (assumed, editable timings) and optional per-line **transit signal priority**.
+  **Disruptions:** close a section and trains turn back at the nearest crossovers or
+  share the remaining track.
 - Schematic map proof of concept (octilinear, interchange and terminal symbols,
   keyboard corrections, SVG/PNG export, text alternative).
-- Dashboard with low/central/high range charts, data tables, assumptions table —
-  all marked DEMONSTRATION DATA.
+- Dashboard: for real places, geometry-based figures and "input required" for
+  estimates; for fictional projects, low/central/high range charts marked
+  DEMONSTRATION DATA.
+- Login (`MOBSIM_ADMIN_USERNAME` / `MOBSIM_ADMIN_PASSWORD`, default admin/admin,
+  refused in production) for saving and sharing on the server.
 - Print-friendly HTML report from the backend; PDF endpoint contract (returns 501).
-- Fictional demonstration project (two-plus lines, interchanges, surface, tunnel and
-  elevated segments, terminals, a ring line).
 
 ### Planned (not available yet)
 
-Street routing for bus/BRT, real population/traffic/transit/elevation providers,
-editable assumption sets, calibrated demand, cost/emissions/fare modules,
-authentication, server-side PDF. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+Real population/traffic/elevation providers, editable assumption sets for real
+places, calibrated demand, cost/emissions/fare modules, timetables, user accounts
+beyond the single administrator login, server-side PDF. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## Important limitations
 
@@ -63,8 +85,12 @@ authentication, server-side PDF. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMEN
   "construction-ready".
 - Distances use a spherical-earth approximation (sketch accuracy).
 - Phase 1 estimates are exploratory, uncalibrated and use synthetic inputs.
-- Synthetic overlays (population, traffic, existing transit) appear only in the
-  fictional demo, never over real places.
+- Synthetic overlays (population, traffic, existing transit) appear only in
+  fictional projects, never over real places.
+- Example networks are OpenStreetMap as mapped today: one direction per route, merged
+  stations, no timetables, structures (tunnels, viaducts) not imported.
+- Signal timings are placeholders until you enter local values; the animation has no
+  train protection or vehicle interaction.
 - Missing OSM tags do not mean a feature does not exist.
 
 ## Architecture
@@ -79,8 +105,10 @@ GeoJSON coordinates are always **`[longitude, latitude]`** (WGS84).
 ## Quick start (Docker Compose)
 
 ```sh
-cp .env.example .env     # set POSTGRES_PASSWORD
+cp .env.example .env     # set POSTGRES_PASSWORD and MOBSIM_ADMIN_PASSWORD
+docker network create public   # once per host: the stack joins this external network
 docker compose up -d --build
+docker compose --profile routing up -d   # optional: bus/BRT street routing (docs/ROUTING.md)
 open http://localhost:8080
 ```
 
@@ -187,8 +215,10 @@ their own licences. Background: [docs/LICENSING_OPTIONS.md](docs/LICENSING_OPTIO
 
 ## Roadmap
 
-1. **Phase 1 — map and network editor** (this release)
-2. Phase 2 — geospatial validation (routing, PostGIS checks, real elevation, cited profiles)
+1. Phase 1 — map and network editor (v0.1.0)
+2. **Phase 2 (in progress)** — street-following bus lines, smooth rail alignments,
+   directional double track, crossovers and disruptions, traffic signals, real-city
+   networks, minimal UI, geospatial validation ([plan](docs/PHASE_2_PLAN.md))
 3. Phase 3 — data-provider integrations (population, transit, traffic, OSM extracts)
 4. Phase 4 — analysis and estimates (editable assumptions, costs, emissions, fares)
 5. Phase 5 — simulation and publishing (richer simulation, schematic optimisation, PDF, accounts)

@@ -44,7 +44,8 @@ class ScenarioIn(BaseModel):
 
 class ProjectIn(BaseModel):
     model_config = ConfigDict(extra="allow")
-    schemaVersion: int = Field(ge=1, le=1)
+    # 1 is still accepted: the browser migrates older documents when it opens them.
+    schemaVersion: int = Field(ge=1, le=2)
     id: str = Field(max_length=64)
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=10000)

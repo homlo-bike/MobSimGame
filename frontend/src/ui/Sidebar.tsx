@@ -42,7 +42,7 @@ export function SearchBox() {
     else map.flyTo({ center: r.position, zoom: 14 });
   };
   return (
-    <Section title={t('search')} id="search">
+    <Section title={t('search')} id="search" hideTitle>
       <form role="search" onSubmit={submit} className="flex gap-1">
         <label htmlFor="search-input" className="sr-only">
           Place name or "latitude, longitude"
@@ -88,22 +88,34 @@ export function ToolPanel() {
   const target = useStore((s) => s.stationTargetLineId);
   const setTarget = useStore((s) => s.setStationTargetLine);
   const scenario = useScenario();
+  const tools: { id: typeof tool; label: string; disabled?: boolean }[] = [
+    { id: 'select', label: t('toolSelect') },
+    { id: 'draw_line', label: t('toolDrawLine') },
+    { id: 'add_station', label: t('toolAddStation'), disabled: scenario.lines.length === 0 },
+  ];
   return (
-    <Section title={t('tools')} id="tools">
-      <div className="mb-2 flex flex-wrap gap-1" role="group" aria-label="Editing tool">
-        <Button pressed={tool === 'select'} onClick={() => setTool('select')}>
-          {t('toolSelect')}
-        </Button>
-        <Button pressed={tool === 'draw_line'} onClick={() => setTool('draw_line')}>
-          {t('toolDrawLine')}
-        </Button>
-        <Button
-          pressed={tool === 'add_station'}
-          onClick={() => setTool('add_station')}
-          disabled={scenario.lines.length === 0}
-        >
-          {t('toolAddStation')}
-        </Button>
+    <Section title={t('tools')} id="tools" hideTitle>
+      <div
+        className="mb-3 grid grid-cols-3 rounded-md bg-slate-100 p-0.5"
+        role="group"
+        aria-label="Editing tool"
+      >
+        {tools.map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            aria-pressed={tool === it.id}
+            disabled={it.disabled}
+            onClick={() => setTool(it.id)}
+            className={`rounded px-1 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
+              tool === it.id
+                ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {it.label}
+          </button>
+        ))}
       </div>
       <SelectField
         label="Mode for new lines"
@@ -111,24 +123,32 @@ export function ToolPanel() {
         onChange={(e) => setMode(e.target.value as TransportMode)}
         options={MODE_LIST.map((m) => ({ value: m, label: MODES[m].label }))}
         hint={
-          MODES[mode].prefersStreetNetwork
-            ? 'Road-based mode: street routing arrives in Phase 2; drawn lines are conceptual.'
+          tool === 'draw_line' && MODES[mode].prefersStreetNetwork
+            ? 'Road-based mode: street routing is planned for Phase 2; drawn lines are conceptual.'
             : undefined
         }
       />
-      <SelectField
-        label="Add stations to"
-        value={target ?? ''}
-        onChange={(e) => setTarget(e.target.value || null)}
-        options={[
-          { value: '', label: 'Nearest line to the click' },
-          ...scenario.lines.map((l) => ({ value: l.id, label: l.name })),
-        ]}
-        hint="Clicking within ~60 m of an existing station reuses it, creating an interchange."
-      />
-      <p className="text-xs text-slate-600">
-        Keyboard: Ctrl+Z undo · Ctrl+Shift+Z / Ctrl+Y redo · Esc cancel tool · Delete removes the selection.
-      </p>
+      {tool === 'add_station' && (
+        <SelectField
+          label="Add stations to"
+          value={target ?? ''}
+          onChange={(e) => setTarget(e.target.value || null)}
+          options={[
+            { value: '', label: 'Nearest line to the click' },
+            ...scenario.lines.map((l) => ({ value: l.id, label: l.name })),
+          ]}
+          hint="Clicking within ~60 m of an existing station reuses it, creating an interchange."
+        />
+      )}
+      <details className="text-xs text-slate-600">
+        <summary className="cursor-pointer select-none">Keyboard shortcuts</summary>
+        <ul className="mt-1 space-y-0.5 ps-3">
+          <li>Ctrl+Z undo · Ctrl+Shift+Z or Ctrl+Y redo</li>
+          <li>Esc cancels the current tool</li>
+          <li>Delete removes the selected line or station</li>
+          <li>Enter or double-click finishes a line</li>
+        </ul>
+      </details>
     </Section>
   );
 }
@@ -143,7 +163,7 @@ export function LayerPanel() {
     ? 'Synthetic demonstration data'
     : 'No provider configured for real places (Phase 3); hidden';
   return (
-    <Section title={t('layers')} id="layers">
+    <Section title={t('layers')} id="layers" collapsible defaultOpen={false}>
       <SelectField
         label="Basemap"
         value={basemapId}
@@ -195,7 +215,7 @@ export function ScenarioPanel() {
   const duplicate = useStore((s) => s.duplicateActiveScenario);
   const del = useStore((s) => s.deleteScenario);
   return (
-    <Section title={t('scenario')} id="scenario">
+    <Section title={t('scenario')} id="scenario" collapsible defaultOpen={project.scenarios.length > 1}>
       <SelectField
         label="Active scenario"
         value={project.activeScenarioId}
@@ -228,7 +248,7 @@ export function NetworkLists() {
         {scenario.lines.length === 0 && (
           <p className="text-sm text-slate-600">No lines yet. Choose “Draw line” or use the Table view.</p>
         )}
-        <ul className="space-y-0.5" aria-label="Lines">
+        <ul className="max-h-72 space-y-0.5 overflow-auto" aria-label="Lines">
           {scenario.lines.map((l) => (
             <li key={l.id}>
               <button

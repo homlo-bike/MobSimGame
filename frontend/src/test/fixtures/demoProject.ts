@@ -1,17 +1,17 @@
 /**
- * FICTIONAL demonstration project.
+ * FICTIONAL demonstration project — TEST FIXTURE ONLY (not offered in the app).
  *
  * It is placed near 0° N, 0° E (open ocean, "Null Island") on a plain background
  * so it cannot be mistaken for a proposal for any real place. All names, numbers
  * and overlays are synthetic.
  */
-import type { LngLat, Project, Scenario } from './schema';
-import { SCHEMA_VERSION } from './schema';
-import { addStationOnLine, createLine, emptyScenario, renameStation, updateLine } from './network';
-import { snapToPath } from '../geo/geometry';
-import { newId, nowIso } from '../util/id';
-import { DEMO_ASSUMPTIONS } from '../analysis/demoAssumptions';
-import { demoProvenance } from '../providers/provenance';
+import type { LngLat, Project, Scenario } from '../../domain/schema';
+import { SCHEMA_VERSION } from '../../domain/schema';
+import { addStationOnLine, createLine, emptyScenario, renameStation, updateLine } from '../../domain/network';
+import { snapToPath } from '../../geo/geometry';
+import { newId, nowIso } from '../../util/id';
+import { DEMO_ASSUMPTIONS } from '../../analysis/demoAssumptions';
+import { demoProvenance } from '../../providers/provenance';
 
 const ringCentre: LngLat = [0.035, 0.02];
 const ringRadius = 0.012;
@@ -65,6 +65,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: null,
         notes: '',
+        flipped: false,
       },
       {
         id: newId('seg'),
@@ -75,6 +76,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: null,
         notes: 'West portal near Millbrook; east ramp before Harbour Road (fictional).',
+        flipped: false,
       },
       {
         id: newId('seg'),
@@ -85,6 +87,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: null,
         notes: 'Viaduct (fictional).',
+        flipped: false,
       },
     ],
     servicePatterns: [
@@ -153,7 +156,13 @@ export function buildDemoScenario(): Scenario {
     [0.035, 0.008],
     [0.0345, -0.005],
   ];
-  r = createLine(s, { coordinates: brtCoords, mode: 'brt', name: 'Green BRT (fictional)', color: '#13804a' });
+  r = createLine(s, {
+    coordinates: brtCoords,
+    mode: 'brt',
+    name: 'Green BRT (fictional)',
+    color: '#13804a',
+    alignment: 'polyline',
+  });
   s = r.scenario;
   const brt = r.line;
   s = updateLine(s, brt.id, {
@@ -168,6 +177,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: 50,
         notes: '',
+        flipped: false,
       },
       {
         id: newId('seg'),
@@ -178,6 +188,7 @@ export function buildDemoScenario(): Scenario {
         tracks: 'double',
         speedLimitKmh: 50,
         notes: '',
+        flipped: false,
       },
     ],
   });

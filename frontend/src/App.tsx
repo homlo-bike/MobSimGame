@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
 import { saveToLocalStorage } from './store/persistence';
 import { activeScenario, deleteLine, deleteStation } from './domain/network';
@@ -12,8 +12,10 @@ import { SchematicView } from './ui/SchematicView';
 import { Dashboard } from './ui/Dashboard';
 import { TableView } from './ui/TableView';
 import { DataSourcesDialog } from './ui/DataSourcesDialog';
+import { ExampleDialog } from './ui/ExampleDialog';
+import { SignalInspector, SignalsPanel } from './ui/SignalsPanel';
 import { FindingsList } from './ui/FindingsList';
-import { Checkbox, Section } from './ui/primitives';
+import { Button, Checkbox, Section } from './ui/primitives';
 import { validateScenario } from './validation/validate';
 import { t } from './i18n';
 import { createLogger, errorContext } from './util/logger';
@@ -40,16 +42,21 @@ function Inspector() {
   const setReducedMotion = useStore((s) => s.setReducedMotion);
   const unitSystem = useStore((s) => s.unitSystem);
   const setUnitSystem = useStore((s) => s.setUnitSystem);
+  // Real networks can have hundreds of lines: validate only when the scenario changes.
+  const findings = useMemo(() => validateScenario(scenario), [scenario]);
   if (selection?.kind === 'line' || selection?.kind === 'segment') {
     const id = selection.kind === 'line' ? selection.id : selection.lineId;
     const line = scenario.lines.find((l) => l.id === id);
     if (line) return <LineInspector key={line.id} line={line} scenario={scenario} />;
   }
+  if (selection?.kind === 'signal') {
+    const signal = scenario.trafficSignals.find((s) => s.id === selection.id);
+    if (signal) return <SignalInspector key={signal.id} signal={signal} scenario={scenario} />;
+  }
   if (selection?.kind === 'station') {
     const station = scenario.stations.find((s) => s.id === selection.id);
     if (station) return <StationInspector key={station.id} station={station} scenario={scenario} />;
   }
-  const findings = validateScenario(scenario);
   return (
     <>
       <Section title={t('inspector')} id="inspector-empty">
@@ -57,7 +64,7 @@ function Inspector() {
           Select a line or station on the map or in the lists to edit it.
         </p>
       </Section>
-      <Section title="Display" id="display">
+      <Section title="Display" id="display" collapsible defaultOpen={false}>
         <Checkbox
           label="Reduced motion"
           checked={reducedMotion}
@@ -83,13 +90,18 @@ export default function App() {
   const view = useStore((s) => s.view);
   const announcement = useStore((s) => s.announcement);
   const [dataOpen, setDataOpen] = useState(false);
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  const scenario = useScenario();
+  const setTool = useStore((s) => s.setTool);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Autosave to this browser.
   useEffect(() => {
     const id = setTimeout(() => {
       const r = saveToLocalStorage(project);
-      setSaveError(r.ok ? null : `Not saved in this browser: ${r.error}. Use “Save project” to keep a file.`);
+      setSaveError(
+        r.ok ? null : `Not saved in this browser: ${r.error}. Use File › Save project to keep a file.`,
+      );
     }, 400);
     return () => clearTimeout(id);
   }, [project]);
@@ -139,34 +151,41 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
+    <div className="flex h-screen flex-col bg-white text-slate-900">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:z-50 focus:bg-white focus:p-2"
       >
         {t('skipToMain')}
       </a>
-      <Header onOpenDataSources={() => setDataOpen(true)} />
+      <Header onOpenDataSources={() => setDataOpen(true)} onOpenExamples={() => setExamplesOpen(true)} />
       {project.fictional && (
-        <div role="note" className="bg-fuchsia-800 px-3 py-1 text-sm font-semibold text-white">
-          Fictional demonstration project: the network, names and all figures are synthetic and describe no
-          real place.
+        <div
+          role="note"
+          className="border-b border-fuchsia-200 bg-fuchsia-50 px-3 py-0.5 text-xs text-fuchsia-950"
+        >
+          <strong>Fictional demonstration project:</strong> the network, names and all figures are synthetic
+          and describe no real place.
         </div>
       )}
       {saveError && (
-        <div role="alert" className="bg-amber-100 px-3 py-1 text-sm text-amber-950">
+        <div
+          role="alert"
+          className="border-b border-amber-200 bg-amber-50 px-3 py-0.5 text-xs text-amber-950"
+        >
           ⚠ {saveError}
         </div>
       )}
       <div className="flex min-h-0 flex-1">
         <aside
           aria-label="Tools and network"
-          className="w-72 shrink-0 overflow-y-auto border-e border-slate-300 bg-white"
+          className="w-72 shrink-0 overflow-y-auto border-e border-slate-200 bg-white"
         >
           <SearchBox />
           <ToolPanel />
-          <ScenarioPanel />
           <NetworkLists />
+          <SignalsPanel />
+          <ScenarioPanel />
           <LayerPanel />
         </aside>
         <main id="main" className="relative min-w-0 flex-1" tabIndex={-1}>
@@ -176,23 +195,43 @@ export default function App() {
               <MapView />
             </Suspense>
           </div>
+          {view === 'map' && scenario.lines.length === 0 && (
+            <section
+              aria-labelledby="start-title"
+              className="absolute start-1/2 top-1/2 z-10 w-[min(26rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white/95 p-4 shadow-lg"
+            >
+              <h2 id="start-title" className="mb-1 text-base font-semibold">
+                Start a network
+              </h2>
+              <p className="mb-3 text-sm text-slate-700">
+                Open a city’s existing tram, metro or bus network, or search for a place and draw your own
+                lines.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="primary" onClick={() => setExamplesOpen(true)}>
+                  Open a real network…
+                </Button>
+                <Button onClick={() => setTool('draw_line')}>Draw a line</Button>
+              </div>
+            </section>
+          )}
           {view === 'schematic' && <SchematicView />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'table' && <TableView />}
         </main>
         <aside
           aria-label={t('inspector')}
-          className="w-96 shrink-0 overflow-y-auto border-s border-slate-300 bg-white"
+          className="w-80 shrink-0 overflow-y-auto border-s border-slate-200 bg-white"
         >
           <Inspector />
         </aside>
       </div>
-      <footer className="border-t border-slate-400 bg-white px-3 py-1">
+      <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 bg-white px-3 py-1.5">
         <SimulationControls />
-        <p className="text-xs text-slate-700">
-          {t('disclaimer')}{' '}
+        <p className="ms-auto text-xs text-slate-600">
+          {t('disclaimerShort')}{' '}
           <button type="button" className="underline" onClick={() => setDataOpen(true)}>
-            {t('dataSources')}
+            {t('limitationsLink')}
           </button>
         </p>
       </footer>
@@ -200,6 +239,7 @@ export default function App() {
         {announcement}
       </div>
       <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
+      {examplesOpen && <ExampleDialog open={examplesOpen} onClose={() => setExamplesOpen(false)} />}
     </div>
   );
 }

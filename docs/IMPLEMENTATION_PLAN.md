@@ -50,15 +50,30 @@ Vertical slice:
 | HTML report endpoint; PDF contract (501) | `backend/app/api/reports.py` |
 | Tests and CI | `**/*.test.ts(x)`, `e2e/`, `backend/tests/`, `.github/workflows/ci.yml` |
 
-### Phase 2 — Geospatial validation
+### Phase 2 — Alignments, real networks, geospatial validation, minimal UI (in progress)
 
-- Street routing for bus/BRT (RoutingProvider; self-hosted OSRM/Valhalla or GraphHopper).
-- Projected-CRS measures in PostGIS (local UTM) and a validation endpoint.
-- Building, water, railway and protected-area conflict checks from OSM/PostGIS.
-- Elevation profiles from a real ElevationProvider (DEM / COG upload, configurable API).
-- Cited mode profiles (replace placeholders with standards-backed values).
-- Entrances, platforms and portals as editable map features.
-- Station-platform curvature check; structure transition lengths.
+Detailed plan and owner decisions: [PHASE_2_PLAN.md](PHASE_2_PLAN.md).
+
+Done:
+
+- Bus and BRT lines follow streets (self-hosted Valhalla, `docs/ROUTING.md`).
+- Track lines as smooth centripetal Catmull–Rom splines; cited curve radii
+  (`docs/CURVE_RADII.md`).
+- Schema v2 with an explicit `alignment` (polyline / spline / routed); v1 projects
+  migrate (track lines become curves, bus lines become routed with unrouted sections).
+- Directional double track, crossovers, disruption simulation, traffic signals with
+  transit signal priority, real-city networks from OSM, login for server saving.
+- Minimal header with a File menu.
+
+Open:
+
+- UI next steps (C2): collapsible side panels, on-map toolbar, command palette,
+  responsive layout, dark mode, shortcut help.
+- Geospatial validation (D): projected-CRS measures in PostGIS, conflict checks
+  (buildings, water, railways, protected areas), real elevation, cited grade and
+  stop-spacing values, editable entrances, platforms and portals.
+- Routing extras: live route preview while drawing, distinct map style for manual and
+  unrouted sections, cycling/walking routing profiles.
 
 ### Phase 3 — Data-provider integrations
 

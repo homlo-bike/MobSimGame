@@ -14,6 +14,7 @@ export function CommitField({
   step,
   hint,
   unit,
+  inline = false,
 }: {
   label: string;
   value: string | number | null;
@@ -24,6 +25,8 @@ export function CommitField({
   step?: number | 'any';
   hint?: string;
   unit?: string;
+  /** Borderless, label visually hidden (still read by screen readers). For headers. */
+  inline?: boolean;
 }) {
   const id = useId();
   const [draft, setDraft] = useState(value === null ? '' : String(value));
@@ -47,8 +50,8 @@ export function CommitField({
     setError(err ?? null);
   };
   return (
-    <div className="mb-2">
-      <label htmlFor={id} className="block text-xs font-medium text-slate-800">
+    <div className={inline ? 'relative' : 'mb-2'}>
+      <label htmlFor={id} className={inline ? 'sr-only' : 'block text-xs font-medium text-slate-800'}>
         {label}
         {unit ? ` (${unit})` : ''}
       </label>
@@ -66,7 +69,11 @@ export function CommitField({
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit();
         }}
-        className="mt-0.5 w-full rounded border border-slate-500 bg-white px-2 py-1 text-sm text-slate-900 aria-[invalid=true]:border-red-700"
+        className={
+          inline
+            ? 'w-full rounded border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-medium text-slate-900 hover:border-slate-300 focus:border-slate-500 focus:bg-white aria-[invalid=true]:border-red-700'
+            : 'mt-0.5 w-full rounded border border-slate-500 bg-white px-2 py-1 text-sm text-slate-900 aria-[invalid=true]:border-red-700'
+        }
       />
       {hint && (
         <p id={`${id}-hint`} className="mt-0.5 text-xs text-slate-600">
@@ -74,7 +81,11 @@ export function CommitField({
         </p>
       )}
       {error && (
-        <p id={`${id}-err`} role="alert" className="mt-0.5 text-xs font-semibold text-red-800">
+        <p
+          id={`${id}-err`}
+          role="alert"
+          className={`mt-0.5 text-xs font-semibold text-red-800 ${inline ? 'absolute start-0 top-full z-10 rounded bg-white px-1 shadow' : ''}`}
+        >
           ⛔ {error}
         </p>
       )}
