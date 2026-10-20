@@ -184,6 +184,7 @@ describe('File menu', () => {
       'Project properties…',
       'Import GeoJSON…',
       'Export GeoJSON',
+      'Export all data.json',
       'Export coordinates.csv',
       'Save to server and share…',
       'Print report',
