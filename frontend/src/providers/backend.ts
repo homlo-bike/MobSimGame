@@ -9,8 +9,10 @@ import { createLogger } from '../util/logger';
 import { ProvenanceSchema } from '../domain/schema';
 import type {
   BBox,
+  BoundaryResult,
   Capability,
   CapabilityState,
+  GeocodeResult,
   GeocoderProvider,
   OsmFeature,
   OsmFeatureCategory,
@@ -158,20 +160,40 @@ export class BackendGeocoderProvider implements GeocoderProvider {
       checkedAt: new Date().toISOString(),
     };
   }
-  async search(query: string) {
-    const res = await apiFetch(`/api/v1/geocode?${new URLSearchParams({ q: query })}`);
+  async search(query: string, placesOnly = false) {
+    const params = new URLSearchParams({ q: query });
+    if (placesOnly) params.set('places', 'true');
+    const res = await apiFetch(`/api/v1/geocode?${params}`);
     const schema = ResponseSchema(
       z.array(
         z.object({
           label: z.string(),
           position: z.tuple([z.number(), z.number()]),
           bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable(),
+          kind: z.string().nullable().optional(),
+          osmType: z.string().nullable().optional(),
+          osmId: z.number().nullable().optional(),
+          hierarchy: z.array(z.string()).optional(),
+          boundaryAvailable: z.boolean().optional(),
         }),
       ),
     );
-    return (await parse(res, schema)) as ProviderResponse<
-      { label: string; position: LngLat; bbox: BBox | null }[]
-    >;
+    return (await parse(res, schema)) as ProviderResponse<GeocodeResult[]>;
+  }
+  /** The boundary polygon of an OSM object, or `geometry: null` when there is none. */
+  async boundary(osmType: string, osmId: number) {
+    const res = await apiFetch(
+      `/api/v1/geocode/boundary/${encodeURIComponent(osmType)}/${encodeURIComponent(String(osmId))}`,
+    );
+    const schema = ResponseSchema(
+      z.object({
+        label: z.string(),
+        osmType: z.string(),
+        osmId: z.number(),
+        geometry: z.object({ type: z.string(), coordinates: z.unknown() }).nullable(),
+      }),
+    );
+    return (await parse(res, schema)) as ProviderResponse<BoundaryResult>;
   }
 }
 

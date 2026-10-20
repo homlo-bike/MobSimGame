@@ -108,7 +108,7 @@ a schema 4 needs migration once projects are published.
   - no individual-level inference anywhere.
 - **Risks:** sensitive data; inconsistent sources; boundary licences (ODbL attribution).
 - **Done when:** regions persist, export and import; every attribute shows unit, year, source and status; the lookup works offline-safe; keyboard paths exist.
-- **PRs:** P3-01a (regions and editor, **implemented** in its PR), P3-01b (lookup and boundaries).
+- **PRs:** P3-01a (regions and editor, **implemented** in its PR), P3-01b (lookup and boundaries, **implemented** in its PR).
 
 ## P3-02 Mode-specific infrastructure architecture
 

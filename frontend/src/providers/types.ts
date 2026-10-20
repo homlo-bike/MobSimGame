@@ -139,6 +139,22 @@ export interface GeocodeResult {
   label: string;
   position: LngLat;
   bbox: BBox | null;
+  /** Address type from the geocoder, e.g. "city", "suburb", "neighbourhood". */
+  kind?: string | null;
+  osmType?: string | null;
+  osmId?: number | null;
+  /** Enclosing places, nearest first. */
+  hierarchy?: string[];
+  /** The result is an OSM relation and may have a boundary polygon. */
+  boundaryAvailable?: boolean;
+}
+
+export interface BoundaryResult {
+  label: string;
+  osmType: string;
+  osmId: number;
+  /** Polygon or MultiPolygon; null when the source has no boundary for the place. */
+  geometry: { type: string; coordinates: unknown } | null;
 }
 
 export interface GeocoderProvider extends Provider {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -93,10 +93,27 @@ async def geocode(
     providers: Annotated[Providers, Depends(get_providers)],
     limiter: Annotated[RateLimiter, Depends(get_provider_limiter)],
     q: Annotated[str, Query(min_length=2, max_length=200)],
+    places: bool = False,
 ) -> dict[str, object] | JSONResponse:
     _limit(request, limiter)
     try:
-        res = await providers.nominatim.search(q)
+        res = await providers.nominatim.search(q, places_only=places)
+    except ProviderError as e:
+        return provider_error_response(e)
+    return res.model_dump()
+
+
+@router.get("/geocode/boundary/{osm_type}/{osm_id}", response_model=None)
+async def geocode_boundary(
+    request: Request,
+    providers: Annotated[Providers, Depends(get_providers)],
+    limiter: Annotated[RateLimiter, Depends(get_provider_limiter)],
+    osm_type: Literal["node", "way", "relation"],
+    osm_id: Annotated[int, Path(gt=0)],
+) -> dict[str, object] | JSONResponse:
+    _limit(request, limiter)
+    try:
+        res = await providers.nominatim.boundary(osm_type, osm_id)
     except ProviderError as e:
         return provider_error_response(e)
     return res.model_dump()

@@ -419,6 +419,86 @@ describe('regions', () => {
       expect(screen.getByRole('button', { name: 'Delete region' })).toBeDisabled();
     },
   );
+
+  it('creates a region from a looked-up boundary and offers drawing when there is none', async () => {
+    const user = userEvent.setup();
+    const prov = {
+      provider: 'Nominatim',
+      dataset: 'OpenStreetMap',
+      sourceUrl: null,
+      coverage: 'Global',
+      datasetDate: null,
+      spatialResolution: null,
+      cacheExpiresAt: null,
+      license: 'ODbL-1.0',
+      attribution: '© OpenStreetMap contributors (ODbL)',
+      retrievedAt: '2026-10-20T12:00:00Z',
+      status: 'observed',
+      limitations: [],
+      confidence: 'medium',
+    };
+    const ok = { state: 'available', message: '', checkedAt: 'x' };
+    const json = (data: unknown, capability = ok) =>
+      new Response(JSON.stringify({ data, provenance: prov, capability }), { status: 200 });
+    const square = [
+      [
+        [0, 0],
+        [0.01, 0],
+        [0.01, 0.01],
+        [0, 0],
+      ],
+    ];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/geocode/boundary/relation/'))
+        return json({
+          label: 'Mitte',
+          osmType: 'relation',
+          osmId: 1,
+          geometry: { type: 'Polygon', coordinates: square },
+        });
+      if (url.includes('/geocode?'))
+        return json([
+          {
+            label: 'Mitte, Berlin',
+            position: [0, 0],
+            bbox: null,
+            kind: 'suburb',
+            osmType: 'relation',
+            osmId: 1,
+            hierarchy: ['Berlin'],
+            boundaryAvailable: true,
+          },
+          {
+            label: 'Brunnen, Berlin',
+            position: [0, 0],
+            bbox: null,
+            kind: 'neighbourhood',
+            osmType: 'node',
+            osmId: 2,
+            hierarchy: ['Berlin'],
+            boundaryAvailable: false,
+          },
+        ]);
+      return new Response('{}', { status: 404 });
+    });
+    render(<App />);
+    await user.click(screen.getByText(/^Regions \(/));
+    await user.type(screen.getByLabelText('City, district or neighbourhood'), 'mitte{Enter}');
+    const list = await screen.findByRole('list', { name: 'Places found' });
+    expect(within(list).getAllByText(/In Berlin/)).toHaveLength(2);
+    const before = useStore.getState().project.scenarios[0]!.regions.length;
+    await user.click(within(list).getByRole('button', { name: 'Create region from boundary' }));
+    await screen.findByText(/Statistics are empty until you enter them/);
+    const regions = useStore.getState().project.scenarios[0]!.regions;
+    expect(regions).toHaveLength(before + 1);
+    expect(regions.at(-1)!).toMatchObject({ type: 'neighbourhood', attributes: {} });
+    expect(regions.at(-1)!.source.status).toBe('imported');
+    await user.click(within(list).getByRole('button', { name: 'No boundary: draw by hand' }));
+    expect(screen.getByText(/No boundary is available for Brunnen/)).toBeInTheDocument();
+    expect(useStore.getState().project.scenarios[0]!.regions).toHaveLength(before + 1);
+    await user.click(screen.getByRole('button', { name: 'Draw the region by hand' }));
+  });
 });
 
 describe('validation panel', () => {

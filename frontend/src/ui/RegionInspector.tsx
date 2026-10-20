@@ -26,6 +26,7 @@ import { useScenario, useStore } from '../store/projectStore';
 import { getMapInstance } from '../map/mapInstance';
 import { CommitField } from './CommitField';
 import { MetadataEditor } from './MetadataEditor';
+import { PlaceLookup } from './PlaceLookup';
 import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 
 const CONFIDENCE = ['unknown', 'low', 'medium', 'high'] as const;
@@ -102,6 +103,7 @@ export function RegionsPanel() {
         Neighbourhoods, districts or study areas with sourced statistics. Values describe the area, never
         individual people or households.
       </p>
+      <PlaceLookup />
       <div className="mb-2 flex flex-wrap gap-1">
         <Button
           pressed={tool === 'draw_region'}

@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     # Nominatim
     geocoder_enabled: bool = True
     nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    nominatim_lookup_url: str = "https://nominatim.openstreetmap.org/lookup"
     geocoder_cache_ttl_s: int = 7 * 24 * 3600
 
     # ArcGIS traffic (disabled unless a token is configured)
@@ -136,7 +137,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check(self) -> Settings:
-        for name in ("overpass_url", "nominatim_url", "arcgis_traffic_url", "transport_rest_url"):
+        for name in (
+            "overpass_url",
+            "nominatim_url",
+            "nominatim_lookup_url",
+            "arcgis_traffic_url",
+            "transport_rest_url",
+        ):
             url = getattr(self, name)
             parsed = urlparse(url)
             if parsed.scheme != "https":

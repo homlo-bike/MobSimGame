@@ -29,6 +29,17 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Find a city, district or neighbourhood** in the Regions panel (P3-01b). The
+  results show the place type and the places around it. *Go to* zooms to the place.
+  *Create region from boundary* imports its OpenStreetMap boundary as a region typed
+  from the place (neighbourhood, district or municipality), with source, link,
+  retrieval date and status "imported", and with no statistics. If the place
+  already has a region from the same OSM object, that region is selected and left
+  unchanged. When there is no boundary, or the lookup fails, the map is centred on
+  the place and *Draw the region by hand* is offered; a boundary is never
+  generated. Backend: `places=true` on `/api/v1/geocode` and the new
+  `/api/v1/geocode/boundary/{type}/{id}`, both cached.
+
 - **Regions** (Phase 3, P3-01a): draw polygons on the map or type their corners,
   cut holes, split with a line, merge, lock, show/hide, and style them (fill,
   outline, opacity, label). Each region has a name and a type (neighbourhood,
@@ -41,8 +52,7 @@ All notable changes are documented here. The format follows
   imported and exported as GeoJSON. A split does not divide statistics (numeric
   values are dropped from the parts, with a note); a merge does not add them up
   (the first region's values are kept, with a note to check them).
-  Nothing is inferred about individuals. City and neighbourhood lookup comes in
-  P3-01b.
+  Nothing is inferred about individuals.
 
 - **Station and stop rules**:
   - a station that track services call at but that is on no track (for example
