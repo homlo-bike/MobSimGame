@@ -32,6 +32,7 @@ import { consistLengthM } from '../domain/vehicles';
 import { trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
 import { consistFootprint, consistShape, type ConsistShape } from './footprint';
+import { heightAtFraction, lineHeightProfile, type HeightProfile } from '../domain/ramps';
 import {
   lineRates,
   profile as speedProfile,
@@ -166,6 +167,8 @@ export interface LineSimulationModel {
   ring: boolean;
   /** Acceleration and braking (m/s²); null = constant speed between stops. */
   rates: { accelMs2: number; decelMs2: number } | null;
+  /** Height of the line (m, relative to the street) along its length, for drawing vehicles underground. */
+  heightProfile: HeightProfile;
 }
 
 export interface VehicleState {
@@ -179,6 +182,8 @@ export interface VehicleState {
   state: 'running' | 'dwelling' | 'layover' | 'waiting';
   /** Outline of each unit of the consist (closed rings), to scale; empty when unknown. */
   footprint: LngLat[][];
+  /** Height (m) relative to the street: negative underground, positive elevated. */
+  heightM: number;
 }
 
 /**
@@ -456,6 +461,7 @@ function buildModelBody(
     consist: null,
     ring,
     rates: options.constantSpeed ? null : lineRates(line, scenario),
+    heightProfile: lineHeightProfile(scenario, line),
   };
 }
 
@@ -590,6 +596,7 @@ function emptyModel(
     consist: null,
     ring: false,
     rates: null,
+    heightProfile: [],
   };
 }
 
@@ -842,6 +849,7 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
             direction: p.direction,
             state,
             footprint,
+            heightM: heightAtFraction(model.heightProfile, chainageM / Math.max(model.path.lengthM, 1e-9)),
           });
           break;
         }

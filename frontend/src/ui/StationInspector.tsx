@@ -29,7 +29,13 @@ import { parameterValue } from '../domain/trackParameters';
 import { MetadataEditor } from './MetadataEditor';
 import { StationLayoutSection } from './StationLayoutSection';
 import { WalkingLinksSection } from './WalkingLinksSection';
-import { deleteStationObject, updateStationLayout } from '../domain/stationLayout';
+import {
+  deleteStationObject,
+  STATION_LEVELS,
+  stationLevelLabel,
+  stationObjectLevel,
+  updateStationLayout,
+} from '../domain/stationLayout';
 import { BUS_STOP_TYPE_LABELS, stationKind, type StationKind } from '../domain/stationKinds';
 
 const KIND_LABELS: Record<StationKind, string> = {
@@ -181,6 +187,21 @@ export function StationInspector({ station, scenario }: { station: Station; scen
       <StationLayoutSection station={station} scenario={scenario} />
 
       <Section title="Construction and access" id="station-construction">
+        {station.layout && (
+          <SelectField
+            label="Level"
+            value={String(stationObjectLevel(scenario, station))}
+            onChange={(e) => {
+              const level = Number(e.target.value);
+              commit(
+                updateStationLayout(scenario, station.id, { level }).scenario,
+                `"${station.name}" moved to ${stationLevelLabel(level).toLowerCase()}`,
+              );
+            }}
+            options={STATION_LEVELS.map((l) => ({ value: String(l), label: stationLevelLabel(l) }))}
+            hint="The station's tracks follow. Stations on other levels may stand above or below it."
+          />
+        )}
         <SelectField
           label="Construction"
           value={station.construction}

@@ -8,6 +8,15 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Stacked stations on different levels**: new rail stations get a level
+  (underground −2/−1, street, elevated +1/+2; "Level of new stations"), and the
+  station inspector moves a station object to another level with its tracks.
+  Stations on different levels can stand on top of each other; the map lists them in
+  one label, top level first.
+- **Underground vehicles are drawn distinctly**: fainter with depth and with a dotted
+  outline; the change follows the height along ramps, so vehicles fade gradually when
+  entering or leaving a tunnel.
+
 - **Ramps between levels** (R6). A track whose ends are on different levels is a
   ramp; the track inspector sets the level of each end and shows the gradient, the
   maximum and the length needed. Too steep ramps and platforms on ramps are reported

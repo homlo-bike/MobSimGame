@@ -116,7 +116,8 @@ export interface AppState {
   /** A drawn track whose last point is back at its first: waiting for "close the loop?". */
   pendingLoop: LngLat[] | null;
   /** Platforms of the next station object placed with add_station (rail modes). */
-  stationDraft: { sidePlatforms: number; islandPlatforms: number };
+  /** Platforms and level of new station objects (level null = the mode's default). */
+  stationDraft: { sidePlatforms: number; islandPlatforms: number; level: number | null };
   /** The curve whose radius editor is open on the map. */
   curveEditor: { trackId: string; index: number } | null;
   /** The finding highlighted in the validation panel and on the map. */
@@ -170,7 +171,9 @@ export interface AppState {
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
   setPendingLoop: (points: LngLat[] | null) => void;
   setCurveEditor: (c: { trackId: string; index: number } | null) => void;
-  setStationDraft: (patch: Partial<{ sidePlatforms: number; islandPlatforms: number }>) => void;
+  setStationDraft: (
+    patch: Partial<{ sidePlatforms: number; islandPlatforms: number; level: number | null }>,
+  ) => void;
   setFocusedFinding: (id: string | null) => void;
   setMarkerVisible: (severity: 'error' | 'warning' | 'recommendation' | 'info', visible: boolean) => void;
   setBasemap: (id: string) => void;
@@ -245,7 +248,7 @@ export const useStore = create<AppState>()((set, get) => {
     pendingTrackDeletion: null,
     pendingLoop: null,
     curveEditor: null,
-    stationDraft: { sidePlatforms: 2, islandPlatforms: 0 },
+    stationDraft: { sidePlatforms: 2, islandPlatforms: 0, level: null },
     focusedFindingId: null,
     markerVisibility: { error: true, warning: true, recommendation: true, info: false },
     basemapId: DEFAULT_BASEMAP_ID,
