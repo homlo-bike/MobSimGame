@@ -67,6 +67,22 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- **Direction arrows** sat on top of each other:
+  - the two directions of a single track used both ways;
+  - the two tracks of a double track at normal zoom levels;
+  - a one-way service on double track, which looked like two opposite arrows.
+
+  Now:
+  - each arrow sits beside its own track, on the running side, so opposite
+    directions never overlap;
+  - spacing follows the zoom (about 120 px);
+  - arrows keep clear of stations;
+  - lines' direction is described in words in the line inspector and the Table
+    view (for example "One-way from A to B");
+  - services on tracks can reverse their stop order.
+
+  Regression tests cover one-way, bidirectional, paired tracks, loops, reversed
+  geometry and shared track.
 - Simulation: the return trip of a two-ended line started its timing before the
   terminal layover had passed, so traffic-signal waits on the way back were computed
   for the wrong time. The way back now starts after the layover.

@@ -43,6 +43,7 @@ import { validateLine } from '../validation/validate';
 import { isRailMode, RAIL_MODES } from '../domain/tracks';
 import { moveServiceStop, rerouteServices, setServiceStops } from '../domain/serviceRouting';
 import { MetadataEditor } from './MetadataEditor';
+import { describeDirection } from '../domain/direction';
 
 const END_LABELS: Record<EndType, string> = {
   terminal_station: 'Terminal station',
@@ -210,11 +211,32 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
               {d === 'one_way' ? 'One-way (drawn direction)' : 'Both directions'}
             </label>
           ))}
+          <p className="text-sm text-slate-800" data-testid="direction-description">
+            {describeDirection(line, scenario)}
+          </p>
           {onTracks ? (
-            <p className="text-xs text-slate-600">
-              With both directions the return trip is routed separately, so on double track it uses the other
-              track.
-            </p>
+            <>
+              <p className="text-xs text-slate-600">
+                With both directions the return trip is routed separately, so on double track it uses the
+                other track.
+              </p>
+              <Button
+                className="mt-1"
+                disabled={line.stops.length < 2}
+                onClick={() =>
+                  commit(
+                    setServiceStops(
+                      scenario,
+                      line.id,
+                      [...line.stops].reverse().map((x) => x.stationId),
+                    ),
+                    'Service direction reversed',
+                  )
+                }
+              >
+                ⇄ Reverse stop order
+              </Button>
+            </>
           ) : (
             <>
               <p className="text-xs text-slate-600">

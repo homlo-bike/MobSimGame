@@ -8,6 +8,7 @@ import { createLine, isInterchange, lineLengthM, linesServingStation } from '../
 import { createTracks, defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
 import { addStationOnTracks, afterTrackEdit } from '../domain/serviceRouting';
 import { MODES, MODE_LIST } from '../domain/modes';
+import { describeDirection } from '../domain/direction';
 import { formatDistance } from '../analysis/units';
 import { useStore, useScenario } from '../store/projectStore';
 import { Button, Checkbox, SelectField, Section } from './primitives';
@@ -297,7 +298,7 @@ export function TableView() {
                 <td>{MODES[l.mode].label}</td>
                 <td className="text-end">{formatDistance(lineLengthM(l), unitSystem)}</td>
                 <td className="text-end">{l.stops.length}</td>
-                <td className="ps-2">{l.direction === 'one_way' ? 'One-way' : 'Bidirectional'}</td>
+                <td className="ps-2">{describeDirection(l, scenario)}</td>
               </tr>
             ))}
           </tbody>

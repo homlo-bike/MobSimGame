@@ -277,9 +277,9 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'icon-offset': [
         'case',
         ['>', ['get', 'offsetSign'], 0],
-        ['literal', [4, 0]],
+        ['literal', [6, 0]],
         ['<', ['get', 'offsetSign'], 0],
-        ['literal', [-4, 0]],
+        ['literal', [-6, 0]],
         ['literal', [0, 0]],
       ],
     },

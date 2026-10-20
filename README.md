@@ -60,9 +60,12 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Drawing and point editing with snapping (`@sakuzu/maplibre-gl-draw`). The Table
   view creates track, stations on track, and lines from typed coordinates (no map
   needed).
-- **Directions:** each physical track has a running direction (arrows on the map,
-  both ways on single track). Street-routed and straight lines keep per-segment
-  track sides and can be reversed.
+- **Directions:** each physical track has a running direction. Arrows sit beside the
+  track on the running side, so the two directions of a single track, or the two
+  tracks of a double track, never overlap. Their spacing follows the zoom and they
+  keep clear of stations. The line inspector and the Table view say the direction
+  in words. Street-routed and straight lines keep per-segment track sides and can be
+  reversed; services on tracks reverse their stop order.
 - **Parameters** (track spacing, station search distance, minimum separation) show
   their default, range, status and source and can be changed per project. Uncited
   values are marked placeholder.

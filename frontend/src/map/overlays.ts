@@ -9,7 +9,7 @@ import {
   orderedStops,
   placedCrossovers,
 } from '../domain/network';
-import { slicePath } from '../geo/geometry';
+import { distanceM, slicePath } from '../geo/geometry';
 import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
@@ -41,7 +41,8 @@ export function tracksCollection(scenario: Scenario, selectedTrackId: string | n
         existing: t.origin.source === 'osm' && !t.origin.edited,
         arrow: t.direction === 'both' ? '‹ ›' : '›',
         color: '#334155',
-        offsetSign: 0,
+        // Arrows of the two tracks of a double track go to the outside (the running side).
+        offsetSign: t.groupId || t.direction === 'both' ? (net.runningSide === 'right' ? 1 : -1) : 0,
       },
     };
   });
@@ -256,14 +257,29 @@ export function closuresCollection(
   return { type: 'FeatureCollection', features };
 }
 
-/** Distance between direction arrows along a track. */
-const ARROW_SPACING_M = 150;
+/** Default distance between direction arrows when no zoom-dependent spacing is given. */
+export const ARROW_SPACING_M = 150;
+
+export interface ArrowOptions {
+  /** Distance between arrows along each feature, metres (the map derives it from the zoom). */
+  spacingM?: number;
+  /** Points that arrows must keep clear of (stations, validation markers). */
+  avoid?: readonly LngLat[];
+  /** Clearance around `avoid` points, metres. */
+  avoidM?: number;
+}
 
 /**
- * Direction-of-travel arrows: points along each track with the bearing of
- * travel and the side of the line the track is drawn on.
+ * Direction-of-travel arrows: points along each feature with the bearing of
+ * travel. `offsetSign` places an arrow beside its track (+1 = right of travel), so
+ * arrows of two tracks, or of the two directions of a single track, never sit
+ * on top of each other. A feature drawn in both directions ('‹ ›') gets one
+ * arrow per direction, each on its own right-hand side.
  */
-export function arrowsCollection(segments: FeatureCollection): FeatureCollection {
+export function arrowsCollection(segments: FeatureCollection, options: ArrowOptions = {}): FeatureCollection {
+  const spacing = Math.max(1, options.spacingM ?? ARROW_SPACING_M);
+  const avoid = options.avoid ?? [];
+  const clear = options.avoidM ?? 0;
   const features: Feature[] = [];
   for (const f of segments.features) {
     if (f.geometry.type !== 'LineString') continue;
@@ -271,11 +287,19 @@ export function arrowsCollection(segments: FeatureCollection): FeatureCollection
     if (!p.arrow) continue;
     const path = measurePath(f.geometry.coordinates as LngLat[], false);
     const both = p.arrow === '‹ ›';
-    for (let d = ARROW_SPACING_M / 2; d < path.lengthM; d += ARROW_SPACING_M) {
+    // Both directions on one line: each arrow sits on the right of its own travel direction.
+    const side = both ? p.offsetSign || 1 : (p.offsetSign ?? 0);
+    for (let d = spacing / 2; d < path.lengthM; d += spacing) {
       const here = interpolate(path, d).position;
+      if (clear > 0 && avoid.some((a) => distanceM(a, here) < clear)) continue;
       const ahead = interpolate(path, Math.min(path.lengthM, d + 2)).position;
       const bearing = bearingDeg(here, ahead);
-      const props = { color: p.color, offsetSign: p.offsetSign ?? 0 };
+      const props = {
+        color: p.color,
+        offsetSign: side,
+        lineId: p.lineId ?? null,
+        trackId: p.trackId ?? null,
+      };
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: here },
@@ -290,6 +314,11 @@ export function arrowsCollection(segments: FeatureCollection): FeatureCollection
     }
   }
   return { type: 'FeatureCollection', features };
+}
+
+/** Metres per screen pixel at a zoom and latitude (MapLibre's 512-pixel world). */
+export function metresPerPixel(zoom: number, latitude: number): number {
+  return (40075016.686 * Math.cos((latitude * Math.PI) / 180)) / (512 * 2 ** zoom);
 }
 
 function bearingDeg(a: LngLat, b: LngLat): number {

@@ -43,6 +43,7 @@ import {
 } from './layers';
 import {
   arrowsCollection,
+  metresPerPixel,
   catchmentsCollection,
   closuresCollection,
   crossoversCollection,
@@ -69,6 +70,27 @@ maplibregl.setWorkerUrl(workerUrl);
 /** Maximum click distance from a line, in screen pixels, for placing a station. */
 const STATION_SNAP_PX = 24;
 
+/** Screen distance between direction arrows, and their clearance around stations. */
+const ARROW_SPACING_PX = 120;
+const ARROW_STATION_CLEARANCE_PX = 14;
+
+/** Direction arrows for services and tracks, spaced for the current zoom and kept clear of stations. */
+function directionArrows(
+  map: maplibregl.Map,
+  segments: ReturnType<typeof segmentsCollection>,
+  tracks: ReturnType<typeof tracksCollection>,
+  scenario: ReturnType<typeof useScenario>,
+) {
+  const mpp = metresPerPixel(map.getZoom(), map.getCenter().lat);
+  const options = {
+    spacingM: ARROW_SPACING_PX * mpp,
+    avoid: scenario.stations.map((s) => s.position),
+    avoidM: ARROW_STATION_CLEARANCE_PX * mpp,
+  };
+  const a = arrowsCollection(segments, options);
+  return { ...a, features: [...a.features, ...arrowsCollection(tracks, options).features] };
+}
+
 export default function MapView() {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -89,6 +111,8 @@ export default function MapView() {
   const simulationEpoch = useStore((s) => s.simulationEpoch);
   const closures = useStore((s) => s.closures);
   const newLineMode = useStore((s) => s.newLineMode);
+  /** Zoom (rounded to half steps) at which direction arrows were laid out. */
+  const [arrowZoom, setArrowZoom] = useState(0);
   const serviceDraft = useStore((s) => s.serviceDraft);
 
   // --- Create map and draw once -------------------------------------------
@@ -124,6 +148,10 @@ export default function MapView() {
     }
     mapRef.current = map;
     setMapInstance(map);
+    // Arrow spacing follows the zoom: lay arrows out again in half-zoom steps.
+    const onZoom = () => setArrowZoom(Math.round(map.getZoom() * 2) / 2);
+    map.on('zoomend', onZoom);
+    onZoom();
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
     map.on('style.load', () => {
@@ -450,11 +478,7 @@ export default function MapView() {
     setData(map, SRC.tracks, tracks);
     setData(map, SRC.trackNodes, trackNodesCollection(scenario, selectedNodeId));
     setData(map, SRC.segments, segments);
-    const arrows = arrowsCollection(segments);
-    setData(map, SRC.arrows, {
-      ...arrows,
-      features: [...arrows.features, ...arrowsCollection(tracks).features],
-    });
+    setData(map, SRC.arrows, directionArrows(map, segments, tracks, scenario));
     setData(map, SRC.crossovers, crossoversCollection(scenario));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
@@ -464,6 +488,7 @@ export default function MapView() {
     reconcileDraw(draw, scenario, selectedLineId, selectedTrackId);
   }, [
     scenario,
+    arrowZoom,
     selectedLineId,
     selectedTrackId,
     selectedNodeId,
