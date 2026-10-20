@@ -10,6 +10,8 @@ import { STRUCTURE_DASH } from '../domain/modes';
 import { EMPTY } from './overlays';
 
 export const SRC = {
+  regions: 'msg-regions',
+  regionLabels: 'msg-region-labels',
   tracks: 'msg-tracks',
   trackNodes: 'msg-track-nodes',
   segments: 'msg-segments',
@@ -34,6 +36,7 @@ export const SIGNAL_LAYER = 'msg-signals-circle';
 export const TRACK_NODE_LAYER = 'msg-track-nodes-circle';
 export const TRACK_LAYER_PREFIX = 'msg-track-';
 export const FINDING_LAYER = 'msg-findings-symbol';
+export const REGION_FILL_LAYER = 'msg-regions-fill';
 export const FINDING_CLUSTER_LAYER = 'msg-findings-cluster';
 
 /**
@@ -206,6 +209,30 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     layout: { visibility: 'none' },
     paint: { 'fill-color': '#0ea5e9', 'fill-opacity': 0.08, 'fill-outline-color': '#0369a1' },
   });
+  // Regions under the network: fill and outline from each region's style.
+  add({
+    id: REGION_FILL_LAYER,
+    type: 'fill',
+    source: SRC.regions,
+    paint: { 'fill-color': ['get', 'fill'], 'fill-opacity': ['get', 'opacity'] },
+  });
+  add({
+    id: 'msg-regions-outline',
+    type: 'line',
+    source: SRC.regions,
+    paint: {
+      'line-color': ['get', 'outline'],
+      'line-width': ['case', ['get', 'selected'], 3, 1.5],
+    },
+  });
+  if (opts.labels)
+    add({
+      id: 'msg-regions-label',
+      type: 'symbol',
+      source: SRC.regionLabels,
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 12 },
+      paint: { 'text-color': '#3b0764', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    });
   // Halo under every segment so lines read on any basemap.
   add({
     id: 'msg-seg-halo',

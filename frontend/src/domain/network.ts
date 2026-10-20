@@ -626,6 +626,7 @@ export function emptyScenario(name = 'Scenario A'): Scenario {
     description: '',
     systems: [{ id: newId('sys'), name: 'Network', color: '#0f766e', visible: true }],
     trackNetwork: { ...EMPTY_TRACK_NETWORK },
+    regions: [],
     lines: [],
     stations: [],
     platforms: [],

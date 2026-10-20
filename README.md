@@ -101,6 +101,10 @@ set, labelled as such. See the [roadmap](#roadmap).
   recommended values per mode** ([docs/CURVE_RADII.md](docs/CURVE_RADII.md)), grades
   (with elevation data), structure transitions, unrouted bus sections. Other
   thresholds are uncited placeholders and say so.
+- **Regions**: draw, cut holes, split, merge, lock, style and label polygons; give
+  them a type and user-entered statistics, each with unit, year, source, status and
+  confidence; GeoJSON import/export. Area is calculated in the project frame. City
+  and neighbourhood lookup with boundaries is planned (P3-01b).
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).

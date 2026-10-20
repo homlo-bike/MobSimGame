@@ -15,6 +15,7 @@ import { interpolate, measurePath, type VehicleState } from '../simulation/engin
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
+import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
 import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
 import { findingPosition } from '../validation/locate';
@@ -50,6 +51,50 @@ export function tracksCollection(scenario: Scenario, selectedTrackId: string | n
       },
     };
   });
+  return { type: 'FeatureCollection', features };
+}
+
+/** Visible regions with their style, for the fill, outline and label layers. */
+export function regionsCollection(scenario: Scenario, selectedRegionId: string | null): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: scenario.regions
+      .filter((r) => r.visible)
+      .map((r) => ({
+        type: 'Feature' as const,
+        id: r.id,
+        geometry: r.geometry,
+        properties: {
+          regionId: r.id,
+          name: r.style.showLabel ? r.name : '',
+          fill: r.style.fill,
+          outline: r.style.outline,
+          opacity: r.style.opacity,
+          locked: r.locked,
+          selected: r.id === selectedRegionId,
+        },
+      })),
+  };
+}
+
+/** One label point inside each visible region that shows its name. */
+export function regionLabelsCollection(scenario: Scenario): FeatureCollection {
+  const features: Feature[] = [];
+  for (const r of scenario.regions) {
+    if (!r.visible || !r.style.showLabel) continue;
+    let at: number[] | null = null;
+    try {
+      at = (pointOnSurface(r.geometry as never) as { coordinates?: number[] } | null)?.coordinates ?? null;
+    } catch {
+      at = null;
+    }
+    if (at)
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: at },
+        properties: { name: r.name },
+      });
+  }
   return { type: 'FeatureCollection', features };
 }
 

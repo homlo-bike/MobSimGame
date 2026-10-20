@@ -388,6 +388,39 @@ describe('traffic signals by hand', () => {
   });
 });
 
+describe('regions', () => {
+  it(
+    'creates a region from typed corners, records a sourced value and locks it',
+    { timeout: 20_000 },
+    async () => {
+      const user = userEvent.setup();
+      render(<App />);
+      await user.click(screen.getByText(/^Regions \(/));
+      await user.click(screen.getByText('Create a region from typed corners'));
+      await user.type(
+        screen.getByLabelText(/Corners, one/),
+        '0.00, 0.00{Enter}0.01, 0.00{Enter}0.01, 0.01{Enter}0.00, 0.01',
+      );
+      await user.click(screen.getByRole('button', { name: 'Create region' }));
+      const region = useStore.getState().project.scenarios[0]!.regions.at(-1)!;
+      expect(useStore.getState().selection).toEqual({ kind: 'region', id: region.id });
+      expect(screen.getByText(/calculated, projected/)).toHaveTextContent(/1\.2\d\d km²/);
+      const pop = screen.getByLabelText(/^Total population/);
+      await user.type(pop, '4200{Enter}');
+      expect(screen.getByText(/Population density from population and area/)).toBeInTheDocument();
+      expect(
+        useStore.getState().project.scenarios[0]!.regions.at(-1)!.attributes.totalPopulation,
+      ).toMatchObject({
+        value: 4200,
+        unit: 'persons',
+        status: 'manual',
+      });
+      await user.click(screen.getByLabelText(/^Lock/));
+      expect(screen.getByRole('button', { name: 'Delete region' })).toBeDisabled();
+    },
+  );
+});
+
 describe('validation panel', () => {
   it('labels the categories, filters them and links findings to their objects', async () => {
     const user = userEvent.setup();

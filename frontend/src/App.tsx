@@ -9,6 +9,7 @@ import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
 import { LineInspector } from './ui/LineInspector';
 import { VehicleProfilesPanel } from './ui/VehicleProfiles';
+import { RegionInspector, RegionsPanel } from './ui/RegionInspector';
 import {
   NodeInspector,
   TrackDeletionDialog,
@@ -66,6 +67,10 @@ function Inspector() {
   if (selection?.kind === 'track') {
     const track = scenario.trackNetwork.tracks.find((t) => t.id === selection.id);
     if (track) return <TrackInspector key={track.id} track={track} scenario={scenario} />;
+  }
+  if (selection?.kind === 'region') {
+    const region = scenario.regions.find((r) => r.id === selection.id);
+    if (region) return <RegionInspector key={region.id} region={region} scenario={scenario} />;
   }
   if (selection?.kind === 'node') {
     const node = scenario.trackNetwork.nodes.find((n) => n.id === selection.id);
@@ -251,6 +256,7 @@ export default function App() {
           <SearchBox />
           <ToolPanel />
           <NetworkLists />
+          <RegionsPanel />
           <SignalsPanel />
           <TrackParametersPanel />
           <VehicleProfilesPanel />
@@ -267,6 +273,7 @@ export default function App() {
           {view === 'map' &&
             scenario.lines.length === 0 &&
             scenario.trackNetwork.tracks.length === 0 &&
+            scenario.regions.length === 0 &&
             tool === 'select' &&
             !startCardDismissed &&
             !projectGateOpen && (

@@ -21,7 +21,17 @@ const log = createLogger('store');
 
 export const HISTORY_LIMIT = 100;
 
-export type Tool = 'select' | 'draw_line' | 'add_station' | 'new_service' | 'add_signal';
+export type Tool =
+  | 'select'
+  | 'draw_line'
+  | 'add_station'
+  | 'new_service'
+  | 'add_signal'
+  | 'draw_region'
+  /** Draw a polygon to cut out of the selected region. */
+  | 'region_hole'
+  /** Draw a line across the selected region to split it. */
+  | 'region_split';
 
 /** Options for drawing track (rail modes). */
 export interface TrackDrawOptions {
@@ -40,6 +50,7 @@ export interface PendingTrackDeletion {
 export type Selection =
   | { kind: 'line'; id: string }
   | { kind: 'track'; id: string }
+  | { kind: 'region'; id: string }
   | { kind: 'node'; id: string }
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
@@ -282,7 +293,10 @@ export const useStore = create<AppState>()((set, get) => {
     select: (selection) => set({ selection }),
     setTool: (tool) => {
       // Lines belong to a project: ask for one first, then resume drawing.
-      if ((tool === 'draw_line' || tool === 'new_service') && !get().projectActive) {
+      if (
+        (tool === 'draw_line' || tool === 'new_service' || tool === 'draw_region') &&
+        !get().projectActive
+      ) {
         get().openProjectGate('create', tool);
         return;
       }

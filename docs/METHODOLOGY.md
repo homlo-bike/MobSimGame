@@ -41,6 +41,13 @@ convention, **not** a probabilistic confidence interval. The relative spread
   largest deviation is noted on the line.
 - Stations on tracks: tracks within 20 m (owner requirement, adjustable) of the
   station on the same level, measured in the projected frame.
+- Region area: the polygon (minus holes) projected into the project frame and
+  measured there with the shoelace formula; never entered. "Calculated density"
+  is a stored population divided by this area and is labelled as calculated.
+  Splitting a region does not divide its statistics: numeric values are dropped
+  from the parts and text values kept, with a note. Merging does not add them up:
+  the first region's values are kept and a note asks the user to check them for the
+  merged area. No figure is invented.
 - Grades: `(Δ elevation / Δ chainage) × 100` between samples of ground elevation.
   Not a vertical alignment.
 - Shared track detection: sample one line every 25 m and test distance to the

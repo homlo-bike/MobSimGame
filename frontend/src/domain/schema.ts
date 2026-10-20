@@ -614,12 +614,107 @@ export const AnalysisResultSchema = z.object({
 });
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
+// ---------------------------------------------------------------------------
+// Regions (neighbourhoods, districts, study areas)
+// ---------------------------------------------------------------------------
+
+const RingSchema = z.array(LngLatSchema).min(4);
+export const RegionGeometrySchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('Polygon'), coordinates: z.array(RingSchema).min(1) }),
+  z.object({ type: z.literal('MultiPolygon'), coordinates: z.array(z.array(RingSchema).min(1)).min(1) }),
+]);
+export type RegionGeometry = z.infer<typeof RegionGeometrySchema>;
+
+export const RegionTypeSchema = z.enum([
+  'neighbourhood',
+  'district',
+  'municipality',
+  'commercial',
+  'industrial',
+  'residential',
+  'university_campus',
+  'hospital_district',
+  'development_area',
+  'tod_area',
+  'user_defined',
+]);
+export type RegionType = z.infer<typeof RegionTypeSchema>;
+
+export const ValueStatusSchema = z.enum([
+  'observed',
+  'imported',
+  'assumed',
+  'estimated',
+  'synthetic',
+  'manual',
+]);
+export type ValueStatus = z.infer<typeof ValueStatusSchema>;
+
+/** An area-level value with everything needed to judge it: unit, year, source, resolution, status. */
+export const SourcedValueSchema = z.object({
+  value: z.union([z.number(), z.string()]),
+  unit: z.string().default(''),
+  currency: z.string().nullable().default(null),
+  priceYear: z.number().int().nullable().default(null),
+  datasetYear: z.number().int().nullable().default(null),
+  source: z.string().default(''),
+  sourceUrl: z.string().nullable().default(null),
+  sourceDate: z.string().nullable().default(null),
+  /** Geographic resolution of the data, e.g. "census tract", "whole municipality". */
+  resolution: z.string().default(''),
+  status: ValueStatusSchema.default('manual'),
+  confidence: ConfidenceSchema.default('unknown'),
+  note: z.string().default(''),
+});
+export type SourcedValue = z.infer<typeof SourcedValueSchema>;
+
+export const RegionSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  type: RegionTypeSchema,
+  geometry: RegionGeometrySchema,
+  style: z
+    .object({
+      fill: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      outline: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      opacity: z.number().min(0).max(1),
+      showLabel: z.boolean(),
+    })
+    .default({ fill: '#7c3aed', outline: '#5b21b6', opacity: 0.15, showLabel: true }),
+  visible: z.boolean().default(true),
+  locked: z.boolean().default(false),
+  /** Structured attributes by key (domain/regions.ts lists them). */
+  attributes: z.record(z.string(), SourcedValueSchema).default({}),
+  metadata: MetadataSchema.default({}),
+  /** Where the region record and boundary come from. */
+  source: z
+    .object({
+      source: z.string().default(''),
+      sourceUrl: z.string().nullable().default(null),
+      sourceDate: z.string().nullable().default(null),
+      sourceFeature: z.string().nullable().default(null),
+      status: ValueStatusSchema.default('manual'),
+      confidence: ConfidenceSchema.default('unknown'),
+    })
+    .default({
+      source: '',
+      sourceUrl: null,
+      sourceDate: null,
+      sourceFeature: null,
+      status: 'manual',
+      confidence: 'unknown',
+    }),
+  notes: z.string().default(''),
+});
+export type Region = z.infer<typeof RegionSchema>;
+
 export const ScenarioSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   description: z.string().default(''),
   systems: z.array(TransportSystemSchema),
   trackNetwork: TrackNetworkSchema.default(EMPTY_TRACK_NETWORK),
+  regions: z.array(RegionSchema).default([]),
   lines: z.array(TransportLineSchema),
   stations: z.array(StationSchema),
   platforms: z.array(PlatformSchema).default([]),

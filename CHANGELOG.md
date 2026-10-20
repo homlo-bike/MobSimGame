@@ -29,6 +29,21 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Regions** (Phase 3, P3-01a): draw polygons on the map or type their corners,
+  cut holes, split with a line, merge, lock, show/hide, and style them (fill,
+  outline, opacity, label). Each region has a name and a type (neighbourhood,
+  district, municipality, commercial/industrial/residential area, campus, hospital
+  district, development area, transit-oriented development area, user-defined).
+  Statistics such as population, income or car ownership are entered by the user,
+  each with unit, currency, price year, dataset year, source, URL, date,
+  resolution, status and confidence. Custom fields and notes are kept. Area is
+  calculated in the projected project frame and never entered. Regions are
+  imported and exported as GeoJSON. A split does not divide statistics (numeric
+  values are dropped from the parts, with a note); a merge does not add them up
+  (the first region's values are kept, with a note to check them).
+  Nothing is inferred about individuals. City and neighbourhood lookup comes in
+  P3-01b.
+
 - **Station and stop rules**:
   - a station that track services call at but that is on no track (for example
     after its track was deleted) is an error, so it never looks valid;

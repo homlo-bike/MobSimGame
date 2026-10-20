@@ -33,6 +33,14 @@ import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../doma
 import { deleteLineWithNotice, drawTracks, requestTrackDeletion } from '../store/trackActions';
 import { addManualSignal, moveSignal } from '../domain/signals';
 import {
+  addHole,
+  createRegion,
+  deleteRegion,
+  setRegionGeometry,
+  splitRegion,
+  toRegionGeometry,
+} from '../domain/regions';
+import {
   ensureLayers,
   setBasemapSourceLayersVisible,
   setData,
@@ -44,6 +52,7 @@ import {
   TRACK_NODE_LAYER,
   FINDING_CLUSTER_LAYER,
   FINDING_LAYER,
+  REGION_FILL_LAYER,
 } from './layers';
 import {
   arrowsCollection,
@@ -58,6 +67,8 @@ import {
   segmentsCollection,
   stationsCollection,
   findingsCollection,
+  regionsCollection,
+  regionLabelsCollection,
   trackNodesCollection,
   tracksCollection,
   trafficCollection,
@@ -74,6 +85,36 @@ maplibregl.setWorkerUrl(workerUrl);
 
 /** Maximum click distance from a line, in screen pixels, for placing a station. */
 const STATION_SNAP_PX = 24;
+
+/** A shape drawn with a region tool: a new region, a hole in the selected region, or a cut across it. */
+function handleRegionDrawing(state: ReturnType<typeof useStore.getState>, geometry: GeoJSON.Geometry) {
+  const sc = activeScenario(state.project);
+  const target = state.selection?.kind === 'region' ? state.selection.id : null;
+  if (state.tool === 'region_split') {
+    if (!target || geometry.type !== 'LineString')
+      return state.announce('Select a region, then draw a line across it.');
+    const res = splitRegion(sc, target, geometry.coordinates as LngLat[]);
+    if (res.error) return state.announce(res.error);
+    state.commitScenario(res.scenario, 'Region split');
+    state.select(null);
+    state.setTool('select');
+    return;
+  }
+  const g = toRegionGeometry(geometry as { type: string; coordinates: unknown });
+  if (!g) return state.announce('The shape has no area. Draw at least three points.');
+  if (state.tool === 'region_hole') {
+    if (!target) return state.announce('Select a region first.');
+    const res = addHole(sc, target, g);
+    if (res.error) return state.announce(res.error);
+    state.commitScenario(res.scenario, 'Hole cut out of the region');
+    state.setTool('select');
+    return;
+  }
+  const res = createRegion(sc, { geometry: g });
+  state.commitScenario(res.scenario, `Region "${res.region.name}" drawn`);
+  state.select({ kind: 'region', id: res.region.id });
+  state.setTool('select');
+}
 
 /** Screen distance between direction arrows, and their clearance around stations. */
 const ARROW_SPACING_PX = 120;
@@ -195,6 +236,12 @@ export default function MapView() {
       draw.on('feature.created', ({ feature, source }) => {
         if (source === REMOTE) return;
         const state = useStore.getState();
+        // Region tools: the drawn shape becomes a region, a hole or a cut; the draw feature is replaced.
+        if (state.tool === 'draw_region' || state.tool === 'region_hole' || state.tool === 'region_split') {
+          draw.transact(() => draw.features.delete(feature.id), { source: REMOTE });
+          handleRegionDrawing(state, feature.geometry);
+          return;
+        }
         if (feature.geometry.type !== 'LineString') {
           draw.transact(() => draw.features.delete(feature.id), { source: REMOTE });
           return;
@@ -225,6 +272,12 @@ export default function MapView() {
         if (source === REMOTE || intermediate) return;
         const state = useStore.getState();
         const sc = activeScenario(state.project);
+        const region = sc.regions.find((r) => r.id === feature.id);
+        if (region) {
+          const g = toRegionGeometry(feature.geometry as { type: string; coordinates: unknown });
+          if (g) state.commitScenario(setRegionGeometry(sc, region.id, g), `Region "${region.name}" edited`);
+          return;
+        }
         const track = sc.trackNetwork.tracks.find((t) => t.id === feature.id);
         if (track) {
           const handles = featureLineCoords(feature, false);
@@ -250,6 +303,15 @@ export default function MapView() {
         if (source === REMOTE) return;
         const state = useStore.getState();
         const sc = activeScenario(state.project);
+        const region = sc.regions.find((r) => r.id === feature.id);
+        if (region) {
+          if (region.locked) reconcileDraw(draw, sc, null, null, null);
+          else {
+            state.commitScenario(deleteRegion(sc, region.id), `Region "${region.name}" deleted`);
+            state.select(null);
+          }
+          return;
+        }
         if (sc.trackNetwork.tracks.some((t) => t.id === feature.id)) {
           requestTrackDeletion([feature.id]);
           // Until the user decides, the drawing shows the track again.
@@ -263,6 +325,8 @@ export default function MapView() {
           if (sc.lines.some((l) => l.id === sel.ids[0])) state.select({ kind: 'line', id: sel.ids[0]! });
           else if (sc.trackNetwork.tracks.some((t) => t.id === sel.ids[0]))
             state.select({ kind: 'track', id: sel.ids[0]! });
+          else if (sc.regions.some((r) => r.id === sel.ids[0]))
+            state.select({ kind: 'region', id: sel.ids[0]! });
         }
       }),
     ];
@@ -405,6 +469,10 @@ export default function MapView() {
         ];
         const t = map.queryRenderedFeatures(box, { layers: trackLayers })[0];
         if (t?.properties?.trackId) state.select({ kind: 'track', id: String(t.properties.trackId) });
+        else if (map.getLayer(REGION_FILL_LAYER)) {
+          const r = map.queryRenderedFeatures(e.point, { layers: [REGION_FILL_LAYER] })[0];
+          if (r?.properties?.regionId) state.select({ kind: 'region', id: String(r.properties.regionId) });
+        }
       }
     };
     map.on('click', onClick);
@@ -528,7 +596,8 @@ export default function MapView() {
     const draw = drawRef.current;
     const map = mapRef.current;
     if (!draw || !map) return;
-    if (tool === 'draw_line') draw.setMode('draw_line');
+    if (tool === 'draw_line' || tool === 'region_split') draw.setMode('draw_line');
+    else if (tool === 'draw_region' || tool === 'region_hole') draw.setMode('draw_polygon');
     else {
       if (draw.drawing.isDrawing()) draw.drawing.cancel();
       draw.setMode('select');
@@ -545,12 +614,15 @@ export default function MapView() {
   const selectedSignalId = selection?.kind === 'signal' ? selection.id : null;
   const selectedTrackId = selection?.kind === 'track' ? selection.id : null;
   const selectedNodeId = selection?.kind === 'node' ? selection.id : null;
+  const selectedRegionId = selection?.kind === 'region' ? selection.id : null;
   useEffect(() => {
     const map = mapRef.current;
     const draw = drawRef.current;
     if (!map || !draw || !map.getSource(SRC.segments)) return;
     const segments = segmentsCollection(scenario, selectedLineId);
     const tracks = tracksCollection(scenario, selectedTrackId);
+    setData(map, SRC.regions, regionsCollection(scenario, selectedRegionId));
+    setData(map, SRC.regionLabels, regionLabelsCollection(scenario));
     setData(map, SRC.tracks, tracks);
     setData(map, SRC.trackNodes, trackNodesCollection(scenario, selectedNodeId));
     setData(map, SRC.segments, segments);
@@ -573,7 +645,7 @@ export default function MapView() {
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
-    reconcileDraw(draw, scenario, selectedLineId, selectedTrackId);
+    reconcileDraw(draw, scenario, selectedLineId, selectedTrackId, selectedRegionId);
   }, [
     scenario,
     findings,
@@ -583,6 +655,7 @@ export default function MapView() {
     selectedLineId,
     selectedTrackId,
     selectedNodeId,
+    selectedRegionId,
     selectedStationId,
     selectedSignalId,
     styleVersion,
@@ -725,6 +798,19 @@ export default function MapView() {
           {isRailMode(newLineMode)
             ? 'Click to place track points (curves at each point) · end on a track or track end to connect · Enter to finish · Esc to cancel'
             : 'Click to add vertices · Enter or double-click to finish · Esc to cancel'}
+        </p>
+      )}
+      {(tool === 'draw_region' || tool === 'region_hole') && (
+        <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
+          {tool === 'draw_region'
+            ? 'Click the corners of the region'
+            : 'Draw the hole inside the selected region'}{' '}
+          · Enter or click the first point to finish · Esc to cancel
+        </p>
+      )}
+      {tool === 'region_split' && (
+        <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
+          Draw a line all the way across the selected region · Enter to finish · Esc to cancel
         </p>
       )}
       {tool === 'add_signal' && (
