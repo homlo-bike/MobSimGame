@@ -1,74 +1,86 @@
 # Phase 1 and 2 requirement status
 
-Reviewed 2026-10-20 against branch `claude/eloquent-edison-s2o70v`; updated after
-the track network (schema 3) was implemented. Status:
-**done** (implemented and tested), **partial**, **broken**, **missing**.
-Priority: P1 foundational / blocking Phase 3, P2 important, P3 later.
+Reviewed 2026-10-20 on branch `claude/eloquent-edison-s2o70v` (PR #4, schema 3).
+A requirement is **Complete** only when its behaviour, persistence, validation,
+accessibility and tests all work. A visible control alone does not count.
+
+Statuses:
+
+- **Complete**
+- **Partially complete**
+- **Implemented but defective**
+- **Not implemented**
+- **Blocked**
+- **Deferred with justification**
+
+Priorities:
+
+- **P1**: foundational, fix before Phase 3 work that depends on it.
+- **P2**: important.
+- **P3**: later.
+
+Planned pull requests:
+
+| PR | Branch suffix | Content |
+| --- | --- | --- |
+| **#4** | — | Track network (open) |
+| **wp00** | `-wp00-plan` | This matrix and the Phase 3 plan |
+| **wp01** | `-wp01-direction` | Direction display |
+| **wp02** | `-wp02-validation` | Validation categories and map markers |
+| **wp03** | `-wp03-vehicles` | Vehicle profiles and fleet |
+| **wp04** | `-wp04-signals` | Manual traffic signals |
+| **wp05** | `-wp05-stations` | Station and stop rules |
+| **P3-xx** | — | Phase 3 work packages ([PHASE_3_PLAN.md](PHASE_3_PLAN.md)) |
 
 ## Phase 1 — map and network editor
 
-| Requirement | Status | Relevant files | Tests | Known defects | Required work | Priority |
-| --- | --- | --- | --- | --- | --- | --- |
-| Map, basemaps, terrain toggle | done | `map/MapView.tsx`, `providers/basemaps.ts` | e2e smoke | — | — | — |
-| Draw/edit lines with snapping | done; rail now draws **physical track** | `map/drawSync.ts`, `domain/tracks.ts`, `store/trackActions.ts` | tracks, network, e2e | — | Pair-aware double-track dragging | P2 |
-| Stations snapped to lines, shared stations | done; rail stations **on tracks** (20 m, same level) | `domain/serviceRouting.ts`, `ui/StationInspector.tsx` | tracks, App | Platforms not modelled | Platform objects | P2 |
-| Per-segment structure, right of way, tracks | done; for rail on the **physical tracks** (two tracks for double) | `domain/tracks.ts`, `ui/TrackInspector.tsx` | tracks, overlays | — | — | — |
-| Terminations: ends, ring, loop | done | `validation/validate.ts` | validate | — | Carry over to services | P1 |
-| Validation findings | done | `validation/validate.ts` | validate | Findings are not drawn on the map | Map symbols | P2 |
-| Split/join lines, shared-track detection | done; rail services share **tracks** by reference | `domain/network.ts`, `domain/serviceRouting.ts` | network, tracks | Imported lines get separate track pairs | Merge imported overlaps | P3 |
-| Undo/redo, autosave, JSON, GeoJSON, CSV, share | done | `store/`, `geo/geojson.ts`, `api/projects.ts` | App, persistence, backend | — | GeoJSON for tracks | P2 |
-| Animation | done, with **single-track occupancy** and **minimum separation** | `simulation/engine.ts`, `simulation/occupancy.ts` | engine, occupancy | Waiting trains do not occupy the track behind them | Block signalling model | P3 |
-| Schematic | done | `schematic/`, `ui/SchematicView.tsx` | layout | No zoom/pan | Navigation | P3 |
-| Dashboard (fictional demo data only) | done | `ui/Dashboard.tsx` | e2e | — | — | — |
-| Provider interfaces, provenance | done | `providers/`, `backend/app/providers/` | providers | — | — | — |
-| Backend save/share, reports | done | `backend/app/api/` | backend | — | — | — |
-| Logging, licensing | done | `util/logger.ts`, `logging_config.py`, `THIRD_PARTY_NOTICES.md` | logging | — | — | — |
+| Requirement | Phase | Status | Current implementation | Relevant files | Test coverage | Known defects | Required changes | Priority | Planned PR |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Map, basemaps, terrain toggle, attribution | 1 | Complete | MapLibre, OpenFreeMap styles, offline plain/high-contrast, AWS terrain, attribution control | `map/MapView.tsx`, `providers/basemaps.ts` | e2e smoke | — | — | — | — |
+| Draw and edit lines with snapping (bus, walking, cycling, custom) | 1 | Complete | Draw library, vertex editing, snapping, undo | `map/drawSync.ts`, `domain/network.ts` | network, e2e | — | Live route preview (Phase 3) | — | P3-08 |
+| Rail drawn as physical track | 1→2b | Partially complete | Draw track (single or double), junctions, loops, connected node moves | `domain/tracks.ts`, `store/trackActions.ts` | tracks, e2e | No snapping preview while drawing; double track pairs not moved together | Pair constraints, preview | P2 | P3-03 |
+| Stations on lines, shared stations, interchanges | 1 | Complete | Click or chainage; reuse within 60 m | `domain/network.ts`, `domain/serviceRouting.ts` | network, tracks | — | — | — | — |
+| Rail stations require tracks; bus stops require a service | 1 | Implemented but defective | Rail stations are placed on tracks, but deleting tracks can leave stations without tracks that still look valid; bus stops can exist without a line | `domain/network.ts`, `domain/serviceRouting.ts` | partial | Orphan stations and stops not flagged | Rules, orphan findings, stop types | P1 | wp05 |
+| Per-segment structure, right of way, track count | 1 | Complete | Lines: segment table; rail: per physical track | `geo/segments.ts`, `ui/TrackInspector.tsx` | segments, tracks | Same structure list for every mode | Mode-specific structures | P2 | P3-02 |
+| Direction (one-way / both), running side | 1 | Implemented but defective | Arrows per track and segment | `map/overlays.ts`, `map/layers.ts` | overlays | Arrows of paired tracks and both-way single track sit on top of each other; fixed 150 m spacing; arrows can cover stations; direction not described in text | Separate arrows, zoom-aware spacing, station clearance, text | P1 | wp01 |
+| Terminations: ends, ring, loop | 1 | Complete | Termination model and checks | `validation/validate.ts` | validate | — | — | — | — |
+| Validation findings | 1 | Partially complete | Four severities with text symbols; findings list per object | `validation/`, `ui/FindingsList.tsx` | validate, tracks | "Blocking" vs "error" wording unclear; no filter, sort, counts per category or help; not shown on the map | Labelled categories, filter/sort, links, map markers | P1 | wp02 |
+| Split/join lines, shared track | 1 | Complete | Lines split/join; rail services share tracks by reference | `domain/network.ts` | network, tracks | Imported rail lines not merged onto shared track | Merge overlaps on import | P3 | P3-02 |
+| Undo/redo, autosave, JSON, GeoJSON, CSV, share links | 1 | Complete | Store history, project library, backend share with login | `store/`, `geo/geojson.ts`, `api/` | App, persistence, backend | GeoJSON export does not include tracks | Export tracks and nodes | P2 | P3-18 |
+| Animation | 1 | Partially complete | Time-based trips; single-track occupancy; separation | `simulation/` | engine, occupancy | No curve/turnout/grade speed effects; vehicles as dots; no fleet limit | Speed model, vehicle symbols, fleet | P2 | P3-13, P3-14 |
+| Schematic | 1 | Partially complete | Octilinear layout, offsets per station, SVG/PNG, text alternative | `schematic/`, `ui/SchematicView.tsx` | layout | Static; no zoom/pan; bus/BRT not distinguished; text alternative is a paragraph | Editor, modes, linear view | P2 | P3-11 |
+| Dashboard | 1 | Partially complete | Geometry figures; "input required" for real places; demo ranges | `ui/Dashboard.tsx`, `analysis/` | calculations, e2e | Validation summary unclear | Labelled summary (wp02); placeholder estimates (P3-15) | P1 | wp02, P3-15 |
+| Provider interfaces with provenance and capability | 1 | Complete | Frontend and backend providers | `providers/`, `backend/app/providers/` | providers | — | — | — | — |
+| Backend save/share behind login; reports | 1 | Complete | `app/auth.py`, schema 3 only | `backend/app/` | backend | — | — | — | — |
+| Logging, licensing, notices | 1 | Complete | Structured logger, licence reports | `util/logger.ts`, `THIRD_PARTY_NOTICES.md` | logging | — | — | — | — |
+| Accessibility basics (labels, keyboard, focus, text status) | 1 | Partially complete | Labelled inputs, Table view, chainage inputs, reduced motion | `ui/` | App, e2e | No automated axe check; some map-only actions (moving track points) lack keyboard paths | axe in e2e; keyboard point editing | P2 | P3-17, P3-19 |
+| Internationalisation / RTL | 1 | Partially complete | `i18n/` dictionary and direction switch; logical CSS | `i18n/` | — | Most inspector strings not translated; only English | Move strings; second language for testing | P3 | P3-16 |
 
-## Phase 2 — alignments, real networks, routing (owner requirements)
+## Phase 2 — alignments, real networks, routing, minimal UI
 
-| Requirement | Status | Relevant files | Tests | Known defects | Required work | Priority |
-| --- | --- | --- | --- | --- | --- | --- |
-| Rail/tram as smooth curves | done as **lines and circular arcs** with radius input | `geo/track/`, `domain/tracks.ts` | track, tracks | No transition curves or cant | — | P3 |
-| Cited curve radii (min/recommended) | done, checked **exactly on every arc**, inner/outer separately | `validation/trackValidation.ts` | validate, tracks | — | — | — |
-| Bus/BRT follow streets (Valhalla) | partial | `backend/app/providers/valhalla.py`, `routing/` | routing, alignment | Reported "No suitable edges near location"; not reproducible without Valhalla; likely extract coverage (default Berlin only) or the default search radius; no routing preferences; BRT uses the bus profile | Search radius, profiles, preferences, provider interface | P2 |
-| Unrouted bus sections are errors | done | `validation/validate.ts`, `map/overlays.ts` | validate, overlays | — | — | — |
-| One direction per track; flip per segment | done: running direction **per physical track** | `domain/tracks.ts`, `domain/trackGraph.ts` | tracks | — | — | — |
-| Auto-parallel double track | done: **two tracks**, metric offset, group id, spacing | `domain/tracks.ts`, `geo/track/alignment.ts` | tracks, track | — | Edit as a pair | P2 |
-| Crossovers before/after stations | partial | `domain/network.ts` | network, engine | Markers, not track connections (A5); nodes with movements exist | Turnout/crossing objects ([TURNOUTS_AND_CROSSINGS.md](TURNOUTS_AND_CROSSINGS.md)) | P2 |
-| Disruption simulation (closures) | done (simplified) | `simulation/engine.ts` | engine | Single-track wait is worst case | Occupancy-based | P2 |
-| Traffic signals, priority | done | `domain/signals.ts`, `simulation/engine.ts` | signals, engine | Placeholder timings (labelled) | — | — |
-| OSM vector default basemap | done | `providers/basemaps.ts` | e2e | — | — | — |
-| Real-city networks from OSM | partial | `backend/app/providers/networks.py`, `domain/examples.ts` | networks, examples | Large bus networks may still be slow; no tiling, progress per tile or cancellation | Bounded loading | P2 |
-| Login for saving | done | `backend/app/auth.py`, `ui/LoginDialog.tsx` | auth, App | — | — | — |
-| Station auto-naming | **broken → fixed in this branch** | `names/`, `ui/StationInspector.tsx`, `backend/app/providers/overpass.py` | names, overpass | Hung, then coordinates (review A10) | — | P2 |
-| Connection status, update detection | done (PR #4) | `runtime/`, `docs/CACHING.md` | runtime, e2e | — | — | — |
-| Notification centre | done (PR #4) | `store/notifications.ts`, `ui/NotificationMenu.tsx` | notifications, App | — | — | — |
-| Active project before drawing | done (PR #4) | `store/projectStore.ts`, `ui/ProjectGate.tsx` | projectGate, App, e2e | — | Project metadata fields | P2 |
-| "Start a network" closes on draw | done (PR #4) | `App.tsx` | App | — | — | — |
-| Project, line, station metadata | done (custom key/value; project metadata has no editor yet) | `domain/schema.ts`, `ui/MetadataEditor.tsx` | App | — | Project metadata editor | P2 |
-| Geometry errors as map symbols | missing | — | — | — | Symbol layer, focus | P2 |
-| Line extension, closed loops by click | done for track (attach to ends, junction on a track, tangential loops) | `domain/tracks.ts` | tracks, validate | No snapping preview while drawing | Snapping preview | P2 |
-| Initial location, schematic zoom, vehicle shapes, multi-car trains | missing | — | — | — | — | P3 |
-
-## Track network (this change)
-
-| Requirement | Status | Relevant files | Tests | Known defects | Required work | Priority |
-| --- | --- | --- | --- | --- | --- | --- |
-| Infrastructure separate from services | done | `domain/schema.ts` (`trackNetwork`) | tracks | — | — | — |
-| Lines and arcs, radius input, tangent continuity, projected metres | done | `geo/track/` | track | — | Transition curves | P3 |
-| Geometry functions (length, centre, tangent, nearest, split, join, offset, parallel, minimum radius, serialization) | done | `geo/track/primitives.ts`, `alignment.ts` | track | — | — | — |
-| No "Follow street"/"Straight segments" for rail | done | `domain/network.ts`, `ui/LineInspector.tsx` | alignment | — | — | — |
-| Double track as two tracks, group, spacing, opposite directions, inner/outer checks | done | `domain/tracks.ts` | tracks, validate | — | — | — |
-| Graph: movements, crossing ≠ connection, validation | done | `domain/trackGraph.ts`, `validation/trackValidation.ts` | tracks | — | — | — |
-| Single track blocked for the opposite direction | done (simulation) | `simulation/occupancy.ts` | occupancy | See METHODOLOGY limitations | — | — |
-| Minimum distance between vehicles | done (placeholder values) | `simulation/engine.ts`, `domain/trackParameters.ts` | occupancy | Bus–bus separation across different lines on shared streets is not modelled | — | P3 |
-| Turnouts and crossings (typed objects with ports) | **missing** (nodes with movements only) | — | — | — | Connection objects | P2 |
-| Segment properties and custom metadata | done | `ui/TrackInspector.tsx` | — | — | — | — |
-| Connected-segment editing with constraints | partial (nodes move connected tracks) | `domain/tracks.ts` | tracks | Double-track pairs are not moved together | Pair constraints | P2 |
-| Stations attached to tracks, 20 m, same level | done | `domain/serviceRouting.ts` | tracks | — | — | — |
-| Services routed over tracks | done | `domain/serviceRouting.ts` | tracks, App, e2e | — | Routing preferences | P2 |
-| Delete used track: cancel / reroute / break / delete | done | `store/trackActions.ts`, `ui/TrackInspector.tsx` | tracks | — | — | — |
-| Bus routing preferences, pluggable provider | missing | — | — | — | — | P2 |
-| Station naming fix | done | `names/` | names | — | — | — |
-| Parameters with source, default, range | done | `domain/trackParameters.ts` | tracks | Tram spacing and separations are placeholders | Cited values | P3 |
-| Migration | not done (owner decision: no migration) | `docs/PROJECT_MIGRATION.md` | tracks (older formats rejected) | — | — | — |
+| Requirement | Phase | Status | Current implementation | Relevant files | Test coverage | Known defects | Required changes | Priority | Planned PR |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Rail as lines and circular arcs, radius input | 2 | Complete | PI alignment, exact arcs, metric frame | `geo/track/`, `domain/tracks.ts` | track, tracks | Arc length/angle not directly editable | Per-arc editing with constraints | P2 | P3-03 |
+| Cited curve radii, inner/outer checks | 2 | Complete | Exact per arc | `validation/trackValidation.ts` | validate | — | — | — | — |
+| Double track as two physical tracks | 2 | Complete | Group, spacing, opposite directions | `domain/tracks.ts` | tracks | — | — | — | — |
+| Graph, permitted movements, crossing ≠ connection | 2 | Complete | Nodes with automatic or manual movements | `domain/trackGraph.ts` | tracks | — | Typed turnouts (Phase 3) | — | P3-04 |
+| Services routed over tracks through ordered stations | 2 | Partially complete | New service tool, list, inspector; return on other track | `domain/serviceRouting.ts` | tracks, App, e2e | No path preview or alternative choice; unrouted pair not highlighted on the map | Preview, ambiguity, highlight | P2 | P3-05 |
+| Deleting used track: cancel / reroute / break / delete | 2 | Complete | Dialog and domain function | `store/trackActions.ts` | tracks | — | — | — | — |
+| Bus/BRT follow streets (Valhalla) | 2 | Partially complete | Waypoints, legs, manual sections, return path | `backend/app/providers/valhalla.py`, `routing/` | routing, alignment | "No suitable edges near location" reported, likely the extract coverage or search radius; no profiles or preferences; no live preview | Search radius, profiles, preview | P2 | P3-08 |
+| Unrouted bus sections are errors | 2 | Complete | Blocking finding, dashed map style with label | `validation/validate.ts`, `map/overlays.ts` | validate, overlays | — | — | — | — |
+| Single-track blocking, minimum separation (simulation) | 2 | Partially complete | Block reservations, separation as time gap | `simulation/occupancy.ts` | occupancy | A waiting train does not occupy the track behind it; no turnout reservations | Block model (Phase 3) | P2 | P3-13 |
+| Crossovers before/after stations | 2 | Partially complete | Markers that drive the closure model | `domain/network.ts` | network, engine | Not track objects | Turnout objects | P2 | P3-04 |
+| Disruption simulation (closures) | 2 | Complete (simplified) | Turn back or share remaining track | `simulation/engine.ts` | engine | — | — | — | — |
+| Traffic signals from OSM with simulated cycles, TSP | 2 | Partially complete | Discovery from OSM, inspector for timing | `domain/signals.ts`, `ui/SignalsPanel.tsx` | signals, engine | Signals cannot be added, moved or deleted by hand; no type, controlled modes or source metadata | Manual signals | P1 | wp04 |
+| Vehicle type per line | 2 | Implemented but defective | One list of all vehicle types for every mode | `ui/LineInspector.tsx`, `domain/modes.ts` | — | Incompatible vehicles offered (e.g. a bus on a metro line); few profile attributes; no custom profiles; no fleet size | Mode filter, profiles, custom, fleet | P1 | wp03 |
+| Real-city networks from OSM | 2 | Partially complete | Tram, metro and bus for six cities | `backend/app/providers/networks.py`, `domain/examples.ts` | networks, examples | Large bus networks slow; no progress or cancellation; imported rail overlaps not merged | Bounded loading | P2 | P3-18 |
+| Station auto-naming | 2 | Complete | Bounded lookup, required order | `names/`, `overpass.py` | names | — | — | — | — |
+| Connection status, update detection, notifications | 2 | Complete | PR #4 | `runtime/`, `store/notifications.ts` | runtime, App, e2e | — | — | — | — |
+| Active project before drawing | 2 | Complete | Project gate and library | `ui/ProjectGate.tsx` | projectGate, e2e | — | — | — | — |
+| Custom metadata on lines, stations, tracks, nodes | 2 | Partially complete | Key/value editor | `ui/MetadataEditor.tsx` | App | No project metadata editor | Project editor | P3 | P3-01 |
+| Geometry errors shown as map symbols | 2 | Not implemented | — | — | — | — | Map markers with shapes, clustering, links | P1 | wp02 |
+| Parameters with source, default, range | 2 | Complete | Track parameter panel | `domain/trackParameters.ts` | tracks | Tram spacing and separations are placeholders | Cited values when found | P3 | P3-07 |
+| Minimal UI: collapsible panels, on-map toolbar, command palette, responsive layout | 2 (C2) | Not implemented | — | — | — | — | Responsive editor | P2 | P3-17 |
+| Geospatial validation (PostGIS, elevation, conflicts, entrances) | 2 (D) | Not implemented | Grade checks only with elevation input | `validation/validate.ts` | validate | — | Full workstream | P2 | P3-06 |
+| Initial map location, schematic zoom, vehicle shapes, multi-car trains | 2 | Not implemented | — | — | — | — | — | P3 | P3-11, P3-14 |
+| Migration of older projects | 2 | Deferred with justification | Owner decision: unpublished format, no migration | `docs/PROJECT_MIGRATION.md` | tracks | — | — | — | — |
