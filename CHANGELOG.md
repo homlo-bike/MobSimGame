@@ -8,6 +8,13 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Following the vehicle ahead** (R13 part 2). Buses, BRT, trolleybuses, trams and
+  light rail keep the Intelligent Driver Model's steady-state gap (2.5 m + speed ×
+  1.0 s, SUMO defaults, plus the length of the vehicle ahead) instead of a fixed
+  placeholder distance; both values are editable in Project properties. Metro and
+  commuter rail keep the signalled minimum distance. The placeholder parameters for
+  bus and tram separation are removed.
+
 - **Acceleration and braking in the simulation** (R13 part 1). Vehicles accelerate
   after every stop and brake before stations, red signals and occupied sections
   instead of running at constant speed. Rates come from the vehicle profile or,

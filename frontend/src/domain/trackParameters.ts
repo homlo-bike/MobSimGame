@@ -24,6 +24,10 @@ export interface ParameterDefinition {
 const EBO_10 =
   'Eisenbahn-Bau- und Betriebsordnung (EBO) § 10 (Germany): track centre distance on open line at least 4.00 m for new construction (3.80 m where only urban rapid transit runs), 4.50 m in new stations; to be widened in curves below 250 m radius. https://www.gesetze-im-internet.de/ebo/__10.html';
 const PLACEHOLDER = 'Placeholder, not from a cited source. Enter a local value.';
+const SUMO_TAU =
+  'Eclipse SUMO documentation, "Definition of Vehicles, Vehicle Types, and Routes": default tau 1.0 s (desired minimum time headway); Intelligent Driver Model: Treiber, Hennecke & Helbing (2000), "Congested traffic states in empirical observations and microscopic simulations", Physical Review E 62, 1805.';
+const SUMO_MINGAP =
+  'Eclipse SUMO documentation, "Vehicle Type Parameter Defaults" (edited 12 October 2026): minGap 2.5 m for bus and tram.';
 
 export const TRACK_PARAMETERS = {
   trackSpacingHeavyRailM: {
@@ -71,9 +75,31 @@ export const TRACK_PARAMETERS = {
     status: 'demonstration',
     source: 'Editor tolerance, not an engineering value.',
   },
+  followingTimeGapS: {
+    id: 'followingTimeGapS',
+    label: 'Time gap to the vehicle ahead, buses and trams driving on sight (simulation)',
+    unit: 's',
+    defaultValue: 1.0,
+    min: 0.3,
+    max: 5,
+    status: 'documented_default',
+    source: SUMO_TAU,
+    notes:
+      'The desired gap is the minimum gap plus speed × time gap (Intelligent Driver Model, steady state).',
+  },
+  followingMinGapM: {
+    id: 'followingMinGapM',
+    label: 'Minimum gap to the vehicle ahead when stopped, buses and trams (simulation)',
+    unit: 'm',
+    defaultValue: 2.5,
+    min: 0.5,
+    max: 20,
+    status: 'documented_default',
+    source: SUMO_MINGAP,
+  },
   minSeparationRailM: {
     id: 'minSeparationRailM',
-    label: 'Minimum distance between following trains (simulation)',
+    label: 'Minimum distance between following metro and commuter trains (simulation)',
     unit: 'm',
     defaultValue: 200,
     min: 0,
@@ -81,17 +107,6 @@ export const TRACK_PARAMETERS = {
     status: 'demonstration',
     source: PLACEHOLDER,
     notes: 'The real value follows from braking distance and the signalling system.',
-  },
-  minSeparationTramM: {
-    id: 'minSeparationTramM',
-    label: 'Minimum distance between following trams (simulation)',
-    unit: 'm',
-    defaultValue: 50,
-    min: 0,
-    max: 1000,
-    status: 'demonstration',
-    source: PLACEHOLDER,
-    notes: 'Trams usually run on sight; the real value depends on speed and braking.',
   },
   platformLengthTramM: {
     id: 'platformLengthTramM',
@@ -209,16 +224,6 @@ export const TRACK_PARAMETERS = {
     notes:
       'Applied to the straight-line distance; real paths are longer. Enter a measured time per link where known.',
   },
-  minSeparationBusM: {
-    id: 'minSeparationBusM',
-    label: 'Minimum distance between following buses (simulation)',
-    unit: 'm',
-    defaultValue: 20,
-    min: 0,
-    max: 500,
-    status: 'demonstration',
-    source: PLACEHOLDER,
-  },
 } as const satisfies Record<string, ParameterDefinition>;
 
 export type TrackParameterId = keyof typeof TRACK_PARAMETERS;
@@ -256,14 +261,37 @@ export function trackSpacingM(
   return parameterValue(network, HEAVY.includes(mode) ? 'trackSpacingHeavyRailM' : 'trackSpacingTramM');
 }
 
-export function minSeparationM(
-  network: Pick<TrackNetwork, 'parameterOverrides'>,
-  mode: TransportMode,
-): number {
-  if (mode === 'bus' || mode === 'brt' || mode === 'trolleybus')
-    return parameterValue(network, 'minSeparationBusM');
-  if (mode === 'tram' || mode === 'light_rail') return parameterValue(network, 'minSeparationTramM');
-  return parameterValue(network, 'minSeparationRailM');
+/** Modes that drive on sight (road vehicles, trams, light rail): they follow the vehicle ahead. */
+export const ON_SIGHT_MODES: readonly TransportMode[] = [
+  'bus',
+  'brt',
+  'trolleybus',
+  'tram',
+  'light_rail',
+  'custom',
+];
+
+/**
+ * How a mode keeps its distance to the vehicle ahead: on sight with the Intelligent Driver
+ * Model's steady-state gap (minimum gap + speed × time gap), or, for metro and commuter
+ * rail under signalling, a fixed minimum distance.
+ */
+export type Following =
+  { kind: 'on_sight'; minGapM: number; timeGapS: number } | { kind: 'signalled'; distanceM: number };
+
+export function following(network: Pick<TrackNetwork, 'parameterOverrides'>, mode: TransportMode): Following {
+  if (ON_SIGHT_MODES.includes(mode))
+    return {
+      kind: 'on_sight',
+      minGapM: parameterValue(network, 'followingMinGapM'),
+      timeGapS: parameterValue(network, 'followingTimeGapS'),
+    };
+  return { kind: 'signalled', distanceM: parameterValue(network, 'minSeparationRailM') };
+}
+
+/** Distance to the vehicle ahead at speed `vMs` (m/s), excluding its length. */
+export function followingGapM(f: Following, vMs: number): number {
+  return f.kind === 'on_sight' ? f.minGapM + vMs * f.timeGapS : f.distanceM;
 }
 
 /** Default platform length of a station of this mode. */
