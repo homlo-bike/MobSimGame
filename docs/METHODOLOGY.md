@@ -23,7 +23,7 @@ convention, **not** a probabilistic confidence interval. The relative spread
 
 - Length: sum of haversine segment lengths (Turf, spherical earth radius
   6 371 008.8 m).
-- Station snapping: nearest point on the polyline; a click within the stop merge distance (Project settings, default 20 m) of an
+- Station snapping: nearest point on the polyline; a click within the stop merge distance (Project properties → Parameters, default 20 m) of an
   existing station reuses it (shared station).
 - Track geometry: physical tracks are **straight lines and circular arcs** with a
   radius entered per point, tangent to each other by construction, computed in a
@@ -156,7 +156,7 @@ profile) is a rectangle of the profile's length and width from its front to its 
 point on the path, centred on the simulated position (so a stopped train stands
 centred on the platform). Without a vehicle type the length is the placeholder
 `unknownVehicleLengthM` (20 m); without a width, the placeholder
-`unknownVehicleWidthM` (2.5 m), both editable in Project settings. Services on double track return on the
+`unknownVehicleWidthM` (2.5 m), both editable in Project properties → Parameters. Services on double track return on the
 other track.
 
 - **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a

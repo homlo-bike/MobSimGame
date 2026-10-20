@@ -14,6 +14,12 @@ All notable changes are documented here. The format follows
   where it has none, from the documented SUMO vehicle-class defaults (cited in
   Methodology; SUMO's published model, not its code). Round trips are longer by
   the time lost at each stop.
+- **Project properties** (File menu or the sidebar): every default in one dialog with
+  its source and status. Tabs: Parameters (formerly "Project settings"), Modes
+  (curve radii, speed, dwell, catchment, structure, platform length, following
+  distance per mode, and the gauge and electrification new track of a rail mode gets,
+  with a button to fill them into existing track without a value), Vehicles (vehicle
+  profiles) and Crossing priority. The three sidebar panels are replaced by one entry.
 
 - **Vehicles drawn to scale** in the animation when zoomed in (from zoom 15.5):
   one outline per unit of the consist, with the vehicle profile's length and width,

@@ -181,6 +181,7 @@ describe('File menu', () => {
       'Open real network…OSM',
       'Open project….json',
       'Save project.json',
+      'Project properties…',
       'Import GeoJSON…',
       'Export GeoJSON',
       'Export coordinates.csv',
@@ -564,6 +565,29 @@ describe('walking links', () => {
     expect(screen.getByText(/m straight line/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove link' }));
     expect(useStore.getState().project.scenarios[0]!.interchanges).toHaveLength(0);
+  });
+});
+
+describe('project properties', () => {
+  it('lists every mode default and sets the electrification of new tram track', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Modes' }));
+    const dialog = screen.getByRole('dialog', { name: 'Project properties' });
+    const rows = within(dialog).getAllByRole('row');
+    // Header row plus one row per mode tab.
+    expect(rows.length).toBe(8);
+    expect(within(dialog).getByRole('rowheader', { name: 'Tram / streetcar' })).toBeInTheDocument();
+    await user.selectOptions(
+      within(dialog).getByLabelText('Tram / streetcar: electrification of new track'),
+      'overhead',
+    );
+    const net = useStore.getState().project.scenarios[0]!.trackNetwork;
+    expect(net.modeDefaults.tram?.electrification).toBe('overhead');
+    await user.click(within(dialog).getByRole('tab', { name: 'Parameters' }));
+    expect(within(dialog).getByLabelText(/Distance within which a new stop/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Close project properties' }));
+    expect(screen.queryByRole('dialog', { name: 'Project properties' })).not.toBeInTheDocument();
   });
 });
 

@@ -83,9 +83,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   categories) with dimensions, performance and compatibility. A line lists only
   vehicles of its mode. You set the fleet and consist per line, and errors flag a
   fleet too small for the headway or curves too tight for the vehicle.
-- **Parameters** (track spacing, station search distance, minimum separation) show
-  their default, range, status and source and can be changed per project. Uncited
-  values are marked placeholder.
+- **Project properties** (File menu or sidebar) show every default in one place with
+  its source and status: parameters (track spacing, stop merge distance, minimum
+  separation, placeholders for unknown vehicle size, …) with default, range and source,
+  editable per project; per-mode defaults (cited curve radii, speed, dwell, catchment,
+  platform length, and the gauge and electrification new track gets); vehicle profiles;
+  crossing priority. Uncited values are marked placeholder.
 - **Custom fields** (key/value) on lines, stations, tracks and nodes.
 - **Crossovers** before or after each station (map and schematic).
 - Stations snapped to lines (click or chainage); shared stations become

@@ -46,6 +46,9 @@ export type Tool =
   | 'region_split';
 
 /** Options for drawing track (rail modes). */
+/** Tabs of the Project properties dialog. */
+export type PropertiesTab = 'parameters' | 'modes' | 'vehicles' | 'priority';
+
 export interface TrackDrawOptions {
   double: boolean;
   /** 'default' = the mode's cited radius; null = no curves (kinks); a number = metres. */
@@ -107,6 +110,8 @@ export interface AppState {
   serviceDraft: string[];
   /** Stops clicked so far for a new bus, BRT or trolleybus line, in order. */
   stopDraft: LngLat[];
+  /** The Project properties dialog is open (at this tab). */
+  propertiesTab: PropertiesTab | null;
   pendingTrackDeletion: PendingTrackDeletion | null;
   /** A drawn track whose last point is back at its first: waiting for "close the loop?". */
   pendingLoop: LngLat[] | null;
@@ -161,6 +166,7 @@ export interface AppState {
   setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
   setServiceDraft: (ids: string[]) => void;
   setStopDraft: (points: LngLat[]) => void;
+  openProperties: (tab: PropertiesTab | null) => void;
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
   setPendingLoop: (points: LngLat[] | null) => void;
   setCurveEditor: (c: { trackId: string; index: number } | null) => void;
@@ -235,6 +241,7 @@ export const useStore = create<AppState>()((set, get) => {
     trackDraw: { double: true, radius: 'default', structure: 'default', guides: true },
     serviceDraft: [],
     stopDraft: [],
+    propertiesTab: null,
     pendingTrackDeletion: null,
     pendingLoop: null,
     curveEditor: null,
@@ -344,6 +351,7 @@ export const useStore = create<AppState>()((set, get) => {
     setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
     setServiceDraft: (serviceDraft) => set({ serviceDraft }),
     setStopDraft: (stopDraft) => set({ stopDraft }),
+    openProperties: (propertiesTab) => set({ propertiesTab }),
     setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
     setPendingLoop: (pendingLoop) => set({ pendingLoop }),
     setCurveEditor: (curveEditor) => set({ curveEditor }),

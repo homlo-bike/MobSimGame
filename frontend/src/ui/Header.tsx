@@ -159,6 +159,11 @@ export function Header({
       onSelect: () => downloadText(`${name}.mobsim.json`, serializeProject(project), 'application/json'),
     },
     { kind: 'separator' },
+    {
+      kind: 'item',
+      label: 'Project properties…',
+      onSelect: () => useStore.getState().openProperties('parameters'),
+    },
     { kind: 'heading', label: 'Import / export' },
     { kind: 'item', label: 'Import GeoJSON…', onSelect: () => geojsonInput.current?.click() },
     { kind: 'item', label: 'Export GeoJSON', onSelect: exportGeoJSON },
