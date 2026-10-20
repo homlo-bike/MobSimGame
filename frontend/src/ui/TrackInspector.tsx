@@ -492,10 +492,10 @@ export function TrackParametersPanel() {
     commit({ ...scenario, trackNetwork: { ...net, parameterOverrides: next } }, 'Track parameter changed');
   };
   return (
-    <Section title="Track parameters" id="track-parameters" collapsible defaultOpen={false}>
+    <Section title="Project settings" id="project-settings" collapsible defaultOpen={false}>
       <p className="mb-2 text-xs text-slate-600">
         Defaults are cited where a source exists; values marked placeholder are not from a source. Changes
-        apply to new track and to the simulation.
+        apply to new track, stops and stations, and to the simulation.
       </p>
       <ul className="space-y-2">
         {(Object.keys(TRACK_PARAMETERS) as TrackParameterId[]).map((id) => {

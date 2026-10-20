@@ -9,7 +9,7 @@
 import type { LngLat, Scenario, Station, TransportLine, TransportMode } from './schema';
 import { MODES } from './modes';
 import { stationMode } from './modeSeparation';
-import { createLine, STATION_MERGE_RADIUS_M, uniqueStationName, updateLine } from './network';
+import { createLine, stationMergeRadiusM, uniqueStationName, updateLine } from './network';
 import { distanceM } from '../geo/geometry';
 import { newId } from '../util/id';
 
@@ -25,7 +25,7 @@ export function stopNear(
   scenario: Scenario,
   mode: TransportMode,
   at: LngLat,
-  radiusM = STATION_MERGE_RADIUS_M,
+  radiusM = stationMergeRadiusM(scenario),
 ): Station | null {
   let best: { s: Station; d: number } | null = null;
   for (const s of scenario.stations) {
@@ -70,7 +70,7 @@ export function createStopLine(
   for (const p of input.points) {
     // Stops created earlier in this drawing have no line yet, so they are matched here.
     const own = sc.stations.filter(
-      (s) => fresh.has(s.id) && distanceM(s.position, p) <= STATION_MERGE_RADIUS_M,
+      (s) => fresh.has(s.id) && distanceM(s.position, p) <= stationMergeRadiusM(sc),
     );
     const existing = own[0] ?? stopNear(sc, input.mode, p);
     let station = existing;

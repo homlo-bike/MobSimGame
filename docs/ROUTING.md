@@ -8,7 +8,7 @@ at the kerb on the side of the street where the vehicle stops. Esc, Enter, a
 right-click or **Finish line** ends the drawing; Backspace removes the last stop,
 and fewer than two stops cancel. The line runs one way through the stops and then
 returns to the first stop (a one-way loop), so every stop is served from one side
-of the street. A click within 60 m of an existing stop of the same mode reuses
+of the street. A click within 20 m (the stop merge distance in Project settings) of an existing stop of the same mode reuses
 that stop; stops of other modes are never shared. A stop keeps its place in the
 order even where the route passes it again on the way back.
 
@@ -79,7 +79,12 @@ marked manual.
   not checked.
 - Bus lanes, bus gates and closures count only as far as they are mapped in OSM, and
   the extract may be older than current OSM data.
-- Trolleybus lines are routed like bus lines; the overhead-wire network and the
-  check for missing wire are not available yet (planned, R4b part 2).
+- Trolleybus lines are routed like bus lines. Their overhead wire is not drawn
+  separately: it exists wherever a trolleybus line runs (thin double line on the map
+  from zoom 12), is shared where trolleybus lines use the same street, and is listed
+  in the line inspector. Where the wire crosses rail track on the same level that
+  has an overhead line, a warning says the two overhead systems need a special
+  design; where the track's electrification is not specified, an information note
+  asks to check it. Third-rail and non-electrified track are not reported.
 - The animation runs the return trip on the outbound geometry (reversed); the
   separate return path is drawn on the map only.

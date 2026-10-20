@@ -96,6 +96,7 @@ import {
   vehiclesCollection,
   vehicleBodiesCollection,
   stopDraftCollection,
+  wiresCollection,
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
@@ -992,6 +993,7 @@ export default function MapView() {
     setData(map, SRC.conflicts, conflictsCollection(scenario, conflicts));
     setData(map, SRC.walkingLinks, walkingLinksCollection(scenario));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
+    setData(map, SRC.wires, wiresCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(

@@ -186,6 +186,17 @@ export const TRACK_PARAMETERS = {
     source: PLACEHOLDER,
     notes: 'Enter the width in the vehicle profile for a true-to-scale drawing.',
   },
+  stopMergeRadiusM: {
+    id: 'stopMergeRadiusM',
+    label: 'Distance within which a new stop or station reuses an existing one',
+    unit: 'm',
+    defaultValue: 20,
+    min: 1,
+    max: 200,
+    status: 'documented_default',
+    source: 'Owner requirement for this project (2026-10-20): 20 m (previously 60 m).',
+    notes: 'Only stops and stations of the same mode are reused; modes never share stations.',
+  },
   walkingSpeedKmh: {
     id: 'walkingSpeedKmh',
     label: 'Walking speed for walking links between stations',
@@ -249,7 +260,8 @@ export function minSeparationM(
   network: Pick<TrackNetwork, 'parameterOverrides'>,
   mode: TransportMode,
 ): number {
-  if (mode === 'bus' || mode === 'brt') return parameterValue(network, 'minSeparationBusM');
+  if (mode === 'bus' || mode === 'brt' || mode === 'trolleybus')
+    return parameterValue(network, 'minSeparationBusM');
   if (mode === 'tram' || mode === 'light_rail') return parameterValue(network, 'minSeparationTramM');
   return parameterValue(network, 'minSeparationRailM');
 }

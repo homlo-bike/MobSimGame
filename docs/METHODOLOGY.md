@@ -23,7 +23,7 @@ convention, **not** a probabilistic confidence interval. The relative spread
 
 - Length: sum of haversine segment lengths (Turf, spherical earth radius
   6 371 008.8 m).
-- Station snapping: nearest point on the polyline; a click within 60 m of an
+- Station snapping: nearest point on the polyline; a click within the stop merge distance (Project settings, default 20 m) of an
   existing station reuses it (shared station).
 - Track geometry: physical tracks are **straight lines and circular arcs** with a
   radius entered per point, tangent to each other by construction, computed in a

@@ -12,8 +12,19 @@ All notable changes are documented here. The format follows
   one outline per unit of the consist, with the vehicle profile's length and width,
   following curves. Waiting and dwelling vehicles have a thick dashed outline. A new
   placeholder parameter gives the width when a vehicle profile has none.
+- **Trolleybus overhead wire** follows every trolleybus line (owner decision: not
+  drawn separately). It is shown on the map, shared where trolleybus lines use the
+  same street, and summarised in the line inspector. A trolleybus line crossing rail
+  track with an overhead line on the same level gets a warning; a crossing with
+  track whose electrification is not specified gets an information note.
 
 ### Changed
+
+- **Stop merge distance is 20 m (was 60 m) and editable** in the renamed
+  "Project settings" section (formerly "Track parameters"). A new stop or station
+  within this distance of an existing one of the same mode reuses it.
+- Trolleybuses keep the bus following distance in the simulation (they used the
+  rail value).
 
 - **Bus, BRT and trolleybus lines are drawn by clicking their stops in order.**
   Each click is a stop at the kerb where the vehicle stops; Esc, Enter, a

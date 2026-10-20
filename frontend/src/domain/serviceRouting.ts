@@ -18,7 +18,7 @@ import type {
   TransportMode,
 } from './schema';
 import { MODES } from './modes';
-import { isRing, STATION_MERGE_RADIUS_M, uniqueStationName } from './network';
+import { isRing, stationMergeRadiusM, uniqueStationName } from './network';
 import { parameterValue } from './trackParameters';
 import { shortestPath, stepsLengthM, type Dir } from './trackGraph';
 import { serviceCanUse } from './compatibility';
@@ -91,7 +91,7 @@ export interface AddTrackStationResult {
 
 /**
  * Place a station on the track network at the nearest track point. An existing
- * station within STATION_MERGE_RADIUS_M is reused. The station serves every
+ * station within the stop merge distance is reused. The station serves every
  * track within the configured distance on its level (both tracks of a double
  * track, for example).
  */
@@ -108,7 +108,7 @@ export function addStationOnTracks(
   const position = pointOnTrack(net, nearestHit.track, nearestHit.fraction).position;
   const existing = scenario.stations
     .map((s) => ({ s, d: distanceM(s.position, position) }))
-    .filter((x) => x.d <= STATION_MERGE_RADIUS_M && stationLevel(x.s) === level)
+    .filter((x) => x.d <= stationMergeRadiusM(scenario) && stationLevel(x.s) === level)
     .sort((a, b) => a.d - b.d)[0]?.s;
   const refs = suggestStationTracks(scenario, position, level).map((h) => ({
     trackId: h.track.id,

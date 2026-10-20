@@ -34,6 +34,7 @@ import { getMapInstance } from '../map/mapInstance';
 import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { DisruptionPanel } from './DisruptionPanel';
 import { RoutePanel } from './RoutePanel';
+import { wireSummary } from '../domain/overheadWire';
 import { SIGNAL_MODES } from '../domain/signals';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
@@ -292,6 +293,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
       </Section>
 
       <RoutePanel line={line} scenario={scenario} />
+      <WirePanel line={line} scenario={scenario} />
       {line.alignment.kind === 'track' && (
         <Section title="Route over tracks" id="line-track-route">
           <p className="text-sm" data-testid="track-route-status">
@@ -807,5 +809,39 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
         <FindingsList findings={findings} />
       </Section>
     </div>
+  );
+}
+
+/** Overhead wire of a trolleybus line: it follows the route, shared with other trolleybus lines. */
+function WirePanel({ line, scenario }: { line: TransportLine; scenario: Scenario }) {
+  const unitSystem = useStore((s) => s.unitSystem);
+  const w = wireSummary(scenario, line);
+  if (!w) return null;
+  const name = (id: string) => scenario.lines.find((l) => l.id === id)?.name ?? id;
+  const overhead = w.railCrossings.filter((x) => x.overhead).length;
+  return (
+    <Section title="Overhead wire" id="line-wire">
+      <p className="text-sm">
+        Wire along the whole route: <strong>{formatDistance(w.lengthM, unitSystem)}</strong>
+      </p>
+      {w.sharedWith.length > 0 && (
+        <ul className="mt-1 list-disc ps-5 text-sm" aria-label="Wire shared with">
+          {w.sharedWith.map((s) => (
+            <li key={s.lineId}>
+              Shared with {name(s.lineId)} over {formatDistance(s.lengthM, unitSystem)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {w.railCrossings.length > 0 && (
+        <p className="mt-1 text-sm">
+          {overhead > 0 && <>⚠ Crosses {overhead} rail overhead line(s) on the same level. </>}
+          {w.railCrossings.length - overhead > 0 && (
+            <>Crosses {w.railCrossings.length - overhead} track(s) whose electrification is not specified.</>
+          )}{' '}
+          See the findings below.
+        </p>
+      )}
+    </Section>
   );
 }

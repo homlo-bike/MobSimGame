@@ -24,6 +24,7 @@ import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
 import { findingPosition } from '../validation/locate';
 import { stepsCoordinates, stepsSegments } from '../domain/serviceRouting';
+import { wirePaths } from '../domain/overheadWire';
 
 /**
  * Physical tracks, one feature each, oriented in their running direction so
@@ -701,4 +702,16 @@ export function stopDraftCollection(points: readonly LngLat[]): FeatureCollectio
       },
     });
   return { type: 'FeatureCollection', features };
+}
+
+/** Overhead wire of trolleybus lines (shown wherever a trolleybus line runs). */
+export function wiresCollection(scenario: Scenario): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: wirePaths(scenario).map((w) => ({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: w.coordinates },
+      properties: { lineId: w.lineId },
+    })),
+  };
 }
