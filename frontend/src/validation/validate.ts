@@ -21,6 +21,9 @@ import {
 } from '../geo/geometry';
 import { validateSegments } from '../geo/segments';
 import { validateTrackNetwork } from './trackValidation';
+import { isVehicleCompatible } from '../domain/vehicles';
+import { lineFleet } from '../analysis/fleet';
+import { trackGeometry } from '../domain/tracks';
 
 interface CurvatureSample {
   index: number;
@@ -376,6 +379,42 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   } else if (line.alignment.kind === 'track' && line.alignment.message) {
     add({ severity: 'warning', category: 'geometry', message: line.alignment.message });
   }
+
+  // --- Vehicles and fleet ------------------------------------------------------
+  const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
+  if (line.vehicleTypeId && !vehicle)
+    add({
+      severity: 'error',
+      category: 'operations',
+      message: 'The selected vehicle type no longer exists.',
+    });
+  if (vehicle && !isVehicleCompatible(vehicle, line.mode))
+    add({
+      severity: 'error',
+      category: 'operations',
+      message: `Vehicle "${vehicle.name}" is not compatible with ${MODES[line.mode].label} lines. Choose a ${MODES[line.mode].label.toLowerCase()} vehicle.`,
+    });
+  if (vehicle?.minRadiusM && line.alignment.kind === 'track') {
+    const net = scenario.trackNetwork;
+    const used = new Set(line.alignment.path.concat(line.alignment.returnPath ?? []).map((s) => s.trackId));
+    const tight = net.tracks
+      .filter((t) => used.has(t.id))
+      .flatMap((t) => trackGeometry(net, t).primitives)
+      .filter((p) => p.kind === 'arc' && p.radius < vehicle.minRadiusM!);
+    if (tight.length)
+      add({
+        severity: 'error',
+        category: 'curve_radius',
+        message: `Vehicle "${vehicle.name}" needs curves of at least ${vehicle.minRadiusM} m; the route has ${tight.length} tighter curve(s).`,
+      });
+  }
+  const fleet = transitMode ? lineFleet(line, scenario) : null;
+  if (fleet && fleet.assigned !== null && fleet.shortfall > 0)
+    add({
+      severity: 'error',
+      category: 'operations',
+      message: `${fleet.assigned} vehicle(s) assigned, but ${fleet.peakRequired} are needed for the ${line.servicePatterns[0]!.peakHeadwayMin}-minute peak headway (cycle ≈ ${Math.round(fleet.cycleMin)} min with placeholder speeds). Add vehicles or lengthen the headway.`,
+    });
 
   // --- Street network ----------------------------------------------------------
   const route = routeStatus(line);

@@ -85,8 +85,12 @@ Threshold checks use versioned mode profiles in `domain/modeProfiles.ts`:
   0.75 (dedicated track). Line running speed is the length-weighted harmonic mean.
 - Cycle time: two-ended lines `2 × (L / v + n × dwell) + 2 × layover`;
   rings `L / v + n × dwell + layover`.
-- Vehicles in service: `⌈cycle / peak headway⌉`.
-- Capacity (pphpd): `60 / headway × vehicle capacity` (placeholder vehicle types).
+- Vehicles in service: `⌈cycle / peak headway⌉` (also off-peak). A line's assigned
+  fleet below the peak figure is an error. The simulation does not yet limit
+  departures to the assigned fleet; that comes in work package P3-14.
+- Consist length = vehicle length × units per consist; consist capacity = vehicle
+  capacity × units. Capacity (pphpd) uses the consist.
+- Capacity (pphpd): `60 / headway × consist capacity` (placeholder vehicle types unless the user enters a profile).
 
 ## Exploratory demand (Phase 1, synthetic inputs)
 

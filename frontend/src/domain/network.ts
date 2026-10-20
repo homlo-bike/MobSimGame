@@ -5,6 +5,7 @@
 import type { LngLat, Scenario, Station, TransportLine, TransportMode, Project, SharedTrack } from './schema';
 import { EMPTY_TRACK_NETWORK, PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
 import { MODES, defaultVehicleTypes } from './modes';
+import { compatibleVehicles } from './vehicles';
 import { newId, nowIso } from '../util/id';
 import {
   distanceM,
@@ -111,7 +112,7 @@ export function createLine(
   if (ring && coords.length > 3 && distanceM(coords[0]!, coords[coords.length - 1]!) <= 5) {
     coords = coords.slice(0, -1);
   }
-  const vehicle = scenario.vehicleTypes.find((v) => v.mode === input.mode) ?? null;
+  const vehicle = compatibleVehicles(scenario.vehicleTypes, input.mode)[0] ?? null;
   const built = buildAlignment(input.alignment ?? defaultAlignmentKind(input.mode), coords, ring);
   const line: TransportLine = {
     id: input.id ?? newId('line'),
@@ -152,6 +153,8 @@ export function createLine(
       },
     ],
     vehicleTypeId: vehicle?.id ?? null,
+    fleetSize: null,
+    consistUnits: null,
     dwellTimeS: mode.defaultDwellTimeS,
     maxSpeedKmh: mode.defaultMaxSpeedKmh,
     metadata: {},

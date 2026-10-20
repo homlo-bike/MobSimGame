@@ -66,6 +66,10 @@ set, labelled as such. See the [roadmap](#roadmap).
   keep clear of stations. The line inspector and the Table view say the direction
   in words. Street-routed and straight lines keep per-segment track sides and can be
   reversed; services on tracks reverse their stop order.
+- **Vehicle profiles** per mode (bus, BRT, tram, light rail, metro and train
+  categories) with dimensions, performance and compatibility. A line lists only
+  vehicles of its mode. You set the fleet and consist per line, and errors flag a
+  fleet too small for the headway or curves too tight for the vehicle.
 - **Parameters** (track spacing, station search distance, minimum separation) show
   their default, range, status and source and can be changed per project. Uncited
   values are marked placeholder.

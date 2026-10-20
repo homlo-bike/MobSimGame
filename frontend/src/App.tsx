@@ -8,6 +8,7 @@ import { fetchSharedProject } from './api/projects';
 import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
 import { LineInspector } from './ui/LineInspector';
+import { VehicleProfilesPanel } from './ui/VehicleProfiles';
 import {
   NodeInspector,
   TrackDeletionDialog,
@@ -252,6 +253,7 @@ export default function App() {
           <NetworkLists />
           <SignalsPanel />
           <TrackParametersPanel />
+          <VehicleProfilesPanel />
           <ScenarioPanel />
           <LayerPanel />
         </aside>

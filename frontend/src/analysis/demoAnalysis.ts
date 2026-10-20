@@ -6,18 +6,11 @@
  * only the inputs are synthetic. Phase 4 swaps in real providers and
  * user-reviewed assumption sets.
  */
-import type {
-  AnalysisResult,
-  AssumptionSet,
-  LngLat,
-  Range,
-  Scenario,
-  Station,
-  TransportLine,
-} from '../domain/schema';
+import { runningSpeedKmh } from './fleet';
+import { consistCapacity } from '../domain/vehicles';
+import type { AnalysisResult, AssumptionSet, LngLat, Range, Scenario, Station } from '../domain/schema';
 import { isRing, lineLengthM, orderedStops } from '../domain/network';
 import { toLocalMetres } from '../geo/geometry';
-import { segmentSpeedKmh } from '../simulation/speeds';
 import { demoProvenance } from '../providers/provenance';
 import { MockPopulationProvider } from '../providers/mock';
 import { add, mul, point, scale } from './ranges';
@@ -127,11 +120,7 @@ export interface ScenarioAnalysis {
 }
 
 /** Length-weighted mean running speed of a line. */
-function runningSpeed(line: TransportLine): number {
-  let t = 0;
-  for (const seg of line.segments) t += (seg.toFraction - seg.fromFraction) / segmentSpeedKmh(line, seg);
-  return t > 0 ? 1 / t : line.maxSpeedKmh;
-}
+const runningSpeed = runningSpeedKmh;
 
 export function analyseScenario(
   scenario: Scenario,
@@ -177,7 +166,8 @@ export function analyseScenario(
         : 0;
     const vehicles = cycle > 0 ? vehiclesRequired(cycle, headway) : 0;
     const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
-    const capacity = vehicle ? capacityPphpd(headway, vehicle.capacity) : 0;
+    const perConsist = consistCapacity(line, vehicle);
+    const capacity = perConsist ? capacityPphpd(headway, perConsist) : 0;
     // Boardings at an interchange are split equally between the lines serving it (simplification).
     const weekday = add(
       point(0),

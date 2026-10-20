@@ -159,16 +159,78 @@ export const ServicePatternSchema = z.object({
 });
 export type ServicePattern = z.infer<typeof ServicePatternSchema>;
 
+/** Vehicle categories; which ones a mode may use is defined in domain/vehicles.ts. */
+export const VehicleCategorySchema = z.enum([
+  'standard_bus',
+  'articulated_bus',
+  'double_articulated_bus',
+  'double_decker_bus',
+  'minibus',
+  'trolleybus',
+  'brt_standard_bus',
+  'brt_articulated_bus',
+  'brt_double_articulated_bus',
+  'brt_trolleybus',
+  'tram_single',
+  'tram_articulated',
+  'tram_coupled_set',
+  'tram_low_floor',
+  'tram_high_floor',
+  'lrv_single',
+  'lrv_coupled_consist',
+  'lrv_custom',
+  'metro_consist',
+  'metro_automated',
+  'light_metro',
+  'metro_custom',
+  'emu',
+  'dmu',
+  'locomotive_hauled',
+  'commuter_train',
+  'regional_train',
+  'train_custom',
+  'custom',
+]);
+export type VehicleCategory = z.infer<typeof VehicleCategorySchema>;
+
 export const VehicleTypeSchema = z.object({
   id: z.string(),
   name: z.string(),
+  /** Primary mode; `compatibleModes` lists every service mode that may use the vehicle. */
   mode: TransportModeSchema,
+  category: VehicleCategorySchema.default('custom'),
+  compatibleModes: z.array(TransportModeSchema).default([]),
   /** Total passengers (seated + standing) at the planning load factor. */
   capacity: z.number().int().positive(),
+  seatedCapacity: z.number().int().nonnegative().nullable().default(null),
   maxSpeedKmh: z.number().positive(),
+  /** Length of one unit, metres. A consist of `unitsPerConsist` units is that many times longer. */
   lengthM: z.number().positive(),
+  widthM: z.number().positive().nullable().default(null),
+  unitsPerConsist: z.number().int().positive().default(1),
+  accelerationMs2: z.number().positive().nullable().default(null),
+  serviceBrakingMs2: z.number().positive().nullable().default(null),
+  /** Smallest curve radius the vehicle can run through, metres (from the manufacturer). */
+  minRadiusM: z.number().positive().nullable().default(null),
+  maxGradePercent: z.number().positive().nullable().default(null),
+  doorCount: z.number().int().positive().nullable().default(null),
+  energy: z
+    .enum([
+      'electric_overhead',
+      'electric_third_rail',
+      'battery',
+      'diesel',
+      'hybrid',
+      'gas',
+      'hydrogen',
+      'unknown',
+    ])
+    .default('unknown'),
+  /** Platform types the vehicle can serve (free text such as "low-floor 30 cm"); empty = not specified. */
+  compatiblePlatforms: z.array(z.string()).default([]),
   status: z.enum(['documented_default', 'user_override', 'demonstration']),
   source: z.string(),
+  notes: z.string().default(''),
 });
 export type VehicleType = z.infer<typeof VehicleTypeSchema>;
 
@@ -385,6 +447,10 @@ export const TransportLineSchema = z.object({
   termination: LineTerminationSchema,
   servicePatterns: z.array(ServicePatternSchema),
   vehicleTypeId: z.string().nullable(),
+  /** Vehicles (consists) assigned to the line; null = not set (the simulation runs every scheduled trip). */
+  fleetSize: z.number().int().nonnegative().nullable().default(null),
+  /** Units coupled per consist on this line; null = the vehicle profile's value. */
+  consistUnits: z.number().int().positive().nullable().default(null),
   dwellTimeS: z.number().nonnegative(),
   maxSpeedKmh: z.number().positive(),
   metadata: MetadataSchema.default({}),

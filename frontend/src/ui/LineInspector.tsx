@@ -44,6 +44,14 @@ import { isRailMode, RAIL_MODES } from '../domain/tracks';
 import { moveServiceStop, rerouteServices, setServiceStops } from '../domain/serviceRouting';
 import { MetadataEditor } from './MetadataEditor';
 import { describeDirection } from '../domain/direction';
+import {
+  compatibleVehicles,
+  consistLengthM,
+  isVehicleCompatible,
+  usesVehicles,
+  VEHICLE_CATEGORY_LABELS,
+} from '../domain/vehicles';
+import { lineFleet } from '../analysis/fleet';
 
 const END_LABELS: Record<EndType, string> = {
   terminal_station: 'Terminal station',
@@ -66,6 +74,9 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
   const patchPattern = (p: Partial<typeof pattern>) =>
     patch({ servicePatterns: [{ ...pattern, ...p }, ...line.servicePatterns.slice(1)] }, 'Service updated');
   const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
+  const vehicleChoices = compatibleVehicles(scenario.vehicleTypes, line.mode);
+  const fleet = usesVehicles(line.mode) ? lineFleet(line, scenario) : null;
+  const consistLength = consistLengthM(line, vehicle);
   const onTracks = line.alignment.kind === 'track';
   const notServed = scenario.stations.filter(
     (s) => !line.stops.some((x) => x.stationId === s.id) && (!onTracks || s.trackRefs.length > 0),
@@ -155,7 +166,14 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
           value={line.mode}
           onChange={(e) => {
             const mode = e.target.value as TransportMode;
-            let next = updateLine(scenario, line.id, { mode });
+            // An incompatible vehicle is replaced by the first compatible one (or none).
+            const keep = vehicle && isVehicleCompatible(vehicle, mode);
+            let next = updateLine(scenario, line.id, {
+              mode,
+              vehicleTypeId: keep
+                ? line.vehicleTypeId
+                : (compatibleVehicles(scenario.vehicleTypes, mode)[0]?.id ?? null),
+            });
             // Keep the alignment kind in step with the mode unless the user chose another one.
             if (line.alignment.kind === defaultAlignmentKind(line.mode))
               next = setLineAlignmentKind(next, line.id, defaultAlignmentKind(mode));
@@ -379,16 +397,73 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             hint={`At traffic signals green is extended or red shortened by up to ${scenario.signalSettings.priorityAdjustmentS} s (set under Traffic signals).`}
           />
         )}
-        <SelectField
-          label="Vehicle type"
-          value={line.vehicleTypeId ?? ''}
-          onChange={(e) => patch({ vehicleTypeId: e.target.value || null })}
-          options={[
-            { value: '', label: 'None selected' },
-            ...scenario.vehicleTypes.map((v) => ({ value: v.id, label: `${v.name} · ${v.capacity} pax` })),
-          ]}
-          hint={vehicle ? `${vehicle.source}` : 'Capacity results need a vehicle type.'}
-        />
+        {usesVehicles(line.mode) && (
+          <>
+            <SelectField
+              label="Vehicle type"
+              value={line.vehicleTypeId ?? ''}
+              onChange={(e) => patch({ vehicleTypeId: e.target.value || null })}
+              options={[
+                { value: '', label: 'None selected' },
+                ...vehicleChoices.map((v) => ({
+                  value: v.id,
+                  label: `${v.name} · ${VEHICLE_CATEGORY_LABELS[v.category]} · ${v.capacity} pax`,
+                })),
+              ]}
+              hint={
+                vehicle
+                  ? `${vehicle.status === 'demonstration' ? 'Placeholder profile. ' : ''}${vehicle.source}`
+                  : vehicleChoices.length
+                    ? 'Capacity results need a vehicle type.'
+                    : `No ${MODES[line.mode].label.toLowerCase()} vehicle profile yet: add one under Vehicle profiles.`
+              }
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <CommitField
+                label="Units per consist"
+                unit={vehicle ? `profile: ${vehicle.unitsPerConsist}` : undefined}
+                type="number"
+                min={1}
+                max={20}
+                step={1}
+                value={line.consistUnits}
+                onCommit={(v) =>
+                  v === '' || Number.isInteger(Number(v))
+                    ? patch({ consistUnits: v === '' ? null : Number(v) }, 'Consist changed')
+                    : 'Whole numbers only'
+                }
+              />
+              <CommitField
+                label="Vehicles assigned"
+                unit="empty = not set"
+                type="number"
+                min={0}
+                max={10000}
+                step={1}
+                value={line.fleetSize}
+                onCommit={(v) =>
+                  v === '' || Number.isInteger(Number(v))
+                    ? patch({ fleetSize: v === '' ? null : Number(v) }, 'Fleet changed')
+                    : 'Whole numbers only'
+                }
+              />
+            </div>
+            {fleet && (
+              <p className="text-sm text-slate-800" data-testid="fleet-summary">
+                Needed: <strong>{fleet.peakRequired}</strong> at peak, {fleet.offPeakRequired} off-peak (cycle
+                ≈ {Math.round(fleet.cycleMin)} min; placeholder speeds).
+                {consistLength !== null && ` Consist length ${consistLength} m.`}
+                {fleet.peakCapacityPphpd !== null &&
+                  ` Peak capacity ${Math.round(fleet.peakCapacityPphpd).toLocaleString()} passengers/hour/direction.`}
+                {fleet.shortfall > 0 && (
+                  <strong className="block text-red-900">
+                    ⛔ {fleet.shortfall} vehicle(s) short of the peak headway.
+                  </strong>
+                )}
+              </p>
+            )}
+          </>
+        )}
       </Section>
 
       {onTracks ? (

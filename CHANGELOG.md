@@ -8,6 +8,8 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Vehicle type** in the line inspector lists only vehicles compatible with the
+  line's mode; changing the mode replaces an incompatible vehicle.
 - **Validation categories are now Errors, Warnings, Recommendations and
   Information.** "Blocking geometry error" is now "Error". Each category has a
   definition shown as help, a count and a filter. The dashboard's unclear
@@ -27,6 +29,21 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Vehicle profiles** (sidebar):
+  - fields: category per mode (for example double-decker bus, low-floor tram,
+    automated metro, EMU), capacity, seats, length, width, units per consist,
+    doors, maximum speed, acceleration, braking, minimum curve radius, maximum
+    grade, energy, compatible platforms, compatible modes, source and notes;
+  - add custom profiles, edit them, and delete unused ones;
+  - unknown values stay empty, never guessed.
+- **Fleet per line**:
+  - vehicles assigned and units per consist;
+  - the inspector shows the vehicles needed at peak and off-peak, the consist
+    length and the peak capacity (placeholder speeds).
+- Validation errors for:
+  - a fleet too small for the peak headway;
+  - an incompatible or missing vehicle;
+  - curves tighter than the vehicle's minimum radius.
 - Findings can be sorted by severity, line, station, segment or mode. Each finding
   links to its object: it is selected, the map zooms to it and the finding is
   highlighted.

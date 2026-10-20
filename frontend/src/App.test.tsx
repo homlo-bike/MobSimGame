@@ -353,6 +353,24 @@ describe('notification menu', () => {
   });
 });
 
+describe('vehicles in the line inspector', () => {
+  it('offers only vehicles of the line’s mode and shows the fleet needed', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const lines = screen.getByRole('list', { name: 'Lines' });
+    await user.click(within(lines).getByRole('button', { name: /Red Line/ }));
+    const select = screen.getByLabelText('Vehicle type') as HTMLSelectElement;
+    const labels = [...select.options].map((o) => o.text);
+    expect(labels.some((l) => /metro/i.test(l))).toBe(true);
+    expect(labels.some((l) => /bus|tram/i.test(l))).toBe(false);
+    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/Needed: \d+ at peak/);
+    const assigned = screen.getByLabelText(/Vehicles assigned/);
+    await user.clear(assigned);
+    await user.type(assigned, '1{Enter}');
+    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/short of the peak headway/);
+  });
+});
+
 describe('validation panel', () => {
   it('labels the categories, filters them and links findings to their objects', async () => {
     const user = userEvent.setup();
