@@ -23,7 +23,7 @@ import {
   updateLineGeometry,
 } from '../domain/network';
 import { snapToPath } from '../geo/geometry';
-import { basemapOptions, terrainSource } from '../providers/basemaps';
+import { basemapOptions } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
 import { simulationClock, simulationOptions } from '../simulation/runtime';
@@ -1073,27 +1073,13 @@ export default function MapView() {
     setVisible(map, 'msg-traffic-line', layers.traffic && fictional);
     setVisible(map, 'msg-transit-line', layers.existingTransit && fictional);
 
-    // Terrain (visual only).
-    const dem = terrainSource();
-    if (layers.terrain && dem) {
-      if (!map.getSource(SRC.dem)) {
-        map.addSource(SRC.dem, {
-          type: 'raster-dem',
-          tiles: dem.tiles,
-          encoding: dem.encoding,
-          tileSize: dem.tileSize,
-          maxzoom: dem.maxzoom,
-          attribution: dem.attribution,
-        });
-      }
-      map.setTerrain({ source: SRC.dem, exaggeration: 1.3 });
-    } else if (map.getTerrain()) {
-      map.setTerrain(null);
-    }
+    // 3D relief only with the terrain background (one background at a time; visual only).
+    if (map.getSource('basemap-dem')) map.setTerrain({ source: 'basemap-dem', exaggeration: 1.3 });
+    else if (map.getTerrain()) map.setTerrain(null);
     return () => {
       cancelled = true;
     };
-  }, [layers, styleVersion, project.fictional]);
+  }, [layers, styleVersion, project.fictional, basemapId]);
 
   // --- Vehicle animation (frame-rate independent) -----------------------------------
   useEffect(() => {

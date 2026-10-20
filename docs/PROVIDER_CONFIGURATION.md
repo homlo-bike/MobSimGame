@@ -19,14 +19,21 @@ nothing here asserts that a service is free, global or unrestricted.
 | --- | --- |
 | OpenFreeMap Liberty / Positron / Bright | `https://tiles.openfreemap.org/styles/<name>`. Its site states no API keys or registration and no view/request limits for the public instance, without an SLA. Attribution required: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" (shown in the map). |
 | Plain / High contrast | Offline styles without tiles (labels need the glyph server). |
+| Aerial: Sentinel-2 cloudless 2016 (EOX) | `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg`, keyless. Licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) for the 2016 layer (EOX's capabilities and licence page; later years are CC BY-NC-SA and are not used). Attribution: "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)". Resolution 10 m: streets are visible, tracks and platforms are not. |
+| Aerial: Esri World Imagery (opt-in) | Offered only with `VITE_ESRI_IMAGERY=1`. Sub-metre imagery worldwide from `server.arcgisonline.com`. Governed by the Esri Master License Agreement; keyless use outside Esri software is not clearly permitted, so the deployment that enables it accepts Esri's terms. Attribution "Esri, Vantor, Earthstar Geographics, and the GIS User Community" is shown in the map. Not for offline tile export. |
+| Terrain relief | Hillshading from the terrain tiles below; with this background the map shows 3D relief when tilted. |
 | Extra styles | `VITE_EXTRA_BASEMAPS="Label|https://…/style.json,…"`. Only keyless URLs. Update the CSP in `frontend/nginx.conf` for new hosts. |
+
+Only one background is shown at a time (map, aerial or terrain), so only the visible one
+is downloaded.
 
 ## Terrain (browser, visual only)
 
 `VITE_TERRAIN_TILES_URL` (default AWS Terrain Tiles, Terrarium encoding:
 `https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png`).
 Attribution per the Tilezen/joerd attribution document (SRTM, GMTED2010 and 3DEP
-courtesy of USGS; ETOPO1 courtesy of NOAA, among others). Empty disables the toggle.
+courtesy of USGS; ETOPO1 courtesy of NOAA, among others). Used by the "Terrain relief"
+background; empty removes that background.
 
 ## OpenStreetMap features (Overpass)
 

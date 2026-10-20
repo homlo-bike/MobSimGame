@@ -8,6 +8,9 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Aerial imagery background**: Sentinel-2 cloudless 2016 by EOX (10 m, CC BY 4.0,
+  keyless). Esri World Imagery can be offered by a deployment that accepts Esri's
+  terms (`VITE_ESRI_IMAGERY=1`).
 - **Environment files** in `env/` for development, test and production (template),
   all with `MOBSIM_VALHALLA_URL=http://valhalla:8002`.
 - **Export all data** (File menu): the project plus every calculated value and the
@@ -60,6 +63,11 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **One background at a time**: the Layers panel's "Background" choice is a map
+  (OpenStreetMap styles), aerial imagery, terrain relief or none. Terrain is now a
+  background (hillshading, 3D when tilted) instead of an extra layer on top of the
+  map, so only the visible background is downloaded. Basemap building and land-use
+  options show only with a map background.
 - **Stop merge distance is 20 m (was 60 m) and editable** in the renamed
   "Project settings" section (formerly "Track parameters"). A new stop or station
   within this distance of an existing one of the same mode reuses it.

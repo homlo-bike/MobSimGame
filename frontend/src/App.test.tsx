@@ -289,6 +289,7 @@ describe('no secrets in browser code', () => {
       'VITE_API_BASE_URL',
       'VITE_EXTRA_BASEMAPS',
       'VITE_TERRAIN_TILES_URL',
+      'VITE_ESRI_IMAGERY',
       'VITE_LOG_LEVEL',
       'VITE_SOURCE_URL',
     ]);

@@ -75,7 +75,6 @@ export type Selection =
   | null;
 
 export interface LayerToggles {
-  terrain: boolean;
   buildings: boolean;
   existingTransit: boolean;
   population: boolean;
@@ -253,7 +252,6 @@ export const useStore = create<AppState>()((set, get) => {
     markerVisibility: { error: true, warning: true, recommendation: true, info: false },
     basemapId: DEFAULT_BASEMAP_ID,
     layers: {
-      terrain: false,
       buildings: true,
       existingTransit: false,
       population: false,

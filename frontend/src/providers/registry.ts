@@ -70,12 +70,23 @@ export function providerStatusRows(fictional: boolean): ProviderStatusRow[] {
       note: 'Keyless public tiles; offline style available',
     },
     {
+      kind: 'basemap',
+      label: 'Aerial imagery',
+      implementation:
+        (import.meta.env.VITE_ESRI_IMAGERY as string | undefined) === '1'
+          ? 'Sentinel-2 cloudless 2016 (EOX, CC BY 4.0); Esri World Imagery (enabled by this deployment)'
+          : 'Sentinel-2 cloudless 2016 (EOX, CC BY 4.0)',
+      phase: 1,
+      state: 'available',
+      note: 'Keyless; 10 m Sentinel-2 imagery shows streets, not tracks',
+    },
+    {
       kind: 'terrain',
       label: 'Terrain',
       implementation: 'AWS Terrain Tiles (Terrarium)',
       phase: 1,
       state: 'available',
-      note: 'Visual terrain only; not used for engineering grades',
+      note: 'Terrain relief background (visual only); not used for engineering grades',
     },
     {
       kind: 'geocoder',
