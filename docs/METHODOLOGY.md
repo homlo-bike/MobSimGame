@@ -143,7 +143,11 @@ bidirectional lines reverse at terminals. Services on double track return on the
 other track.
 
 - **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a
-  vehicle reaching a signal on red waits until the next green. Signals come from
+  vehicle reaching a signal on red waits until the next green. A signal with an
+  approximate delay holds each vehicle for that fixed time instead. A signal
+  attached to a line or track applies only there; one whose controls are set
+  applies only to the vehicles it controls (trams, buses). Signals are placed by
+  hand or found in OSM; the absence of a mapped signal does not mean there is none. Signals come from
   OSM (`highway=traffic_signals` within 15 m of the line); timings are assumptions
   (placeholder cycle 90 s, green 45 s, uncited) and offsets are spread
   deterministically from the signal id. **Transit signal priority** per line: green

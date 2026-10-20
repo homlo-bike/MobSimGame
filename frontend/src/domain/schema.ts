@@ -544,6 +544,35 @@ export const TrafficSignalSchema = z.object({
   greenS: z.number().positive(),
   offsetS: z.number().nonnegative().default(0),
   timingStatus: z.enum(['documented_default', 'user_override', 'calibrated', 'demonstration']),
+  kind: z
+    .enum([
+      'intersection',
+      'pedestrian_crossing',
+      'tram_crossing',
+      'brt_crossing',
+      'railway_crossing',
+      'station_approach',
+      'user_defined',
+    ])
+    .default('intersection'),
+  /** Who the signal controls; empty = not specified (it then applies to every tram and bus line nearby). */
+  controls: z.array(z.enum(['cars', 'buses', 'trams', 'bicycles', 'pedestrians'])).default([]),
+  /** Transit priority at this signal; the per-line switch still decides who uses it. */
+  priority: z.enum(['unknown', 'none', 'extend_green', 'early_green', 'pre_emption']).default('unknown'),
+  /** A fixed approximate delay per passing vehicle instead of the simulated cycle, seconds. */
+  approxDelayS: z.number().nonnegative().nullable().default(null),
+  /** Attached to one line or track: applies only there (otherwise to nearby lines). */
+  attachedTo: z
+    .object({ kind: z.enum(['line', 'track']), id: z.string() })
+    .nullable()
+    .default(null),
+  source: z.enum(['manual', 'osm']).default('osm'),
+  retrievedAt: z.string().nullable().default(null),
+  confidence: ConfidenceSchema.default('unknown'),
+  /** Imported signals stay "imported" until the user confirms them. */
+  confirmation: z.enum(['imported', 'confirmed']).default('imported'),
+  label: z.string().default(''),
+  metadata: MetadataSchema.default({}),
 });
 export type TrafficSignal = z.infer<typeof TrafficSignalSchema>;
 

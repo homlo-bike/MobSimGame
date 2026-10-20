@@ -29,6 +29,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Traffic signals by hand**:
+  - place signals on the map or at typed coordinates, drag to move, delete;
+  - type: intersection, pedestrian, tram, BRT or railway crossing, station
+    approach, user-defined;
+  - controlled users, transit priority behaviour, an optional fixed approximate
+    delay, attachment to one line or track, label and custom fields.
+  - Discovered OpenStreetMap signals keep their source ID, retrieval date and
+    confidence, and stay "imported" until confirmed (one by one or all).
+  - The animation applies a signal only to its attached line or track, and not to
+    vehicles its controls exclude.
 - **Vehicle profiles** (sidebar):
   - fields: category per mode (for example double-decker bus, low-floor tram,
     automated metro, EMU), capacity, seats, length, width, units per consist,

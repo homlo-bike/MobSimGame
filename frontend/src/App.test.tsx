@@ -371,6 +371,23 @@ describe('vehicles in the line inspector', () => {
   });
 });
 
+describe('traffic signals by hand', () => {
+  it('adds a signal at typed coordinates and edits its type and controls', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByText(/^Traffic signals \(/));
+    await user.type(screen.getByLabelText(/Add a signal at/), '0.03, 0.02');
+    await user.click(screen.getByRole('button', { name: /^Add$/ }));
+    const sig = useStore.getState().project.scenarios[0]!.trafficSignals.at(-1)!;
+    expect(sig).toMatchObject({ position: [0.03, 0.02], source: 'manual', confirmation: 'confirmed' });
+    expect(useStore.getState().selection).toEqual({ kind: 'signal', id: sig.id });
+    await user.selectOptions(screen.getByLabelText('Signal type'), 'tram_crossing');
+    await user.click(screen.getByRole('checkbox', { name: 'trams' }));
+    const after = useStore.getState().project.scenarios[0]!.trafficSignals.at(-1)!;
+    expect(after).toMatchObject({ kind: 'tram_crossing', controls: ['trams'] });
+  });
+});
+
 describe('validation panel', () => {
   it('labels the categories, filters them and links findings to their objects', async () => {
     const user = userEvent.setup();

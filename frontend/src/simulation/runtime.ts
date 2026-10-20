@@ -1,6 +1,7 @@
 /** The single simulation clock shared by the map renderer and the controls. */
 import type { Scenario } from '../domain/schema';
 import { SimulationClock, type ClosureInput, type SimulationOptions } from './engine';
+import { signalAppliesTo } from '../domain/signals';
 
 export const simulationClock = new SimulationClock();
 
@@ -22,6 +23,9 @@ export function simulationOptions(scenario: Scenario, closures: readonly Closure
       cycleS: sig.cycleS,
       greenS: sig.greenS,
       offsetS: sig.offsetS,
+      delayS: sig.approxDelayS,
+      appliesTo: (line: Parameters<typeof signalAppliesTo>[1]) => signalAppliesTo(sig, line),
+      attached: sig.attachedTo !== null,
     })),
   };
 }

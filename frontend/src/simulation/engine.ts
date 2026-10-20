@@ -223,6 +223,12 @@ export interface ClosureInput {
 
 export interface SignalInput extends SignalTiming {
   position: LngLat;
+  /** A fixed wait per passing vehicle instead of the cycle (seconds). */
+  delayS?: number | null;
+  /** Restricts the signal to some lines (attachment, controlled users). */
+  appliesTo?: (line: TransportLine) => boolean;
+  /** Attached signals apply to their line or track without the distance limit. */
+  attached?: boolean;
 }
 
 export interface SimulationOptions {
@@ -274,12 +280,17 @@ function buildModel(
   if (SIGNAL_MODES.includes(line.mode)) {
     const tol = options.signalMatchToleranceM ?? 20;
     for (const sig of options.signals ?? []) {
+      if (sig.appliesTo && !sig.appliesTo(line)) continue;
       const snap = snapToPath(line.coordinates, ring, sig.position);
-      if (!snap || snap.offsetM > tol) continue;
+      if (!snap || (!sig.attached && snap.offsetM > tol)) continue;
       // Road signals apply on street-level track only, not in tunnels or on viaducts.
       const seg = line.segments.find((x) => snap.fraction >= x.fromFraction && snap.fraction <= x.toFraction);
       if (seg && seg.structure !== 'at_grade') continue;
-      events.push({ chainageM: snap.fraction * path.lengthM, kind: 'signal', direction: 0, signal: sig });
+      events.push(
+        sig.delayS !== null && sig.delayS !== undefined
+          ? { chainageM: snap.fraction * path.lengthM, kind: 'signal', direction: 0, durationS: sig.delayS }
+          : { chainageM: snap.fraction * path.lengthM, kind: 'signal', direction: 0, signal: sig },
+      );
     }
   }
   const signalCount = events.filter((e) => e.kind === 'signal').length;
@@ -524,7 +535,9 @@ function buildTrip(
         continue;
       }
       const wait =
-        e.kind === 'signal' ? signalWaitS(e.signal!, t, model.signalPriorityS) : (e.durationS ?? 0);
+        e.kind === 'signal' && e.signal
+          ? signalWaitS(e.signal, t, model.signalPriorityS)
+          : (e.durationS ?? 0);
       if (wait > 0) {
         phases.push({ kind: e.kind, chainageM: pos, direction: dir, durationS: wait });
         t += wait;

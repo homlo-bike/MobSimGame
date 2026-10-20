@@ -32,6 +32,7 @@ import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
 import { applyTrackHandles, isRailMode, nearestOnTrack, pointOnTrack } from '../domain/tracks';
 import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../domain/serviceRouting';
 import { drawTracks, requestTrackDeletion } from '../store/trackActions';
+import { addManualSignal, moveSignal } from '../domain/signals';
 import {
   ensureLayers,
   setBasemapSourceLayersVisible,
@@ -302,6 +303,12 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station.id });
         return;
       }
+      if (state.tool === 'add_signal') {
+        const res = addManualSignal(sc, [e.lngLat.lng, e.lngLat.lat]);
+        state.commitScenario(res.scenario, 'Traffic signal placed');
+        state.select({ kind: 'signal', id: res.signal.id });
+        return;
+      }
       if (state.tool === 'new_service') {
         // Nearest station on screen (from the project data, not from what is rendered yet).
         let st: (typeof sc.stations)[number] | null = null;
@@ -406,6 +413,39 @@ export default function MapView() {
 
     // Drag stations in select mode.
     let dragging: string | null = null;
+    // Drag traffic signals in select mode.
+    let draggingSignal: string | null = null;
+    map.on('mousedown', SIGNAL_LAYER, (e) => {
+      if (useStore.getState().tool !== 'select') return;
+      const id = e.features?.[0]?.properties?.signalId;
+      if (!id) return;
+      e.preventDefault();
+      draggingSignal = String(id);
+      draw.setInteractionLocked(true);
+      map.dragPan.disable();
+      map.getCanvas().style.cursor = 'grabbing';
+    });
+    map.on('mousemove', (e) => {
+      if (!draggingSignal) return;
+      const sc = activeScenario(useStore.getState().project);
+      const preview = moveSignal(sc, draggingSignal, [e.lngLat.lng, e.lngLat.lat]);
+      setData(map, SRC.signals, signalsCollection(preview, simulationClock.timeS, draggingSignal));
+    });
+    map.on('mouseup', (e) => {
+      if (!draggingSignal) return;
+      const id = draggingSignal;
+      draggingSignal = null;
+      map.dragPan.enable();
+      draw.setInteractionLocked(false);
+      map.getCanvas().style.cursor = '';
+      const state = useStore.getState();
+      state.commitScenario(
+        moveSignal(activeScenario(state.project), id, [e.lngLat.lng, e.lngLat.lat]),
+        'Signal moved',
+      );
+      state.select({ kind: 'signal', id });
+    });
+
     map.on('mousedown', STATION_LAYER, (e) => {
       if (useStore.getState().tool !== 'select') return;
       const id = e.features?.[0]?.properties?.stationId;
@@ -495,8 +535,9 @@ export default function MapView() {
       if (draw.drawing.isDrawing()) draw.drawing.cancel();
       draw.setMode('select');
     }
-    draw.setInteractionLocked(tool === 'add_station' || tool === 'new_service');
-    map.getCanvas().style.cursor = tool === 'add_station' || tool === 'new_service' ? 'crosshair' : '';
+    const placing = tool === 'add_station' || tool === 'new_service' || tool === 'add_signal';
+    draw.setInteractionLocked(placing);
+    map.getCanvas().style.cursor = placing ? 'crosshair' : '';
   }, [tool]);
 
   // --- Network overlays and draw features ---------------------------------------
@@ -686,6 +727,11 @@ export default function MapView() {
           {isRailMode(newLineMode)
             ? 'Click to place track points (curves at each point) · end on a track or track end to connect · Enter to finish · Esc to cancel'
             : 'Click to add vertices · Enter or double-click to finish · Esc to cancel'}
+        </p>
+      )}
+      {tool === 'add_signal' && (
+        <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
+          Click to place a traffic signal · Esc to finish
         </p>
       )}
       {tool === 'new_service' && (

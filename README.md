@@ -105,7 +105,8 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Trams
-  and buses stop at red **traffic signals** from OpenStreetMap with simulated cycles
+  and buses stop at red **traffic signals**, found in OpenStreetMap or placed by hand
+  (with type, controlled users, priority, delay and attachment), with simulated cycles
   (assumed, editable timings) and optional per-line **transit signal priority**.
   **Disruptions:** close a section and trains turn back at the nearest crossovers or
   share the remaining track. **Single track** used in both directions is occupied by

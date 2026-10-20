@@ -21,7 +21,7 @@ const log = createLogger('store');
 
 export const HISTORY_LIMIT = 100;
 
-export type Tool = 'select' | 'draw_line' | 'add_station' | 'new_service';
+export type Tool = 'select' | 'draw_line' | 'add_station' | 'new_service' | 'add_signal';
 
 /** Options for drawing track (rail modes). */
 export interface TrackDrawOptions {
