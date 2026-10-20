@@ -3,6 +3,7 @@ import { useStore, useScenario } from '../store/projectStore';
 import { buildGtfs } from '../export/gtfs';
 import { buildSumo } from '../export/sumo';
 import { zip } from '../export/zip';
+import { fullExport } from '../export/fullExport';
 import { downloadText, parseProjectText, safeFilename, serializeProject } from '../store/persistence';
 import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJSON } from '../geo/geojson';
 import { openServerReport, shareProject } from '../api/projects';
@@ -162,6 +163,20 @@ export function Header({
         : 'SUMO files exported',
     );
   };
+  const exportAll = () =>
+    downloadText(
+      `${name}-full-export.json`,
+      JSON.stringify(
+        fullExport(project, {
+          appVersion: __APP_VERSION__,
+          buildTime: __BUILD_TIME__,
+          exportedAt: new Date().toISOString(),
+        }),
+        null,
+        2,
+      ),
+      'application/json',
+    );
   const openReport = () =>
     openServerReport(project).catch((e) =>
       report(e instanceof ProviderError ? `Report unavailable: ${e.message}` : 'Report failed', true),
@@ -195,6 +210,7 @@ export function Header({
     { kind: 'item', label: 'Export GeoJSON', onSelect: exportGeoJSON },
     { kind: 'item', label: 'Export GTFS timetable', hint: '.zip', onSelect: exportGtfs },
     { kind: 'item', label: 'Export for SUMO', hint: '.zip', onSelect: exportSumo },
+    { kind: 'item', label: 'Export all data', hint: '.json', onSelect: exportAll },
     {
       kind: 'item',
       label: 'Export coordinates',

@@ -75,7 +75,7 @@ test('place stations, connect them with double track, create a service and edit 
   page,
 }) => {
   await page.getByText('Map layers').click();
-  await page.getByLabel('Basemap', { exact: true }).selectOption('plain');
+  await page.getByLabel('Background', { exact: true }).selectOption('plain');
   await page.waitForTimeout(500);
   const box = (await page.getByTestId('map').boundingBox())!;
   const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
@@ -195,7 +195,7 @@ test('draw a bus line by clicking its stops; right-click finishes it', async ({ 
 
 test('draw a region on the map and give it a type', async ({ page }) => {
   await page.getByText('Map layers').click();
-  await page.getByLabel('Basemap', { exact: true }).selectOption('plain');
+  await page.getByLabel('Background', { exact: true }).selectOption('plain');
   await createProject(page, 'Regions');
   const box = (await page.getByTestId('map').boundingBox())!;
   await page.getByText(/^Regions \(/).click();

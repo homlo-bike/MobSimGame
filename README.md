@@ -136,6 +136,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   braking, maximum speed), for Eclipse SUMO on your own machine
   (`netconvert … --proj.utm`, then `sumo-gui`; see the bundled README.txt). Street lines
   reach SUMO through the GTFS export and SUMO's OSM and GTFS import.
+- **Export all data** (File menu): one JSON file with the project and every calculated
+  value per scenario (line lengths, stops and chainages, fleet, simulated round trips,
+  acceleration and following rules, ramps, crossings, overhead wire, walking links,
+  findings, every parameter with value, status and source) plus metadata (versions,
+  units, attribution, disclaimer). Synthetic demonstration figures are included only
+  for the fictional demo, labelled.
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
   profile, one outline per unit of the consist, bending through curves; a waiting or
@@ -280,7 +286,7 @@ coordinate parser; sharing and reports are unavailable).
 - Backend: `MOBSIM_*` — see [.env.example](.env.example) and
   [docs/PROVIDER_CONFIGURATION.md](docs/PROVIDER_CONFIGURATION.md).
 - Frontend build: `VITE_API_BASE_URL`, `VITE_EXTRA_BASEMAPS`,
-  `VITE_TERRAIN_TILES_URL`, `VITE_SOURCE_URL`, `VITE_LOG_LEVEL` — public values only
+  `VITE_TERRAIN_TILES_URL`, `VITE_ESRI_IMAGERY`, `VITE_SOURCE_URL`, `VITE_LOG_LEVEL` — public values only
   ([frontend/.env.example](frontend/.env.example)).
 
 ## Logging

@@ -13,6 +13,13 @@ All notable changes are documented here. The format follows
 - **GTFS export** (File menu): a GTFS Schedule feed with routes, stops, trips, stop
   times from the simulation, peak-headway frequencies, calendar and shapes.
 
+- **Aerial imagery background**: Sentinel-2 cloudless 2016 by EOX (10 m, CC BY 4.0,
+  keyless). Esri World Imagery can be offered by a deployment that accepts Esri's
+  terms (`VITE_ESRI_IMAGERY=1`).
+- **Environment files** in `env/` for development, test and production (template),
+  all with `MOBSIM_VALHALLA_URL=http://valhalla:8002`.
+- **Export all data** (File menu): the project plus every calculated value and the
+  metadata needed to judge it, in one JSON file.
 - **Stacked stations on different levels**: new rail stations get a level
   (underground −2/−1, street, elevated +1/+2; "Level of new stations"), and the
   station inspector moves a station object to another level with its tracks.
@@ -61,6 +68,11 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **One background at a time**: the Layers panel's "Background" choice is a map
+  (OpenStreetMap styles), aerial imagery, terrain relief or none. Terrain is now a
+  background (hillshading, 3D when tilted) instead of an extra layer on top of the
+  map, so only the visible background is downloaded. Basemap building and land-use
+  options show only with a map background.
 - **Stop merge distance is 20 m (was 60 m) and editable** in the renamed
   "Project settings" section (formerly "Track parameters"). A new stop or station
   within this distance of an existing one of the same mode reuses it.
