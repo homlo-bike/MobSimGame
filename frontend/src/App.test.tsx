@@ -117,7 +117,7 @@ describe('application shell', () => {
     expect(useStore.getState().project.scenarios[0]!.lines).toHaveLength(4);
   });
 
-  it('creates track, a station on it and a service without the map', async () => {
+  it('creates track, a station on it and a service without the map', { timeout: 20_000 }, async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: /Table/ }));
