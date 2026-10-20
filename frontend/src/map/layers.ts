@@ -22,6 +22,8 @@ export const SRC = {
   routeStatus: 'msg-route-status',
   guides: 'msg-guides',
   curveLabels: 'msg-curve-labels',
+  platforms: 'msg-platforms',
+  stationHandles: 'msg-station-handles',
   curvePreview: 'msg-curve-preview',
   stations: 'msg-stations',
   catchments: 'msg-catchments',
@@ -34,6 +36,8 @@ export const SRC = {
 } as const;
 
 export const STATION_LAYER = 'msg-stations-circle';
+export const STATION_HANDLE_LAYER = 'msg-station-handle';
+export const PLATFORM_LAYER = 'msg-platform-fill';
 export const CROSSOVER_LAYER = 'msg-crossovers-circle';
 export const SIGNAL_LAYER = 'msg-signals-circle';
 export const TRACK_NODE_LAYER = 'msg-track-nodes-circle';
@@ -327,6 +331,18 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-stroke-width': ['case', ['==', ['get', 'kind'], 'junction'], 2.5, 1.5],
     },
   });
+  // Rotation handles at the ends of the selected station object.
+  add({
+    id: STATION_HANDLE_LAYER,
+    type: 'circle',
+    source: SRC.stationHandles,
+    paint: {
+      'circle-radius': 7,
+      'circle-color': '#ffffff',
+      'circle-stroke-color': '#b45309',
+      'circle-stroke-width': 2.5,
+    },
+  });
   // Radius being dragged: the curve as it will be.
   add({
     id: 'msg-curve-preview',
@@ -447,6 +463,22 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-stroke-color': '#111827',
       'circle-stroke-width': ['case', ['==', ['get', 'state'], 'green'], 1, 2.5],
     },
+  });
+  // Platforms of station objects, drawn to scale (side and island platforms).
+  add({
+    id: PLATFORM_LAYER,
+    type: 'fill',
+    source: SRC.platforms,
+    paint: {
+      'fill-color': ['case', ['get', 'selected'], '#fde68a', '#e2e8f0'],
+      'fill-opacity': 0.95,
+    },
+  });
+  add({
+    id: 'msg-platform-outline',
+    type: 'line',
+    source: SRC.platforms,
+    paint: { 'line-color': '#334155', 'line-width': ['case', ['get', 'selected'], 2, 1] },
   });
   add({
     id: STATION_LAYER,

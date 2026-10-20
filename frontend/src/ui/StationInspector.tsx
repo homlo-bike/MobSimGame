@@ -27,6 +27,8 @@ import {
 } from '../domain/serviceRouting';
 import { parameterValue } from '../domain/trackParameters';
 import { MetadataEditor } from './MetadataEditor';
+import { StationLayoutSection } from './StationLayoutSection';
+import { deleteStationObject, updateStationLayout } from '../domain/stationLayout';
 import { BUS_STOP_TYPE_LABELS, stationKind, type StationKind } from '../domain/stationKinds';
 
 const KIND_LABELS: Record<StationKind, string> = {
@@ -175,11 +177,22 @@ export function StationInspector({ station, scenario }: { station: Station; scen
         </p>
       </Section>
 
+      <StationLayoutSection station={station} scenario={scenario} />
+
       <Section title="Construction and access" id="station-construction">
         <SelectField
           label="Construction"
           value={station.construction}
-          onChange={(e) => patch({ construction: e.target.value as Station['construction'] })}
+          onChange={(e) => {
+            const construction = e.target.value as Station['construction'];
+            // A station object rebuilds its tracks on the new level.
+            if (station.layout)
+              commit(
+                updateStationLayout(scenario, station.id, { construction }).scenario,
+                `"${station.name}" is now ${construction}`,
+              );
+            else patch({ construction });
+          }}
           options={[
             { value: 'surface', label: 'Surface' },
             { value: 'underground', label: 'Underground' },
@@ -399,10 +412,12 @@ export function StationInspector({ station, scenario }: { station: Station; scen
           variant="danger"
           onClick={() => {
             commit(
-              rerouteServices(
-                deleteStation(scenario, station.id),
-                lines.filter((l) => l.alignment.kind === 'track').map((l) => l.id),
-              ),
+              station.layout
+                ? deleteStationObject(scenario, station.id)
+                : rerouteServices(
+                    deleteStation(scenario, station.id),
+                    lines.filter((l) => l.alignment.kind === 'track').map((l) => l.id),
+                  ),
               `Station "${station.name}" deleted`,
             );
             select(null);

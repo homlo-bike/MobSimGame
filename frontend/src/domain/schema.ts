@@ -339,6 +339,8 @@ export const PhysicalTrackSchema = z.object({
   speedLimitKmh: z.number().positive().nullable().default(null),
   /** Double track: both tracks share a group. */
   groupId: z.string().nullable().default(null),
+  /** The station object this track belongs to (its geometry follows the station). */
+  stationId: z.string().nullable().default(null),
   origin: z
     .object({
       source: z.enum(['user', 'osm']),
@@ -509,6 +511,25 @@ export const StationSchema = z.object({
     })
     .default({ stepFree: null, elevators: null, tactilePaving: null }),
   catchmentRadiusM: z.number().positive(),
+  /**
+   * A rail station object: its own tracks and platforms, placed and rotated freely
+   * (domain/stationLayout.ts). Null for a simple stop on existing track (imported networks)
+   * or a bus stop.
+   */
+  layout: z
+    .object({
+      mode: TransportModeSchema,
+      /** Direction of the station tracks, degrees clockwise from north. */
+      bearingDeg: z.number(),
+      sidePlatforms: z.number().int().min(0).max(8),
+      islandPlatforms: z.number().int().min(0).max(8),
+      /** Null = the project default for the mode (trackParameters platform length). */
+      platformLengthM: z.number().positive().nullable(),
+      /** The station's own tracks, across the station from left to right (facing the bearing). */
+      trackIds: z.array(z.string()),
+    })
+    .nullable()
+    .default(null),
   /** Tracks this station serves (platform tracks), as fractions along each track. */
   trackRefs: z.array(z.object({ trackId: z.string(), fraction: z.number().min(0).max(1) })).default([]),
   metadata: MetadataSchema.default({}),

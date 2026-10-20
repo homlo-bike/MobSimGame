@@ -14,6 +14,7 @@ import {
   type DeleteTrackChoice,
 } from '../domain/serviceRouting';
 import { MODES } from '../domain/modes';
+import { snapDrawingToStations } from '../domain/stationLayout';
 import { useStore } from './projectStore';
 import { createLogger } from '../util/logger';
 
@@ -26,7 +27,8 @@ export function drawTracks(points: LngLat[], options: { loop?: boolean } = {}): 
   const mode = isRailMode(state.newLineMode) ? state.newLineMode : 'tram';
   const o = state.trackDraw;
   const res = createTracks(sc, {
-    points,
+    // Track drawn into a station object joins the station's end, not its platform tracks.
+    points: snapDrawingToStations(sc, points, o.double),
     mode,
     double: o.double,
     radiusM: o.radius === 'default' ? undefined : o.radius,

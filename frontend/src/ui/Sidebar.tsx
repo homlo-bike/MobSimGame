@@ -14,6 +14,7 @@ import { STRUCTURE_LABELS } from '../domain/modes';
 import { defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
 import { trackSpacingM } from '../domain/trackParameters';
 import { finishServiceDraft } from '../store/trackActions';
+import { layoutError, MAX_PLATFORMS } from '../domain/stationLayout';
 import { CommitField } from './CommitField';
 import { SEVERITY_ORDER, SEVERITY_PLURALS, SEVERITY_SYMBOLS, type Severity } from '../validation/validate';
 
@@ -114,7 +115,8 @@ export function ToolPanel() {
     {
       id: 'add_station',
       label: t('toolAddStation'),
-      disabled: rail ? !hasTracks : scenario.lines.length === 0 && !hasTracks,
+      // Rail stations are objects placed anywhere; bus stops go on a line.
+      disabled: rail ? false : scenario.lines.length === 0 && !hasTracks,
     },
     { id: 'new_service', label: 'New service', disabled: onTrackStations.length < 2 },
   ];
@@ -243,6 +245,7 @@ export function ToolPanel() {
           </Button>
         </fieldset>
       )}
+      {tool === 'add_station' && rail && <StationDraftOptions />}
       {tool === 'add_station' && !rail && (
         <SelectField
           label="Add stations to"
@@ -468,5 +471,49 @@ export function NetworkLists() {
         </ul>
       </Section>
     </>
+  );
+}
+
+/** Platforms of the next rail station object. */
+function StationDraftOptions() {
+  const draft = useStore((s) => s.stationDraft);
+  const setDraft = useStore((s) => s.setStationDraft);
+  const error = layoutError(draft.sidePlatforms, draft.islandPlatforms);
+  const field = (key: 'sidePlatforms' | 'islandPlatforms', label: string) => (
+    <div>
+      <label htmlFor={`draft-${key}`} className="block text-xs font-medium text-slate-800">
+        {label}
+      </label>
+      <input
+        id={`draft-${key}`}
+        type="number"
+        min={0}
+        max={MAX_PLATFORMS}
+        step={1}
+        value={draft[key]}
+        onChange={(e) =>
+          setDraft({ [key]: Math.max(0, Math.min(MAX_PLATFORMS, Math.round(Number(e.target.value) || 0))) })
+        }
+        className="w-full rounded border border-slate-500 px-1 py-0.5 text-sm"
+      />
+    </div>
+  );
+  return (
+    <fieldset className="mb-2 rounded border border-slate-200 p-2">
+      <legend className="px-1 text-xs font-medium text-slate-800">New station</legend>
+      <div className="grid grid-cols-2 gap-2">
+        {field('sidePlatforms', 'Side platforms for new stations')}
+        {field('islandPlatforms', 'Island platforms for new stations')}
+      </div>
+      <p className="mt-1 text-xs text-slate-600">
+        Each side platform has one track, each island one track on either side. Platform sizes are in the
+        track parameters.
+      </p>
+      {error && (
+        <p role="alert" className="text-xs text-red-800">
+          ⛔ {error}
+        </p>
+      )}
+    </fieldset>
   );
 }

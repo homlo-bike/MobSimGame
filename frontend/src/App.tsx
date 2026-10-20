@@ -1,3 +1,4 @@
+import { deleteStationObject } from './domain/stationLayout';
 import { CompatibilityPanel } from './ui/CompatibilityPanel';
 import { deleteLineWithNotice, finishServiceDraft, requestTrackDeletion } from './store/trackActions';
 import { rerouteServices } from './domain/serviceRouting';
@@ -207,10 +208,12 @@ export default function App() {
             (l) => l.alignment.kind === 'track' && l.stops.some((x) => x.stationId === sel.id),
           );
           state.commitScenario(
-            rerouteServices(
-              deleteStation(sc, sel.id),
-              serving.map((l) => l.id),
-            ),
+            sc.stations.find((x) => x.id === sel.id)?.layout
+              ? deleteStationObject(sc, sel.id)
+              : rerouteServices(
+                  deleteStation(sc, sel.id),
+                  serving.map((l) => l.id),
+                ),
             'Station deleted',
           );
         } else if (sel.kind === 'line') deleteLineWithNotice(sel.id);

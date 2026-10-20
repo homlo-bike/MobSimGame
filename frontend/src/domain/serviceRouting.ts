@@ -135,6 +135,7 @@ export function addStationOnTracks(
     construction: level < 0 ? 'underground' : level > 0 ? 'elevated' : 'surface',
     platformType: 'unknown',
     busStopType: 'unknown',
+    layout: null,
     verticalOffsetM: null,
     entrances: [],
     accessibility: { stepFree: null, elevators: null, tactilePaving: null },

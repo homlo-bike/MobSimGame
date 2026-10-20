@@ -33,6 +33,7 @@ import {
   isRailMode,
   nearestOnTrack,
   pointOnTrack,
+  networkFrame,
   setCurveRadius,
   trackGeometry,
 } from '../domain/tracks';
@@ -60,6 +61,8 @@ import {
   FINDING_CLUSTER_LAYER,
   FINDING_LAYER,
   CURVE_LABEL_LAYER,
+  STATION_HANDLE_LAYER,
+  PLATFORM_LAYER,
   REGION_FILL_LAYER,
 } from './layers';
 import {
@@ -78,6 +81,8 @@ import {
   regionsCollection,
   regionLabelsCollection,
   curveLabelsCollection,
+  platformsCollection,
+  stationHandlesCollection,
   trackNodesCollection,
   tracksCollection,
   trafficCollection,
@@ -86,6 +91,12 @@ import {
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
+import {
+  nearbyTrackBearing,
+  placeStation,
+  snapStationBearing,
+  updateStationLayout,
+} from '../domain/stationLayout';
 import { curveHandles, radiusFromHandle } from '../domain/curveHandles';
 import { CurveEditor } from '../ui/CurveEditor';
 import { createLogger, errorContext } from '../util/logger';
@@ -157,6 +168,13 @@ function pairOf(sc: ReturnType<typeof activeScenario>, trackId: string): string[
   return t?.groupId
     ? sc.trackNetwork.tracks.filter((x) => x.groupId === t.groupId).map((x) => x.id)
     : [trackId];
+}
+
+/** A station moved to `to`: a station object takes its tracks along; a stop stays on its tracks. */
+function movedStation(sc: ReturnType<typeof activeScenario>, id: string, to: LngLat) {
+  const st = sc.stations.find((x) => x.id === id);
+  if (st?.layout) return updateStationLayout(sc, id, { position: to }).scenario;
+  return st?.trackRefs.length ? moveStationOnTracks(sc, id, to) : moveStation(sc, id, to);
 }
 
 /** A press that moves the pointer less than this is a click, not a drag. */
@@ -511,8 +529,30 @@ export default function MapView() {
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const state = useStore.getState();
       const sc = activeScenario(state.project);
-      if (state.tool === 'add_station' && (isRailMode(state.newLineMode) || !sc.lines.length)) {
-        // Stations on track: snap to the nearest track within a few pixels.
+      if (state.tool === 'add_station' && isRailMode(state.newLineMode)) {
+        // A rail station is an object with its own tracks and platforms, placed where clicked.
+        // It lines up with straight track within 100 m, else it runs east–west.
+        const at: LngLat = [e.lngLat.lng, e.lngLat.lat];
+        const res = placeStation(sc, {
+          position: at,
+          mode: state.newLineMode,
+          bearingDeg: nearbyTrackBearing(sc, at) ?? 90,
+          sidePlatforms: state.stationDraft.sidePlatforms,
+          islandPlatforms: state.stationDraft.islandPlatforms,
+        });
+        if (res.error || !res.station) {
+          state.announce(res.error ?? 'Station could not be added');
+          return;
+        }
+        state.commitScenario(
+          res.scenario,
+          `Station "${res.station.name}" placed with ${res.station.layout!.trackIds.length} track(s); connect track to its ends`,
+        );
+        state.select({ kind: 'station', id: res.station.id });
+        return;
+      }
+      if (state.tool === 'add_station' && !sc.lines.length) {
+        // Stops on existing track (imported networks): snap to the nearest track within a few pixels.
         const at: LngLat = [e.lngLat.lng, e.lngLat.lat];
         const net = sc.trackNetwork;
         let best: { px: number; position: LngLat } | null = null;
@@ -640,7 +680,9 @@ export default function MapView() {
         .map((l) => l.id)
         .filter((id) => id.startsWith(TRACK_LAYER_PREFIX) && map.getLayer(id));
       const hit = map.queryRenderedFeatures(e.point, {
-        layers: [STATION_LAYER, SIGNAL_LAYER, TRACK_NODE_LAYER].filter((id) => map.getLayer(id)),
+        layers: [STATION_LAYER, STATION_HANDLE_LAYER, SIGNAL_LAYER, TRACK_NODE_LAYER, PLATFORM_LAYER].filter(
+          (id) => map.getLayer(id),
+        ),
       })[0];
       if (hit?.properties?.stationId) state.select({ kind: 'station', id: String(hit.properties.stationId) });
       else if (hit?.properties?.signalId)
@@ -696,8 +738,8 @@ export default function MapView() {
       state.select({ kind: 'signal', id });
     });
 
-    map.on('mousedown', STATION_LAYER, (e) => {
-      if (useStore.getState().tool !== 'select') return;
+    const startStationDrag = (e: maplibregl.MapLayerMouseEvent) => {
+      if (useStore.getState().tool !== 'select' || rotating) return;
       const id = e.features?.[0]?.properties?.stationId;
       if (!id) return;
       e.preventDefault();
@@ -705,15 +747,20 @@ export default function MapView() {
       draw.setInteractionLocked(true);
       map.dragPan.disable();
       map.getCanvas().style.cursor = 'grabbing';
-    });
+    };
+    map.on('mousedown', STATION_LAYER, startStationDrag);
+    // A station object can also be grabbed by its platforms.
+    map.on('mousedown', PLATFORM_LAYER, startStationDrag);
     map.on('mousemove', (e) => {
       if (!dragging) return;
       const sc = activeScenario(useStore.getState().project);
-      const onTracks = sc.stations.find((x) => x.id === dragging)?.trackRefs.length;
-      const preview = onTracks
-        ? moveStationOnTracks(sc, dragging, [e.lngLat.lng, e.lngLat.lat])
-        : moveStation(sc, dragging, [e.lngLat.lng, e.lngLat.lat]);
+      const preview = movedStation(sc, dragging, [e.lngLat.lng, e.lngLat.lat]);
       setData(map, SRC.stations, stationsCollection(preview, dragging));
+      if (preview.stations.find((x) => x.id === dragging)?.layout) {
+        setData(map, SRC.platforms, platformsCollection(preview, dragging));
+        setData(map, SRC.tracks, tracksCollection(preview, null));
+        setData(map, SRC.stationHandles, stationHandlesCollection(preview, dragging));
+      }
     });
     map.on('mouseup', (e) => {
       if (!dragging) return;
@@ -725,13 +772,60 @@ export default function MapView() {
       const state = useStore.getState();
       const sc = activeScenario(state.project);
       const to: LngLat = [e.lngLat.lng, e.lngLat.lat];
-      state.commitScenario(
-        sc.stations.find((x) => x.id === id)?.trackRefs.length
-          ? moveStationOnTracks(sc, id, to)
-          : moveStation(sc, id, to),
-        'Station moved',
-      );
+      state.commitScenario(movedStation(sc, id, to), 'Station moved');
       state.select({ kind: 'station', id });
+    });
+
+    // Rotate a station object by dragging a handle at one end; it lines up with straight track
+    // within 100 m when close (hold Alt to rotate freely).
+    let rotating: { id: string; end: number } | null = null;
+    const rotated = (
+      sc: ReturnType<typeof activeScenario>,
+      r: { id: string; end: number },
+      e: maplibregl.MapMouseEvent,
+    ) => {
+      const st = sc.stations.find((x) => x.id === r.id);
+      if (!st?.layout) return sc;
+      const frame = networkFrame(sc.trackNetwork, st.position);
+      const c = frame.toMetres(st.position);
+      const p = frame.toMetres([e.lngLat.lng, e.lngLat.lat]);
+      let bearing = (Math.atan2(p[0] - c[0], p[1] - c[1]) * 180) / Math.PI + (r.end === 0 ? 180 : 0);
+      if (!e.originalEvent.altKey) bearing = snapStationBearing(sc, st.id, st.position, bearing).bearingDeg;
+      return updateStationLayout(sc, st.id, { bearingDeg: bearing }).scenario;
+    };
+    map.on('mousedown', STATION_HANDLE_LAYER, (e) => {
+      if (useStore.getState().tool !== 'select') return;
+      const f = e.features?.[0]?.properties;
+      if (!f?.stationId) return;
+      e.preventDefault();
+      rotating = { id: String(f.stationId), end: Number(f.end) };
+      draw.setInteractionLocked(true);
+      map.dragPan.disable();
+    });
+    map.on('mousemove', (e) => {
+      if (!rotating) return;
+      const preview = rotated(activeScenario(useStore.getState().project), rotating, e);
+      setData(map, SRC.platforms, platformsCollection(preview, rotating.id));
+      setData(map, SRC.tracks, tracksCollection(preview, null));
+      setData(map, SRC.stationHandles, stationHandlesCollection(preview, rotating.id));
+    });
+    map.on('mouseup', (e) => {
+      if (!rotating) return;
+      const r = rotating;
+      rotating = null;
+      map.dragPan.enable();
+      draw.setInteractionLocked(false);
+      const state = useStore.getState();
+      const next = rotated(activeScenario(state.project), r, e);
+      const st = next.stations.find((x) => x.id === r.id);
+      state.commitScenario(next, `Station rotated to ${Math.round(st?.layout?.bearingDeg ?? 0)}°`);
+      state.select({ kind: 'station', id: r.id });
+    });
+    map.on('mouseenter', STATION_HANDLE_LAYER, () => {
+      if (useStore.getState().tool === 'select') map.getCanvas().style.cursor = 'crosshair';
+    });
+    map.on('mouseleave', STATION_HANDLE_LAYER, () => {
+      if (!rotating) map.getCanvas().style.cursor = '';
     });
     map.on('mouseenter', STATION_LAYER, () => {
       if (useStore.getState().tool === 'select') map.getCanvas().style.cursor = 'grab';
@@ -838,6 +932,8 @@ export default function MapView() {
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
+    setData(map, SRC.platforms, platformsCollection(scenario, selectedStationId));
+    setData(map, SRC.stationHandles, stationHandlesCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
     reconcileDraw(draw, scenario, selectedLineId, selectedTrackId, selectedRegionId);
   }, [
@@ -983,9 +1079,11 @@ export default function MapView() {
       )}
       {tool === 'add_station' && (
         <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
-          {isRailMode(newLineMode) || !scenario.lines.length
-            ? 'Click on a track to add a station (it serves every track within the set distance) · Esc to finish'
-            : 'Click on a line to add a station · Esc to finish'}
+          {isRailMode(newLineMode)
+            ? 'Click to place a station with its tracks and platforms · drag it to move, drag the round handle to rotate · connect track to its ends · Esc to finish'
+            : !scenario.lines.length
+              ? 'Click on a track to add a stop · Esc to finish'
+              : 'Click on a line to add a station · Esc to finish'}
         </p>
       )}
       {tool === 'draw_line' && (

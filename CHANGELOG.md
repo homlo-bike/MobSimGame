@@ -29,6 +29,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Rail stations are objects with tracks and platforms** (R3): choose the number
+  of side and island platforms (at least one), click to place the station, drag it
+  to move, drag the handle at either end to rotate (it lines up with nearby
+  straight track). The station's tracks bend back to the normal track spacing at
+  both ends, so track drawn to the station joins it; a track drawn into a station
+  joins its end. Platforms are drawn to scale. Platform length, side and island
+  platform widths are project parameters (placeholders). Errors when platforms are
+  shorter than the trains or when a service of another mode calls at the station.
+  "Add station" no longer needs existing track for rail modes.
+
 - **Drawing guides for track**: while drawing, the next point snaps to rays from the
   last point: straight on, 45°, 90° and 135° to the last leg (or continuing the
   track end the drawing starts from), and parallel or perpendicular to straight track
