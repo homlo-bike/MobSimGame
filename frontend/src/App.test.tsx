@@ -15,6 +15,10 @@ import { LIBRARY_KEY, loadFromLocalStorage, parseProjectText, serializeProject }
 import { geocode } from './providers/registry';
 import { parseCoordinateList } from './ui/TableView';
 
+// These tests render and drive the whole application; shared CI runners are several
+// times slower than a workstation, so they get more than Vitest's 5 s default.
+vi.setConfig({ testTimeout: 20_000 });
+
 beforeEach(() => {
   localStorage.clear();
   act(() => useStore.getState().loadProject(buildDemoProject()));
