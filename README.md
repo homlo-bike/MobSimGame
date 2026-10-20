@@ -64,9 +64,11 @@ set, labelled as such. See the [roadmap](#roadmap).
     change between modes over walking links (distance and walking time).
   - Lines crossing or sharing a street are simulated without collisions: one
     vehicle at a time at a crossing, by an editable mode priority.
-- **Bus and BRT** lines follow streets through waypoints, routed by a self-hosted
-  Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)). Unrouted sections make a line
-  incomplete until routed or marked manual. Cycling and walking corridors use straight
+- **Bus, BRT and trolleybus** lines are drawn by clicking their stops in order (at the
+  kerb where the vehicle stops; Esc, Enter or right-click finishes). They run one way
+  and return to the first stop, routed on streets by a self-hosted Valhalla server
+  that approaches each stop on its side ([docs/ROUTING.md](docs/ROUTING.md)).
+  Unrouted sections make a line incomplete until routed or marked manual. Cycling and walking corridors use straight
   segments.
 - Drawing and point editing with snapping (`@sakuzu/maplibre-gl-draw`). The Table
   view creates track, stations on track, and lines from typed coordinates (no map

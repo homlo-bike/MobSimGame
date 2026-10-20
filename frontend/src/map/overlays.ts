@@ -660,3 +660,31 @@ export function walkingLinksCollection(scenario: Scenario): FeatureCollection {
   }
   return { type: 'FeatureCollection', features };
 }
+
+/**
+ * Preview of a bus, BRT or trolleybus line being drawn stop by stop: numbered stops,
+ * the order they are served in, and the way back to the first stop (dashed).
+ */
+export function stopDraftCollection(points: readonly LngLat[]): FeatureCollection {
+  const features: Feature[] = points.map((p, i) => ({
+    type: 'Feature',
+    properties: { kind: 'stop', label: String(i + 1) },
+    geometry: { type: 'Point', coordinates: [p[0], p[1]] },
+  }));
+  if (points.length >= 2)
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'path', closing: false },
+      geometry: { type: 'LineString', coordinates: points.map((p) => [p[0], p[1]]) },
+    });
+  if (points.length >= 2)
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'path', closing: true },
+      geometry: {
+        type: 'LineString',
+        coordinates: [points[points.length - 1]!, points[0]!].map((p) => [p[0], p[1]]),
+      },
+    });
+  return { type: 'FeatureCollection', features };
+}

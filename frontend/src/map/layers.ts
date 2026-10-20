@@ -23,6 +23,7 @@ export const SRC = {
   signals: 'msg-signals',
   routeStatus: 'msg-route-status',
   guides: 'msg-guides',
+  stopDraft: 'msg-stop-draft',
   curveLabels: 'msg-curve-labels',
   platforms: 'msg-platforms',
   stationHandles: 'msg-station-handles',
@@ -402,6 +403,39 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'text-halo-color': '#ffffff',
       'text-halo-width': 2,
     },
+  });
+  // A street line being drawn stop by stop: order of service and (dashed) the way back.
+  for (const closing of [false, true])
+    add({
+      id: closing ? 'msg-stop-draft-return' : 'msg-stop-draft-line',
+      type: 'line',
+      source: SRC.stopDraft,
+      filter: ['all', ['==', ['get', 'kind'], 'path'], ['==', ['get', 'closing'], closing]],
+      paint: {
+        'line-color': '#1d4ed8',
+        'line-width': closing ? 1.5 : 2.5,
+        'line-dasharray': closing ? [2, 2] : [6, 2],
+      },
+    });
+  add({
+    id: 'msg-stop-draft-stop',
+    type: 'circle',
+    source: SRC.stopDraft,
+    filter: ['==', ['get', 'kind'], 'stop'],
+    paint: {
+      'circle-radius': 9,
+      'circle-color': '#ffffff',
+      'circle-stroke-color': '#1d4ed8',
+      'circle-stroke-width': 2,
+    },
+  });
+  add({
+    id: 'msg-stop-draft-label',
+    type: 'symbol',
+    source: SRC.stopDraft,
+    filter: ['==', ['get', 'kind'], 'stop'],
+    layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-allow-overlap': true },
+    paint: { 'text-color': '#1e3a8a' },
   });
   // The drawing guide the cursor is snapped to.
   add({

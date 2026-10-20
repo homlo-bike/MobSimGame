@@ -171,6 +171,28 @@ test('place stations, connect them with double track, create a service and edit 
   await expect(page.getByLabel('Structure').nth(1)).toHaveValue('at_grade');
 });
 
+test('draw a bus line by clicking its stops; right-click finishes it', async ({ page }) => {
+  await createProject(page, 'Bus study');
+  await page.getByRole('tab', { name: /^Bus/ }).click();
+  await page.getByRole('button', { name: 'Draw line', exact: true }).click();
+  const box = (await page.getByTestId('map').boundingBox())!;
+  const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+  for (const [fx, fy] of [
+    [0.3, 0.4],
+    [0.6, 0.4],
+    [0.6, 0.7],
+  ]) {
+    const p = at(fx!, fy!);
+    await page.mouse.click(p.x, p.y);
+  }
+  await expect(page.getByRole('list', { name: 'Placed stops' }).getByRole('listitem')).toHaveCount(3);
+  const p = at(0.45, 0.6);
+  await page.mouse.click(p.x, p.y, { button: 'right' });
+  await expect(page.getByRole('list', { name: 'Placed stops' })).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Lines' }).getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByRole('list', { name: 'Stations' }).getByRole('listitem')).toHaveCount(3);
+});
+
 test('draw a region on the map and give it a type', async ({ page }) => {
   await page.getByText('Map layers').click();
   await page.getByLabel('Basemap', { exact: true }).selectOption('plain');

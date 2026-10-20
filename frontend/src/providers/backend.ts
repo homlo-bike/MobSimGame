@@ -212,14 +212,15 @@ export type RoutedLeg = z.infer<typeof RoutedLegSchema>;
  */
 export async function routeLegs(
   waypoints: readonly LngLat[],
-  mode: 'bus' | 'brt',
+  mode: 'bus' | 'brt' | 'trolleybus',
+  kerbside = false,
 ): Promise<ProviderResponse<RoutedLeg[]>> {
   const res = await apiFetch(
     '/api/v1/routing/route',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ waypoints, mode }),
+      body: JSON.stringify({ waypoints, mode, kerbside }),
     },
     60000,
   );

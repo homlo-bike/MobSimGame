@@ -137,7 +137,9 @@ async def transit_stops_near(
 
 class RouteRequest(BaseModel):
     waypoints: list[tuple[float, float]] = Field(min_length=2, max_length=200)
-    mode: Literal["bus", "brt"] = "bus"
+    mode: Literal["bus", "brt", "trolleybus"] = "bus"
+    #: True for one-way stop lines: approach each stop with it on the vehicle's side of the street.
+    kerbside: bool = False
 
 
 @router.post("/routing/route", response_model=None)
@@ -153,7 +155,7 @@ async def route(
         if not (-180 <= lon <= 180 and -90 <= lat <= 90):
             raise HTTPException(status_code=422, detail="Waypoints must be [longitude, latitude] in WGS84")
     try:
-        res = await providers.routing.route_legs(list(body.waypoints))
+        res = await providers.routing.route_legs(list(body.waypoints), kerbside=body.kerbside)
     except ProviderError as e:
         return provider_error_response(e)
     return res.model_dump()

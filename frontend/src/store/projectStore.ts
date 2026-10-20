@@ -105,6 +105,8 @@ export interface AppState {
   trackDraw: TrackDrawOptions;
   /** Stations picked so far with the new_service tool, in order. */
   serviceDraft: string[];
+  /** Stops clicked so far for a new bus, BRT or trolleybus line, in order. */
+  stopDraft: LngLat[];
   pendingTrackDeletion: PendingTrackDeletion | null;
   /** A drawn track whose last point is back at its first: waiting for "close the loop?". */
   pendingLoop: LngLat[] | null;
@@ -158,6 +160,7 @@ export interface AppState {
   setStationTargetLine: (id: string | null) => void;
   setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
   setServiceDraft: (ids: string[]) => void;
+  setStopDraft: (points: LngLat[]) => void;
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
   setPendingLoop: (points: LngLat[] | null) => void;
   setCurveEditor: (c: { trackId: string; index: number } | null) => void;
@@ -231,6 +234,7 @@ export const useStore = create<AppState>()((set, get) => {
     stationTargetLineId: null,
     trackDraw: { double: true, radius: 'default', structure: 'default', guides: true },
     serviceDraft: [],
+    stopDraft: [],
     pendingTrackDeletion: null,
     pendingLoop: null,
     curveEditor: null,
@@ -331,10 +335,15 @@ export const useStore = create<AppState>()((set, get) => {
         get().openProjectGate('create', tool);
         return;
       }
-      set({ tool, serviceDraft: tool === 'new_service' ? get().serviceDraft : [] });
+      set({
+        tool,
+        serviceDraft: tool === 'new_service' ? get().serviceDraft : [],
+        stopDraft: tool === 'draw_line' ? get().stopDraft : [],
+      });
     },
     setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
     setServiceDraft: (serviceDraft) => set({ serviceDraft }),
+    setStopDraft: (stopDraft) => set({ stopDraft }),
     setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
     setPendingLoop: (pendingLoop) => set({ pendingLoop }),
     setCurveEditor: (curveEditor) => set({ curveEditor }),
@@ -342,7 +351,7 @@ export const useStore = create<AppState>()((set, get) => {
     setFocusedFinding: (focusedFindingId) => set({ focusedFindingId }),
     setMarkerVisible: (severity, visible) =>
       set({ markerVisibility: { ...get().markerVisibility, [severity]: visible } }),
-    setNewLineMode: (newLineMode) => set({ newLineMode }),
+    setNewLineMode: (newLineMode) => set({ newLineMode, stopDraft: [] }),
     setStationTargetLine: (stationTargetLineId) => set({ stationTargetLineId }),
     setBasemap: (basemapId) => set({ basemapId }),
     toggleLayer: (k) => set({ layers: { ...get().layers, [k]: !get().layers[k] } }),
