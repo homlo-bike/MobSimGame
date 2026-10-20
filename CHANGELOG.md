@@ -27,6 +27,19 @@ All notable changes are documented here. The format follows
 - Imported OpenStreetMap rail lines become a double track fitted with lines and arcs,
   with stations on both tracks and a service routed over them.
 
+### Added
+
+- **Drawing guides for track**: while drawing, the next point snaps to rays from the
+  last point: straight on, 45°, 90° and 135° to the last leg (or continuing the
+  track end the drawing starts from), and parallel or perpendicular to straight track
+  within 100 m of the cursor. The guide is shown with its name. The built-in
+  north-based guides are off. Guides can be switched off in the track options.
+- **Curve radius on the map**: every curve of the selected track is labelled
+  ("C1 · R 250 m"). Drag the curve's handle along the corner to change the radius
+  (towards the corner is tighter), or click the label for a radius editor with a
+  slider and a number field. The side panel uses the same names (Curve C1 …). On
+  double track, both tracks change together and stay concentric.
+
 ### Fixed
 
 - **Track drawing:**

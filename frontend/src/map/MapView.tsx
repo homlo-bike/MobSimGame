@@ -28,7 +28,14 @@ import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
 import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
-import { applyTrackHandles, isRailMode, nearestOnTrack, pointOnTrack } from '../domain/tracks';
+import {
+  applyTrackHandles,
+  isRailMode,
+  nearestOnTrack,
+  pointOnTrack,
+  setCurveRadius,
+  trackGeometry,
+} from '../domain/tracks';
 import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../domain/serviceRouting';
 import { deleteLineWithNotice, finishDrawnTrack, requestTrackDeletion } from '../store/trackActions';
 import { addManualSignal, moveSignal } from '../domain/signals';
@@ -52,6 +59,7 @@ import {
   TRACK_NODE_LAYER,
   FINDING_CLUSTER_LAYER,
   FINDING_LAYER,
+  CURVE_LABEL_LAYER,
   REGION_FILL_LAYER,
 } from './layers';
 import {
@@ -69,6 +77,7 @@ import {
   findingsCollection,
   regionsCollection,
   regionLabelsCollection,
+  curveLabelsCollection,
   trackNodesCollection,
   tracksCollection,
   trafficCollection,
@@ -76,6 +85,9 @@ import {
   vehiclesCollection,
 } from './overlays';
 import { setMapInstance } from './mapInstance';
+import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
+import { curveHandles, radiusFromHandle } from '../domain/curveHandles';
+import { CurveEditor } from '../ui/CurveEditor';
 import { createLogger, errorContext } from '../util/logger';
 import { autoRoute } from '../routing/autoRoute';
 
@@ -137,6 +149,14 @@ function directionArrows(
   };
   const a = arrowsCollection(segments, options);
   return { ...a, features: [...a.features, ...arrowsCollection(tracks, options).features] };
+}
+
+/** A track and, on double track, its partner. */
+function pairOf(sc: ReturnType<typeof activeScenario>, trackId: string): string[] {
+  const t = sc.trackNetwork.tracks.find((x) => x.id === trackId);
+  return t?.groupId
+    ? sc.trackNetwork.tracks.filter((x) => x.groupId === t.groupId).map((x) => x.id)
+    : [trackId];
 }
 
 /** A press that moves the pointer less than this is a click, not a drag. */
@@ -230,7 +250,8 @@ export default function MapView() {
     const draw = createDraw(map, {
       defaultMode: 'select',
       autoName: false,
-      snapping: { enabled: true, tolerancePx: 12 },
+      // The built-in guides are north-based; track guides come from the provider below instead.
+      snapping: { enabled: true, tolerancePx: 12, kinds: { guide: false } },
       style: { line: { strokeColor: '#0f766e', strokeWidth: 6, strokeOpacity: 0.9 } },
     });
     drawRef.current = draw;
@@ -252,9 +273,130 @@ export default function MapView() {
     canvas.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointerup', onUp, true);
 
+    // Track drawing guides: relative to the last leg (or the track end the drawing starts from)
+    // and parallel to straight track near the cursor (domain/trackGuides.ts).
+    let placed: LngLat[] = [];
+    let activeGuide: TrackGuideSnap | null = null;
+    const removeGuides = draw.extensions.snapProviders.add({
+      name: 'msg-track-guides',
+      candidates(ctx) {
+        const st = useStore.getState();
+        activeGuide = null;
+        if (st.tool !== 'draw_line' || !isRailMode(st.newLineMode) || !st.trackDraw.guides) return [];
+        const net = activeScenario(st.project).trackNetwork;
+        const cursor = ctx.lngLat as LngLat;
+        const toleranceM = ctx.tolerancePx * metresPerPixel(map.getZoom(), cursor[1]);
+        const snap = trackGuideSnap(net, placed, cursor, toleranceM);
+        if (!snap) return [];
+        activeGuide = snap;
+        return [{ position: snap.position, kind: 'track-guide', priority: -1, source: snap.label }];
+      },
+    });
+    const showGuide = (g: TrackGuideSnap | null) =>
+      setData(map, SRC.guides, {
+        type: 'FeatureCollection',
+        features: g
+          ? [
+              {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: g.line },
+                properties: { label: g.label },
+              },
+            ]
+          : [],
+      });
+
+    // Curve handles: drag the middle of a curve along its bisector to set the radius
+    // (domain/curveHandles.ts); a click without a drag opens the radius editor.
+    let curveDrag: { trackId: string; index: number; radius: number | null | undefined } | null = null;
+    const removeCurveHandles = draw.extensions.handleProviders.add({
+      name: 'msg-curve-handles',
+      handles(feature) {
+        const st = useStore.getState();
+        if (st.selection?.kind !== 'track' || st.selection.id !== feature.id) return [];
+        const net = activeScenario(st.project).trackNetwork;
+        const t = net.tracks.find((x) => x.id === feature.id);
+        if (!t) return [];
+        return curveHandles(net, t).map((h) => ({
+          id: `curve-${h.index}`,
+          position: h.position,
+          kind: 'curve-radius',
+          cursor: 'move',
+        }));
+      },
+      onDragStart(feature, handle) {
+        if (!feature) return false;
+        curveDrag = { trackId: feature.id, index: Number(handle.id.slice(6)), radius: undefined };
+        return true;
+      },
+      onDrag(_feature, _handle, event) {
+        if (!curveDrag) return null;
+        const sc = activeScenario(useStore.getState().project);
+        const net = sc.trackNetwork;
+        const t = net.tracks.find((x) => x.id === curveDrag!.trackId);
+        if (!t) return null;
+        const r = radiusFromHandle(net, t, curveDrag.index, event.lngLat as LngLat);
+        curveDrag.radius = r;
+        const preview = { ...t, radii: t.radii.map((x, i) => (i === curveDrag!.index ? r : x)) };
+        setData(map, SRC.curvePreview, {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: trackGeometry(net, preview).coordinates },
+              properties: {},
+            },
+          ],
+        });
+        setData(map, SRC.curveLabels, {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: event.lngLat },
+              properties: {
+                label: `C${curveDrag.index + 1} · ${r ? `R ${r} m` : 'sharp corner'}`,
+                reduced: false,
+              },
+            },
+          ],
+        });
+        return null;
+      },
+      onDragEnd() {
+        const d = curveDrag;
+        curveDrag = null;
+        setData(map, SRC.curvePreview, EMPTY);
+        if (!d) return;
+        const state = useStore.getState();
+        const sc = activeScenario(state.project);
+        if (d.radius === undefined) {
+          // A click on the handle: open the editor.
+          state.setCurveEditor({ trackId: d.trackId, index: d.index });
+          state.commitScenario({ ...sc });
+          return;
+        }
+        state.commitScenario(
+          afterTrackEdit(setCurveRadius(sc, d.trackId, d.index, d.radius), pairOf(sc, d.trackId)),
+          d.radius === null ? `Curve C${d.index + 1} removed` : `Curve C${d.index + 1}: radius ${d.radius} m`,
+        );
+      },
+    });
+
     const offs = [
+      removeGuides,
+      removeCurveHandles,
       () => canvas.removeEventListener('pointerdown', onDown, true),
       () => window.removeEventListener('pointerup', onUp, true),
+      draw.on('preview.changed', ({ feature, confirmedVertices }) => {
+        const coords =
+          feature && feature.geometry.type === 'LineString' ? (feature.geometry.coordinates as LngLat[]) : [];
+        placed = coords.slice(0, confirmedVertices ?? Math.max(0, coords.length - 1));
+        if (!feature) showGuide(null);
+      }),
+      draw.on('snap.changed', ({ result }) => {
+        showGuide(result?.target?.kind === 'track-guide' ? activeGuide : null);
+      }),
       draw.on('feature.created', ({ feature, source }) => {
         if (source === REMOTE) return;
         const state = useStore.getState();
@@ -270,6 +412,8 @@ export default function MapView() {
         }
         const coords = featureLineCoords(feature, false);
         if (!coords || coords.length < 2) return;
+        placed = [];
+        showGuide(null);
         if (isRailMode(state.newLineMode)) {
           // Rail modes draw physical track; services are created on it with the Service tool.
           draw.transact(() => draw.features.delete(feature.id), { source: REMOTE });
@@ -460,6 +604,14 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station!.id });
         return;
       }
+      // A curve label of the selected track opens its radius editor.
+      if (state.tool === 'select' && map.getLayer(CURVE_LABEL_LAYER)) {
+        const c = map.queryRenderedFeatures(e.point, { layers: [CURVE_LABEL_LAYER] })[0];
+        if (c?.properties?.trackId) {
+          state.setCurveEditor({ trackId: String(c.properties.trackId), index: Number(c.properties.index) });
+          return;
+        }
+      }
       // Validation markers: a cluster zooms in; a marker selects its object and highlights the finding.
       const markerLayers = [FINDING_LAYER, FINDING_CLUSTER_LAYER].filter((id) => map.getLayer(id));
       const marker = markerLayers.length
@@ -628,6 +780,7 @@ export default function MapView() {
     const draw = drawRef.current;
     const map = mapRef.current;
     if (!draw || !map) return;
+    if (tool !== 'draw_line' && map.getSource(SRC.guides)) setData(map, SRC.guides, EMPTY);
     if (tool === 'draw_line' || tool === 'region_split') draw.setMode('draw_line');
     else if (tool === 'draw_region' || tool === 'region_hole') draw.setMode('draw_polygon');
     else {
@@ -638,6 +791,14 @@ export default function MapView() {
     draw.setInteractionLocked(placing);
     map.getCanvas().style.cursor = placing ? 'crosshair' : '';
   }, [tool]);
+
+  // The curve editor belongs to the selected track.
+  useEffect(() => {
+    const ce = useStore.getState().curveEditor;
+    if (ce && selection?.kind !== 'track') useStore.getState().setCurveEditor(null);
+    else if (ce && selection?.kind === 'track' && selection.id !== ce.trackId)
+      useStore.getState().setCurveEditor(null);
+  }, [selection]);
 
   // --- Network overlays and draw features ---------------------------------------
   const selectedLineId =
@@ -657,6 +818,7 @@ export default function MapView() {
     setData(map, SRC.regionLabels, regionLabelsCollection(scenario));
     setData(map, SRC.tracks, tracks);
     setData(map, SRC.trackNodes, trackNodesCollection(scenario, selectedNodeId));
+    setData(map, SRC.curveLabels, curveLabelsCollection(scenario, selectedTrackId));
     setData(map, SRC.segments, segments);
     const markers = findingsCollection(findings, scenario, markerVisibility, focusedFindingId);
     setData(map, SRC.findings, markers);
@@ -810,6 +972,7 @@ export default function MapView() {
         aria-label="Network map. Use the side panels or the Table view for keyboard editing."
         data-testid="map"
       />
+      {mapRef.current && styleVersion > 0 && <CurveEditor map={mapRef.current} />}
       {error && (
         <div
           role="alert"

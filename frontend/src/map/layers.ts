@@ -20,6 +20,9 @@ export const SRC = {
   closures: 'msg-closures',
   signals: 'msg-signals',
   routeStatus: 'msg-route-status',
+  guides: 'msg-guides',
+  curveLabels: 'msg-curve-labels',
+  curvePreview: 'msg-curve-preview',
   stations: 'msg-stations',
   catchments: 'msg-catchments',
   vehicles: 'msg-vehicles',
@@ -133,6 +136,8 @@ const STRUCTURES: StructureType[] = [
   'elevated',
   'bridge',
 ];
+
+export const CURVE_LABEL_LAYER = 'msg-curve-label';
 
 export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
   for (const id of Object.values(SRC)) {
@@ -321,6 +326,50 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-stroke-color': ['case', ['get', 'selected'], '#0f766e', '#1e293b'],
       'circle-stroke-width': ['case', ['==', ['get', 'kind'], 'junction'], 2.5, 1.5],
     },
+  });
+  // Radius being dragged: the curve as it will be.
+  add({
+    id: 'msg-curve-preview',
+    type: 'line',
+    source: SRC.curvePreview,
+    paint: { 'line-color': '#c026d3', 'line-width': 3, 'line-opacity': 0.8 },
+  });
+  // Curve labels of the selected track; click one to edit its radius.
+  add({
+    id: CURVE_LABEL_LAYER,
+    type: 'symbol',
+    source: SRC.curveLabels,
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-size': 12,
+      'text-anchor': 'left',
+      'text-offset': [1.1, 0],
+      'text-allow-overlap': true,
+    },
+    paint: {
+      'text-color': ['case', ['get', 'reduced'], '#9a3412', '#0f172a'],
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 2,
+    },
+  });
+  // The drawing guide the cursor is snapped to.
+  add({
+    id: 'msg-guide-line',
+    type: 'line',
+    source: SRC.guides,
+    paint: { 'line-color': '#c026d3', 'line-width': 1.5, 'line-dasharray': [4, 3] },
+  });
+  add({
+    id: 'msg-guide-label',
+    type: 'symbol',
+    source: SRC.guides,
+    layout: {
+      'symbol-placement': 'line-center',
+      'text-field': ['get', 'label'],
+      'text-size': 11,
+      'text-offset': [0, -0.8],
+    },
+    paint: { 'text-color': '#86198f', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
   });
   // Bus sections that do not follow streets: dashed (unrouted: red, manual: grey) with a label.
   add({

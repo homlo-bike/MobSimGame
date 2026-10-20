@@ -103,6 +103,16 @@ Scenario
   close the loop (tangentially, in the middle of the first straight), keep two
   separate ends, or discard the track. A loop never closes without that answer.
 - **Drawing stays on**: after a track is finished the tool keeps drawing; Esc stops.
+- **Guides** (`geo/track/guides.ts`, `domain/trackGuides.ts`): rays from the last
+  point at 0°, ±45°, ±90° and ±135° to the last leg (or continuing the track end the
+  drawing starts from), and parallel or perpendicular to straight track within 100 m
+  of the cursor. There are no north-based guides. They can be switched off.
+- **Curve handles** (`domain/curveHandles.ts`): the middle of an arc of radius R
+  and deflection Δ lies on the corner's bisector at E = R (1/cos(Δ/2) − 1) from
+  the PI; dragging the handle along the bisector sets R = E / (1/cos(Δ/2) − 1),
+  limited to what fits between the neighbouring curves, rounded to 1 m (5 m above
+  100 m). On double track the partner curve gets R ± the spacing so both stay
+  concentric.
 - **Moving an end** onto another node or onto the middle of a track (within the
   snap distance) connects it there, tangentially in the same way. The other end of the same track is never a
   target, and a click on an end without dragging does not move it.
