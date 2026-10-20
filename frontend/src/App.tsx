@@ -14,6 +14,7 @@ import { RegionInspector, RegionsPanel } from './ui/RegionInspector';
 import {
   NodeInspector,
   TrackDeletionDialog,
+  LoopDialog,
   TrackInspector,
   TrackParametersPanel,
 } from './ui/TrackInspector';
@@ -336,6 +337,7 @@ export default function App() {
       <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
       {projectGateOpen && <ProjectGate />}
       <TrackDeletionDialog />
+      <LoopDialog />
       {examplesOpen && <ExampleDialog open={examplesOpen} onClose={() => setExamplesOpen(false)} />}
     </div>
   );

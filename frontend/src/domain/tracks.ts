@@ -271,6 +271,16 @@ export interface CreateTrackInput {
   radiusM?: number | null;
   /** Centre-line radius per point (overrides radiusM; ends are ignored). */
   radii?: (number | null)[];
+  /**
+   * Whether a track whose last point is back at its first closes into a loop. Undefined keeps the
+   * automatic behaviour; the editor asks the user and passes the answer.
+   */
+  loop?: boolean;
+  /**
+   * Make each end meet the track it connects to tangentially (no kink) by adding a curve point
+   * on the extension of that track. Default true.
+   */
+  tangentEnds?: boolean;
   origin?: PhysicalTrack['origin'];
 }
 
@@ -296,6 +306,15 @@ function closeLoop(net: TrackNetwork, points: LngLat[]): LngLat[] {
   const p1 = frame.toMetres(points[1]!);
   const mid = frame.toLngLat([(a[0] + p1[0]) / 2, (a[1] + p1[1]) / 2]);
   return [mid, ...points.slice(1, -1), points[0]!, mid];
+}
+
+/** Whether a drawn track ends back at its first point (within the node snap distance). */
+export function drawnAsLoop(net: TrackNetwork, points: readonly LngLat[]): boolean {
+  if (points.length < 4) return false;
+  const frame = networkFrame(net, points[0]!);
+  const a = frame.toMetres(points[0]!);
+  const b = frame.toMetres(points[points.length - 1]!);
+  return Math.hypot(a[0] - b[0], a[1] - b[1]) <= parameterValue(net, 'nodeSnapM');
 }
 
 function withFrame(net: TrackNetwork, p: LngLat): TrackNetwork {
@@ -347,18 +366,105 @@ function attachEnd(
   };
 }
 
+/**
+ * Heading a new track must have when it arrives at `p` and continues into the existing track it
+ * attaches to there: into the single track at an open end, or along a track (either way) when it
+ * joins the middle of one. Null when the end attaches to nothing, or to a node that is already a
+ * junction.
+ */
+function arrivalHeadings(net: TrackNetwork, p: LngLat, level: number, searchM: number): number[] | null {
+  if (!net.tracks.length) return null;
+  const frame = networkFrame(net, p);
+  const q = frame.toMetres(p);
+  let best: { id: string; d: number } | null = null;
+  for (const n of net.nodes) {
+    if (n.level !== level && nodeEnds(net, n.id).length !== 1) continue;
+    const v = frame.toMetres(n.position);
+    const d = Math.hypot(v[0] - q[0], v[1] - q[1]);
+    if (d <= searchM && (!best || d < best.d)) best = { id: n.id, d };
+  }
+  if (best) {
+    const ends = nodeEnds(net, best.id);
+    if (ends.length !== 1) return null;
+    const h = outwardHeading(net, ends[0]!);
+    return h === null ? null : [h];
+  }
+  const hit = tracksNear(net, p, searchM, level)[0];
+  if (!hit || hit.fraction <= 1e-6 || hit.fraction >= 1 - 1e-6) return null;
+  const h = pointOnTrack(net, hit.track, hit.fraction).heading;
+  return [h, h + Math.PI];
+}
+
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/**
+ * Add a curve point before the last point so the track arrives tangentially at what it connects
+ * to (computed in the project metric frame). Unchanged when the end connects to nothing, is
+ * already tangent (within 0.1°), or turns back by 90° or more (that is not a continuation).
+ */
+function tangentAtEnd(
+  net: TrackNetwork,
+  pts: LngLat[],
+  radii: (number | null)[],
+  level: number,
+  radius: number | null,
+  searchM: number,
+): { pts: LngLat[]; radii: (number | null)[] } {
+  if (pts.length < 2) return { pts, radii };
+  const end = pts[pts.length - 1]!;
+  const targets = arrivalHeadings(net, end, level, searchM);
+  if (!targets) return { pts, radii };
+  const frame = networkFrame(net, end);
+  const e = frame.toMetres(end);
+  const prev = frame.toMetres(pts[pts.length - 2]!);
+  const dist = Math.hypot(e[0] - prev[0], e[1] - prev[1]);
+  if (dist < 1) return { pts, radii };
+  const natural = Math.atan2(e[1] - prev[1], e[0] - prev[0]);
+  const target = targets.reduce((a, b) =>
+    Math.abs(wrapAngle(b - natural)) < Math.abs(wrapAngle(a - natural)) ? b : a,
+  );
+  const dev = Math.abs(wrapAngle(target - natural));
+  if (dev < (0.1 * Math.PI) / 180 || dev >= Math.PI / 2) return { pts, radii };
+  const l = dist / 2;
+  const pi = frame.toLngLat([e[0] - l * Math.cos(target), e[1] - l * Math.sin(target)]);
+  return {
+    pts: [...pts.slice(0, -1), pi, end],
+    radii: [...radii.slice(0, -1), radius, radii[radii.length - 1] ?? null],
+  };
+}
+
+/** Tangent connections at both ends of a drawn centre line. */
+function tangentEnds(
+  net: TrackNetwork,
+  pts: LngLat[],
+  radii: (number | null)[],
+  level: number,
+  radius: number | null,
+  searchM: number,
+): { pts: LngLat[]; radii: (number | null)[] } {
+  const a = tangentAtEnd(net, pts, radii, level, radius, searchM);
+  const b = tangentAtEnd(net, [...a.pts].reverse(), [...a.radii].reverse(), level, radius, searchM);
+  return { pts: [...b.pts].reverse(), radii: [...b.radii].reverse() };
+}
+
 function addOneTrack(
   scenario: Scenario,
   points: LngLat[],
   radii: (number | null)[],
   base: Omit<PhysicalTrack, 'id' | 'fromNodeId' | 'toNodeId' | 'points' | 'radii'>,
   exclude: ReadonlySet<string> = new Set(),
+  noRing = false,
 ): { scenario: Scenario; trackId: string; nodeIds: [string, string] } {
   let sc = scenario;
   const a = attachEnd(sc, points[0]!, base.level, exclude);
   sc = a.scenario;
-  // A closed track (ring) ends at its own start node.
-  const b = attachEnd(sc, points[points.length - 1]!, base.level, exclude);
+  // A closed track (ring) ends at its own start node, unless the user declined the loop.
+  const b = attachEnd(
+    sc,
+    points[points.length - 1]!,
+    base.level,
+    noRing ? new Set([...exclude, a.nodeId]) : exclude,
+  );
   sc = b.scenario;
   const track: PhysicalTrack = {
     ...base,
@@ -385,9 +491,10 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     return { scenario, trackIds: [], groupId: null, error: 'A track needs at least two points' };
   let sc: Scenario = { ...scenario, trackNetwork: withFrame(scenario.trackNetwork, input.points[0]!) };
   const net = sc.trackNetwork;
-  const pts = closeLoop(net, input.points);
+  const pts0 = input.loop === false ? input.points : closeLoop(net, input.points);
+  const looped = pts0 !== input.points;
   // Per-point radii only apply when the points were not reordered.
-  const inputRadii = pts === input.points ? input.radii : undefined;
+  const inputRadii = !looped ? input.radii : undefined;
   const structure = input.structure ?? MODES[input.mode].defaultStructure;
   const level = input.level ?? levelOfStructure(structure);
   const spacing0 = trackSpacingM(net, input.mode);
@@ -396,9 +503,16 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
   // the cited value; the centre line is half the spacing wider.
   const requested = input.radiusM === undefined ? def : input.radiusM;
   const r = requested !== null && input.double ? requested + spacing0 / 2 : requested;
-  const radii = pts.map((_, i) =>
-    i === 0 || i === pts.length - 1 ? null : inputRadii ? (inputRadii[i] ?? null) : r,
+  const radii0 = pts0.map((_, i) =>
+    i === 0 || i === pts0.length - 1 ? null : inputRadii ? (inputRadii[i] ?? null) : r,
   );
+  // No kinks where the new track joins existing track: arrive tangentially (a loop closes on itself).
+  const searchM = Math.max(parameterValue(net, 'nodeSnapM'), input.double ? spacing0 : 0);
+  const { pts, radii } =
+    input.tangentEnds === false || looped
+      ? { pts: pts0, radii: radii0 }
+      : tangentEnds(net, pts0, radii0, level, r, searchM);
+  const noRing = input.loop === false;
   const base = {
     name: '',
     direction: 'both' as TrackDirection,
@@ -416,7 +530,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     notes: '',
   };
   if (!input.double) {
-    const res = addOneTrack(sc, pts, radii, base);
+    const res = addOneTrack(sc, pts, radii, base, new Set(), noRing);
     return { scenario: touch(res.scenario), trackIds: [res.trackId], groupId: null };
   }
   const spacing = spacing0;
@@ -429,7 +543,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
       scenario,
       trackIds: [],
       groupId: null,
-      error: `A curve radius is too small for double track with ${spacing} m spacing`,
+      error: `This curve or loop is too tight for double track with ${spacing} m between the tracks: the inner track would have no room. Draw it bigger (a radius above ${Math.ceil(spacing / 2)} m on the centre line), or draw single track.`,
     };
   const group: TrackGroup = { id: newId('tg'), kind: 'double', spacingM: spacing };
   sc = { ...sc, trackNetwork: { ...sc.trackNetwork, groups: [...sc.trackNetwork.groups, group] } };
@@ -437,11 +551,14 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
   const rightDir: TrackDirection = net.runningSide === 'right' ? 'forward' : 'backward';
   const leftDir: TrackDirection = net.runningSide === 'right' ? 'backward' : 'forward';
   const toLngLat = (a: PiAlignment) => a.points.map((v) => frame.toLngLat(v));
-  const l = addOneTrack(sc, toLngLat(left.alignment), left.alignment.radii, {
-    ...base,
-    groupId: group.id,
-    direction: leftDir,
-  });
+  const l = addOneTrack(
+    sc,
+    toLngLat(left.alignment),
+    left.alignment.radii,
+    { ...base, groupId: group.id, direction: leftDir },
+    new Set(),
+    noRing,
+  );
   // The partner track must not attach to the ends just created a few metres away.
   const fresh = new Set([l.trackId, ...l.nodeIds].filter((id) => !net.nodes.some((n) => n.id === id)));
   fresh.add(l.trackId);
@@ -451,6 +568,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     right.alignment.radii,
     { ...base, groupId: group.id, direction: rightDir },
     fresh,
+    noRing,
   );
   return { scenario: touch(rr.scenario), trackIds: [l.trackId, rr.trackId], groupId: group.id };
 }
@@ -515,6 +633,67 @@ export function moveNode(scenario: Scenario, nodeId: string, to: LngLat): Scenar
     };
     return refreshNodes(moved, [nodeId]);
   });
+}
+
+/** Replace node `dropId` by `keepId` in every track end and remove it. */
+export function mergeNodes(scenario: Scenario, keepId: string, dropId: string): Scenario {
+  if (keepId === dropId) return scenario;
+  return mapNetwork(scenario, (net) =>
+    refreshNodes(
+      {
+        ...net,
+        nodes: net.nodes.filter((n) => n.id !== dropId),
+        tracks: net.tracks.map((t) =>
+          t.fromNodeId === dropId || t.toNodeId === dropId
+            ? markEdited({
+                ...t,
+                fromNodeId: t.fromNodeId === dropId ? keepId : t.fromNodeId,
+                toNodeId: t.toNodeId === dropId ? keepId : t.toNodeId,
+              })
+            : t,
+        ),
+      },
+      [keepId],
+    ),
+  );
+}
+
+/**
+ * After a track end was moved onto something: connect node `nodeId` to another node within the
+ * snap distance (same level, or an open end), or to the middle of a track (split there). The
+ * other end of the same track is never a target, so moving an end never closes a loop by itself.
+ */
+export function connectMovedNode(scenario: Scenario, nodeId: string): Scenario {
+  const net = scenario.trackNetwork;
+  const node = net.nodes.find((n) => n.id === nodeId);
+  if (!node) return scenario;
+  const own = net.tracks.filter((t) => t.fromNodeId === nodeId || t.toNodeId === nodeId);
+  const forbidden = new Set([nodeId, ...own.flatMap((t) => [t.fromNodeId, t.toNodeId])]);
+  const snap = parameterValue(net, 'nodeSnapM');
+  const frame = networkFrame(net, node.position);
+  const q = frame.toMetres(node.position);
+  let best: { id: string; d: number } | null = null;
+  for (const n of net.nodes) {
+    if (forbidden.has(n.id)) continue;
+    if (n.level !== node.level && nodeEnds(net, n.id).length !== 1) continue;
+    const v = frame.toMetres(n.position);
+    const d = Math.hypot(v[0] - q[0], v[1] - q[1]);
+    if (d <= snap && (!best || d < best.d)) best = { id: n.id, d };
+  }
+  if (best) {
+    const target = net.nodes.find((n) => n.id === best!.id)!;
+    return mergeNodes(moveNode(scenario, nodeId, target.position), best.id, nodeId);
+  }
+  const ownIds = new Set(own.map((t) => t.id));
+  const hit = tracksNear(net, node.position, snap, node.level).filter((h) => !ownIds.has(h.track.id))[0];
+  if (hit && hit.fraction > 1e-6 && hit.fraction < 1 - 1e-6) {
+    const res = splitTrack(scenario, hit.track.id, hit.fraction);
+    if (res.nodeId) {
+      const at = res.scenario.trackNetwork.nodes.find((n) => n.id === res.nodeId)!;
+      return mergeNodes(moveNode(res.scenario, nodeId, at.position), res.nodeId, nodeId);
+    }
+  }
+  return scenario;
 }
 
 export function updateNode(scenario: Scenario, nodeId: string, patch: Partial<TrackNode>): Scenario {
@@ -737,9 +916,10 @@ export function applyTrackHandles(scenario: Scenario, trackId: string, handles: 
   const old = trackHandles(net, t);
   const same = (p: LngLat, q: LngLat) => Math.abs(p[0] - q[0]) < 1e-10 && Math.abs(p[1] - q[1]) < 1e-10;
   let sc = scenario;
-  if (!same(old[0]!, handles[0]!)) sc = moveNode(sc, t.fromNodeId, handles[0]!);
-  if (!same(old[old.length - 1]!, handles[handles.length - 1]!))
-    sc = moveNode(sc, t.toNodeId, handles[handles.length - 1]!);
+  const movedStart = !same(old[0]!, handles[0]!);
+  const movedEnd = !same(old[old.length - 1]!, handles[handles.length - 1]!);
+  if (movedStart) sc = moveNode(sc, t.fromNodeId, handles[0]!);
+  if (movedEnd) sc = moveNode(sc, t.toNodeId, handles[handles.length - 1]!);
   const interior = handles.slice(1, -1);
   const def = defaultRadiusM(t.designMode);
   const radii = interior.map((p) => {
@@ -749,7 +929,30 @@ export function applyTrackHandles(scenario: Scenario, trackId: string, handles: 
     if (interior.length === t.points.length) return t.radii[interior.indexOf(p)] ?? def;
     return def;
   });
-  return setTrackPoints(sc, trackId, interior, radii);
+  // An end dropped onto another track end or track arrives tangentially there (no kink): probe the
+  // network without this track and its own nodes.
+  let pts: LngLat[] = [handles[0]!, ...interior, handles[handles.length - 1]!];
+  let rr: (number | null)[] = [null, ...radii, null];
+  if (movedStart || movedEnd) {
+    const probe: TrackNetwork = {
+      ...sc.trackNetwork,
+      tracks: sc.trackNetwork.tracks.filter((x) => x.id !== t.id),
+      nodes: sc.trackNetwork.nodes.filter((n) => n.id !== t.fromNodeId && n.id !== t.toNodeId),
+    };
+    const snap = parameterValue(net, 'nodeSnapM');
+    if (movedEnd) ({ pts, radii: rr } = tangentAtEnd(probe, pts, rr, t.level, def, snap));
+    if (movedStart) {
+      const r = tangentAtEnd(probe, [...pts].reverse(), [...rr].reverse(), t.level, def, snap);
+      pts = [...r.pts].reverse();
+      rr = [...r.radii].reverse();
+    }
+  }
+  sc = setTrackPoints(sc, trackId, pts.slice(1, -1), rr.slice(1, -1));
+  // An end dropped onto another node or track connects to it.
+  if (movedStart) sc = connectMovedNode(sc, t.fromNodeId);
+  if (movedEnd && sc.trackNetwork.nodes.some((n) => n.id === t.toNodeId))
+    sc = connectMovedNode(sc, t.toNodeId);
+  return sc;
 }
 
 export { primitiveLength };

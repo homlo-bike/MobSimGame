@@ -240,7 +240,9 @@ function trackServiceFeatures(
       });
     }
   }
-  if (!out.length && line.coordinates.length >= 2)
+  // A track service that is not routed is not drawn as a service: a straight line between its stops
+  // would look like trains jumping between tracks. routeStatusCollection marks it instead.
+  if (!out.length && line.coordinates.length >= 2 && line.alignment.kind !== 'track')
     // Not routed yet: a thin sketch between the stops.
     out.push({
       type: 'Feature',
@@ -269,6 +271,19 @@ function trackServiceFeatures(
 export function routeStatusCollection(scenario: Scenario): FeatureCollection {
   const features: Feature[] = [];
   for (const line of scenario.lines) {
+    if (line.alignment.kind === 'track' && line.alignment.status === 'unrouted') {
+      // Red dashed "not routed" links between consecutive stops: there is no track path.
+      const pos = line.stops
+        .map((s) => scenario.stations.find((x) => x.id === s.stationId)?.position)
+        .filter((p): p is [number, number] => !!p);
+      for (let i = 1; i < pos.length; i++)
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [pos[i - 1]!, pos[i]!] },
+          properties: { lineId: line.id, status: 'unrouted' },
+        });
+      continue;
+    }
     if (line.alignment.kind !== 'routed') continue;
     for (const leg of line.alignment.legs) {
       if (leg.status === 'routed' || leg.geometry.length < 2) continue;

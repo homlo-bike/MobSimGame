@@ -30,7 +30,7 @@ import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
 import { applyTrackHandles, isRailMode, nearestOnTrack, pointOnTrack } from '../domain/tracks';
 import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../domain/serviceRouting';
-import { deleteLineWithNotice, drawTracks, requestTrackDeletion } from '../store/trackActions';
+import { deleteLineWithNotice, finishDrawnTrack, requestTrackDeletion } from '../store/trackActions';
 import { addManualSignal, moveSignal } from '../domain/signals';
 import {
   addHole,
@@ -139,6 +139,9 @@ function directionArrows(
   return { ...a, features: [...a.features, ...arrowsCollection(tracks, options).features] };
 }
 
+/** A press that moves the pointer less than this is a click, not a drag. */
+const CLICK_TOLERANCE_PX = 4;
+
 export default function MapView() {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -232,7 +235,26 @@ export default function MapView() {
     });
     drawRef.current = draw;
 
+    // How far the pointer travelled during the last press: a click on a track end (no drag) must
+    // not move it, even when snapping would pull it onto a nearby point.
+    let pressAt: { x: number; y: number } | null = null;
+    let lastTravelPx = Infinity;
+    let releasedAt = 0;
+    const canvas = map.getCanvasContainer();
+    const onDown = (e: PointerEvent) => {
+      pressAt = { x: e.clientX, y: e.clientY };
+    };
+    const onUp = (e: PointerEvent) => {
+      lastTravelPx = pressAt ? Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) : Infinity;
+      releasedAt = performance.now();
+      pressAt = null;
+    };
+    canvas.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+
     const offs = [
+      () => canvas.removeEventListener('pointerdown', onDown, true),
+      () => window.removeEventListener('pointerup', onUp, true),
       draw.on('feature.created', ({ feature, source }) => {
         if (source === REMOTE) return;
         const state = useStore.getState();
@@ -251,9 +273,11 @@ export default function MapView() {
         if (isRailMode(state.newLineMode)) {
           // Rail modes draw physical track; services are created on it with the Service tool.
           draw.transact(() => draw.features.delete(feature.id), { source: REMOTE });
-          const ids = drawTracks(coords);
-          if (ids[0]) state.select({ kind: 'track', id: ids[0] });
-          state.setTool('select');
+          finishDrawnTrack(coords);
+          // Stay in the drawing tool: the next click starts another track (Esc stops drawing).
+          setTimeout(() => {
+            if (useStore.getState().tool === 'draw_line') draw.setMode('draw_line');
+          }, 0);
           return;
         }
         const sc = activeScenario(state.project);
@@ -282,6 +306,14 @@ export default function MapView() {
         if (track) {
           const handles = featureLineCoords(feature, false);
           if (!handles || handles.length < 2) return;
+          // Only an edit that ends a pointer press just now (not a keyboard edit) can be a click.
+          const wasClick = lastTravelPx < CLICK_TOLERANCE_PX && performance.now() - releasedAt < 500;
+          lastTravelPx = Infinity;
+          if (wasClick) {
+            // A click, not a drag: put the handles back where they were.
+            reconcileDraw(draw, sc, null, track.id);
+            return;
+          }
           const moved = applyTrackHandles(sc, track.id, handles);
           // Every track at a moved node changes shape too.
           const nodes = new Set([track.fromNodeId, track.toNodeId]);
@@ -796,7 +828,7 @@ export default function MapView() {
       {tool === 'draw_line' && (
         <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
           {isRailMode(newLineMode)
-            ? 'Click to place track points (curves at each point) · end on a track or track end to connect · Enter to finish · Esc to cancel'
+            ? 'Click to place track points (curves at each point) · end on a track or track end to connect · Enter finishes this track and starts the next · Esc to stop drawing'
             : 'Click to add vertices · Enter or double-click to finish · Esc to cancel'}
         </p>
       )}

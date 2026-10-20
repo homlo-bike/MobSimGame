@@ -93,8 +93,19 @@ Scenario
   last click become nodes. An end within the snap distance of a node on the same
   level, or of an open track end on any level (a portal into a tunnel, say), attaches
   to it. An end on the middle of a track on the same level splits that track into a
-  junction. A drawn loop (last point back at the first) closes tangentially in the
-  middle of its first straight.
+  junction.
+- **No kinks at connections**: when a new end continues an open track end, or joins
+  the middle of a track, an extra curve point is added on the extension of that
+  track (halfway along the last leg, in the project frame) with the drawing radius,
+  so the new track arrives tangentially. Ends that turn back by 90° or more are left
+  as drawn. Turnout geometry from VDV/BOStrab is planned.
+- **Loops**: when the last point is back at the first, the editor asks whether to
+  close the loop (tangentially, in the middle of the first straight), keep two
+  separate ends, or discard the track. A loop never closes without that answer.
+- **Drawing stays on**: after a track is finished the tool keeps drawing; Esc stops.
+- **Moving an end** onto another node or onto the middle of a track (within the
+  snap distance) connects it there, tangentially in the same way. The other end of the same track is never a
+  target, and a click on an end without dragging does not move it.
 - **Radius**: every interior PI gets the mode's cited default (recommended minimum,
   else minimum), or the value set in the tool. For double track the value is the
   inner track's radius. A radius too large for its legs is reduced for the geometry
@@ -144,6 +155,10 @@ Limitations, also listed in [METHODOLOGY.md](METHODOLOGY.md):
 - Interlocking, signalling and braking are not modelled.
 
 Waits longer than the headway are reported as a capacity problem.
+
+A service that cannot be routed is not drawn as a service: its stops are linked by
+red dashed "not routed" lines. A two-way service with no track path back is an
+error (missing return track, crossover or turning loop).
 
 ## Validation
 

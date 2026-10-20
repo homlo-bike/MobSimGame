@@ -6,7 +6,7 @@ import type { LngLat } from '../domain/schema';
 import { activeScenario, createLine, deleteLine } from '../domain/network';
 import { stopsOnlyServedBy } from '../domain/stationKinds';
 import { notify } from './notifications';
-import { createTracks, isRailMode, removeTrack, trackUsage } from '../domain/tracks';
+import { createTracks, drawnAsLoop, isRailMode, removeTrack, trackUsage } from '../domain/tracks';
 import {
   afterTrackEdit,
   deleteTrackWithServices,
@@ -20,7 +20,7 @@ import { createLogger } from '../util/logger';
 const log = createLogger('tracks');
 
 /** Draw track (single or double) with the current tool options. Returns the new track ids. */
-export function drawTracks(points: LngLat[]): string[] {
+export function drawTracks(points: LngLat[], options: { loop?: boolean } = {}): string[] {
   const state = useStore.getState();
   const sc = activeScenario(state.project);
   const mode = isRailMode(state.newLineMode) ? state.newLineMode : 'tram';
@@ -31,6 +31,7 @@ export function drawTracks(points: LngLat[]): string[] {
     double: o.double,
     radiusM: o.radius === 'default' ? undefined : o.radius,
     structure: o.structure === 'default' ? undefined : o.structure,
+    loop: options.loop ?? false,
   });
   if (res.error) {
     state.announce(res.error);
@@ -43,7 +44,35 @@ export function drawTracks(points: LngLat[]): string[] {
     `${o.double ? 'Double track' : 'Track'} drawn (${MODES[mode].label}, ${points.length} points)`,
   );
   log.debug('track drawn', { tracks: res.trackIds.length, points: points.length, double: o.double });
+  // Show the new track in the inspector; the drawing tool stays active for the next track.
+  if (res.trackIds[0]) state.select({ kind: 'track', id: res.trackIds[0] });
   return res.trackIds;
+}
+
+/**
+ * A drawn track: when it ends back at its first point, ask whether to close it into a loop
+ * (the answer comes through `resolveLoop`); otherwise create it at once.
+ */
+export function finishDrawnTrack(points: LngLat[]): string[] {
+  const state = useStore.getState();
+  const sc = activeScenario(state.project);
+  if (drawnAsLoop(sc.trackNetwork, points)) {
+    state.setPendingLoop(points);
+    return [];
+  }
+  return drawTracks(points);
+}
+
+export function resolveLoop(close: boolean | 'cancel') {
+  const state = useStore.getState();
+  const points = state.pendingLoop;
+  state.setPendingLoop(null);
+  if (!points) return;
+  if (close === 'cancel') {
+    state.announce('Track not drawn');
+    return;
+  }
+  drawTracks(points, { loop: close });
 }
 
 /** Delete tracks; when services use them, ask the user first (cancel, reroute, break, delete services). */

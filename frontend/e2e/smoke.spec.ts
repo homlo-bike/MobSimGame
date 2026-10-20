@@ -94,6 +94,10 @@ test('draw double track, place stations, create a service and edit a curve', asy
   ])
     await click(fx!, fy!);
   await page.keyboard.press('Enter');
+  // The drawing tool stays on for the next track until Esc.
+  await expect(page.getByText(/Enter finishes this track and starts the next/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByText(/Enter finishes this track and starts the next/)).toHaveCount(0);
   // Double track: two physical tracks with their own ids.
   await expect(page.getByRole('heading', { name: 'Track', exact: true })).toBeVisible();
   await expect(page.getByText(/Double track/).first()).toBeVisible();
