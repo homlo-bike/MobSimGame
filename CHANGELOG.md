@@ -6,6 +6,14 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Trolleybus overhead wire** follows every trolleybus line (owner decision: not
+  drawn separately). It is shown on the map, shared where trolleybus lines use the
+  same street, and summarised in the line inspector. A trolleybus line crossing rail
+  track with an overhead line on the same level gets a warning; a crossing with
+  track whose electrification is not specified gets an information note.
+
 ### Changed
 
 - **Bus, BRT and trolleybus lines are drawn by clicking their stops in order.**

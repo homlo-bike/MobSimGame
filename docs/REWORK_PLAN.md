@@ -33,7 +33,7 @@ with each one.
 | R4a | Mode tabs, strict separation, trolleybus mode | merged (#18) |
 | R4c | Automatic same-level crossings and merges between any lines (also the same mode) with priority; lower priority waits; buses on a shared street keep their distance | merged (#19; per-crossing priority overrides follow with the project properties page) |
 | R4d | Walking links between stations of different modes | merged (#20; shown in the schematic and text view with R11) |
-| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines: this PR; trolleybus wire network planned |
+| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines merged (#21); trolleybus wire (follows the lines) and rail overhead-line crossing warning: this PR |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | planned |
 | R7 | Trains drawn to scale (length, width, units per consist) | planned |
@@ -42,6 +42,9 @@ with each one.
 | R10 | Read-only demo viewer (Cloudflare Pages) | planned |
 | R11 | Schematic: select, move, pan and zoom; text alternative as the line with its stations and their symbols | planned |
 | R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status; traffic-aware simulation | planned |
+
+Order after R4b (owner, 2026-10-20): stop merge distance setting, R4b wire, **R7 next**,
+then R12 project properties, then the rest.
 
 Known limitation: a loop or curve too tight for double track is refused with a
 message saying how large it must be (owner: drawing a bigger loop fixes it).
