@@ -41,3 +41,26 @@ export function modeCounts(scenario: Scenario): Partial<Record<TransportMode, nu
   for (const s of scenario.stations) inc(stationMode(scenario, s));
   return out;
 }
+
+/** Default priority, highest first (owner decision; editable per project: `scenario.modePriority`). */
+export const MODE_PRIORITY: TransportMode[] = [
+  'commuter_rail',
+  'metro',
+  'elevated_metro',
+  'light_rail',
+  'tram',
+  'trolleybus',
+  'brt',
+  'bus',
+  'custom',
+];
+
+/** Move a mode one place up (−1) or down (+1) in the project's crossing priority order. */
+export function moveModePriority(scenario: Scenario, mode: TransportMode, dir: -1 | 1): Scenario {
+  const order = [...(scenario.modePriority ?? MODE_PRIORITY)];
+  const i = order.indexOf(mode);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return scenario;
+  [order[i], order[j]] = [order[j]!, order[i]!];
+  return { ...scenario, modePriority: order };
+}

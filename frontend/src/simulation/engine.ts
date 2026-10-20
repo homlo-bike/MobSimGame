@@ -19,13 +19,16 @@
  * never affects where vehicles are. The map layer only samples `vehicleStates`.
  */
 import type { LngLat, Scenario, TransportLine } from '../domain/schema';
+import { findConflicts, modeRank } from './conflicts';
+import { MODE_PRIORITY } from '../domain/modeSeparation';
 import { isRing, orderedStops, placedCrossovers } from '../domain/network';
 import { pathCoordinates, snapToPath } from '../geo/geometry';
 import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates } from '../domain/serviceRouting';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
-import { minSeparationM } from '../domain/trackParameters';
+import { minSeparationM, parameterValue } from '../domain/trackParameters';
+import { consistLengthM } from '../domain/vehicles';
 import { trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
 
@@ -136,6 +139,8 @@ export interface LineSimulationModel {
   separationM: number;
   /** Shared scheduling context (one per scenario, or private for a single line). */
   context: SimulationContext;
+  /** Priority at crossings and merges: 0 = highest (mode order). Higher ranks are scheduled first. */
+  rank: number;
 }
 
 export interface VehicleState {
@@ -173,16 +178,34 @@ export class SimulationContext {
     return Math.floor(this.startS / model.headwayS);
   }
 
-  /** Build every trip, of every line, that departs at or before `departS`. */
+  /**
+   * Build every trip, of every line, that departs at or before `departS`. Trips of
+   * higher-priority lines (lower `rank`) are built further ahead, so a lower-priority
+   * vehicle sees them and waits at crossings; within one rank, in departure order (the
+   * one that arrives first goes first).
+   */
   ensure(departS: number) {
+    const ranks = [...new Set(this.models.map((m) => m.rank))].sort((a, b) => a - b);
+    const level = new Map(ranks.map((r, i) => [r, i]));
+    const top = ranks.length - 1;
+    const w = Math.max(...this.models.map((m) => m.maxTripS), 0);
     for (;;) {
-      let pick: { m: LineSimulationModel; svc: ServiceModel; j: number; t: number; k: string } | null = null;
+      let pick: {
+        m: LineSimulationModel;
+        svc: ServiceModel;
+        j: number;
+        t: number;
+        k: string;
+        key: number;
+      } | null = null;
       this.models.forEach((m) => {
+        const lv = level.get(m.rank) ?? 0;
         m.services.forEach((svc) => {
           const k = `${m.lineId}:${svc.id}`;
           const j = this.next.get(k) ?? this.firstIndex(m);
           const t = j * m.headwayS;
-          if (t <= departS && (!pick || t < pick.t)) pick = { m, svc, j, t, k };
+          const key = t + lv * w;
+          if (key <= departS + top * w && (!pick || key < pick.key)) pick = { m, svc, j, t, k, key };
         });
       });
       if (!pick) return;
@@ -193,7 +216,7 @@ export class SimulationContext {
         t: number;
         k: string;
       };
-      this.ledger.prune(t);
+      this.ledger.prune(t - top * w);
       m.cache.set(`${svc.id}:${j}`, buildTrip(m, svc, t, true));
       this.next.set(k, j + 1);
     }
@@ -241,6 +264,8 @@ export interface SimulationOptions {
   signalPriorityS?: number;
   /** Signals within this distance of a tram or bus line apply to it. */
   signalMatchToleranceM?: number;
+  /** Crossings and shared sections between lines (set by buildScenarioModels). */
+  conflicts?: ReturnType<typeof findConflicts>;
 }
 
 export function buildLineModel(
@@ -354,6 +379,13 @@ function buildModel(
 
   const longest = Math.max(...services.map((s) => s.endM - s.startM));
   const extras = occupancyInputs(line, scenario, path);
+  if (options.conflicts) {
+    const more = conflictSpans(line, scenario, path, options.conflicts);
+    extras.spans = {
+      forward: [...extras.spans.forward, ...more.forward],
+      backward: extras.spans.backward.length ? [...extras.spans.backward, ...more.backward] : [],
+    };
+  }
   const maxTripS =
     2 * (speedAt(0, longest) + layoverS) +
     2 * events.reduce((t, e) => t + (e.durationS ?? 0), 0) +
@@ -372,7 +404,54 @@ function buildModel(
     cache: new Map(),
     ...extras,
     context: privateContext(),
+    rank: modeRank(scenario.modePriority ?? MODE_PRIORITY, line.mode),
   };
+}
+
+/**
+ * Crossing zones and shared street sections of a line (simulation/conflicts.ts) as
+ * resources. A crossing zone reaches the clearance plus a vehicle length on either side
+ * of the crossing point, so the whole vehicle is clear before the next one enters.
+ */
+function conflictSpans(
+  line: TransportLine,
+  scenario: Scenario,
+  path: MeasuredPath,
+  conflicts: ReturnType<typeof findConflicts>,
+): { forward: ResourceSpan[]; backward: ResourceSpan[] } {
+  const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
+  const half =
+    parameterValue(scenario.trackNetwork, 'crossingClearanceM') +
+    (consistLengthM(line, vehicle) ?? parameterValue(scenario.trackNetwork, 'unknownVehicleLengthM'));
+  const forward: ResourceSpan[] = [];
+  const backward: ResourceSpan[] = [];
+  for (const x of conflicts.crossings) {
+    const k = x.lineIds.indexOf(line.id);
+    if (k < 0) continue;
+    const c = x.fractions[k]! * path.lengthM;
+    const span = {
+      fromM: Math.max(0, c - half),
+      toM: Math.min(path.lengthM, c + half),
+      resourceId: x.id,
+      sign: 1 as const,
+      opposing: false,
+      exclusive: true,
+    };
+    forward.push(span);
+    backward.push(span);
+  }
+  for (const sh of conflicts.shared) {
+    const k = sh.lineIds.indexOf(line.id);
+    if (k < 0) continue;
+    const r = sh.ranges[k]!;
+    // The resource's direction is that of the first line; the second runs with it or against it.
+    const sign: 1 | -1 = k === 0 || sh.sameDirection ? 1 : -1;
+    const fromM = r.from * path.lengthM;
+    const toM = r.to * path.lengthM;
+    forward.push({ fromM, toM, resourceId: sh.id, sign, opposing: false });
+    backward.push({ fromM, toM, resourceId: sh.id, sign: -sign as 1 | -1, opposing: false });
+  }
+  return { forward, backward };
 }
 
 const privateContext = (): SimulationContext => new SimulationContext();
@@ -448,6 +527,7 @@ function emptyModel(
     spans: { forward: [], backward: [] },
     separationM: 0,
     context: privateContext(),
+    rank: 0,
   };
 }
 
@@ -520,8 +600,9 @@ function buildTrip(
           sp.opposing,
           t,
           runS + dwellS,
-          separationS,
+          sp.exclusive ? 0 : separationS,
           `${model.lineId}:${svc.id}:${dir}`,
+          sp.exclusive ?? false,
         );
         const wait = start - t;
         if (wait > 1e-6) {
@@ -636,9 +717,11 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
 
 export function buildScenarioModels(scenario: Scenario, options?: SimulationOptions): LineSimulationModel[] {
   const context = new SimulationContext();
+  // Crossings and shared streets between lines, any modes (owner rule): vehicles never collide.
+  const conflicts = findConflicts(scenario);
   const models = scenario.lines
     .filter((l) => !['cycling', 'pedestrian'].includes(l.mode))
-    .map((l) => buildModel(l, scenario, options ?? {}))
+    .map((l) => buildModel(l, scenario, { ...(options ?? {}), conflicts }))
     .filter((m): m is LineSimulationModel => m !== null);
   for (const m of models) {
     m.context = context;

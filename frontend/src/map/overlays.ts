@@ -17,7 +17,8 @@ import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
 import { curveHandles } from '../domain/curveHandles';
 import { stationGeometry } from '../domain/stationLayout';
-import { stationMode } from '../domain/modeSeparation';
+import { MODE_PRIORITY, stationMode } from '../domain/modeSeparation';
+import { modeRank } from '../simulation/conflicts';
 import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
 import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
@@ -615,6 +616,31 @@ export function dimOtherModes(
         (p.nodeId && nodeMode.get(String(p.nodeId))) ||
         null;
       return { ...f, properties: { ...p, dim: m !== null && m !== mode } };
+    }),
+  };
+}
+
+/** Crossings between lines, with which line has priority there. */
+export function conflictsCollection(
+  scenario: Scenario,
+  conflicts: { crossings: { id: string; position: LngLat; lineIds: [string, string] }[] },
+): FeatureCollection {
+  const byId = new Map(scenario.lines.map((l) => [l.id, l]));
+  const order = scenario.modePriority ?? MODE_PRIORITY;
+  return {
+    type: 'FeatureCollection',
+    features: conflicts.crossings.map((c) => {
+      const a = byId.get(c.lineIds[0]);
+      const b = byId.get(c.lineIds[1]);
+      const ra = a ? modeRank(order, a.mode) : 0;
+      const rb = b ? modeRank(order, b.mode) : 0;
+      const priority =
+        ra === rb ? 'first to arrive goes first' : `${(ra < rb ? a : b)?.name ?? ''} has priority`;
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: c.position },
+        properties: { conflictId: c.id, label: `${a?.name ?? ''} × ${b?.name ?? ''}: ${priority}` },
+      };
     }),
   };
 }

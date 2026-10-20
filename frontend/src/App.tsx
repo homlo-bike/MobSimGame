@@ -1,3 +1,4 @@
+import { PriorityPanel } from './ui/PriorityPanel';
 import { stationMode } from './domain/modeSeparation';
 import { MODES } from './domain/modes';
 import type { TransportMode } from './domain/schema';
@@ -304,6 +305,7 @@ export default function App() {
           <RegionsPanel />
           <SignalsPanel />
           <TrackParametersPanel />
+          <PriorityPanel />
           <VehicleProfilesPanel />
           <ScenarioPanel />
           <LayerPanel />

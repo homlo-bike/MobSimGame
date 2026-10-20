@@ -40,6 +40,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Crossings and merges in the simulation** (R4c): wherever two lines cross on
+  the same level (any modes, also two lines of the same mode on unconnected track
+  or streets), only one vehicle at a time uses the crossing. The lower mode in the
+  priority order waits until it is clear; within a mode, the first to arrive goes
+  first. Bus, BRT and trolleybus lines on the same street keep the following
+  distance in the same direction and wait where they merge. Crossings are marked on
+  the map (click one to see who has priority) and the order is editable under
+  *Crossing priority*. Two tracks crossing on the same level are now reported as
+  information (a level crossing), not as a warning.
+
 - **Rail stations are objects with tracks and platforms** (R3): choose the number
   of side and island platforms (at least one), click to place the station, drag it
   to move, drag the handle at either end to rotate (it lines up with nearby
