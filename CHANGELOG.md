@@ -8,6 +8,15 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- **Station auto-naming** could stay on "Looking up nearby features…" and then offer
+  latitude/longitude: the browser gave up after 20 s while the server's map lookup
+  could take minutes with retries. The lookup is now bounded (server: 15 s query, no
+  retry; browser: 25 s), cancellable, cached per place, and always ends with
+  suggestions, "nothing named nearby" or a clear error. Candidates follow the order
+  transport station, landmark, district, facility, major-road intersection (computed
+  from street geometry), major street, street, local place name; a coordinate name
+  is offered only as a marked last resort. Names prefer the app language, and names
+  already used in the project show the qualified name they will get.
 - "Start a network" stayed open after "Draw a line"; it now closes, drawing starts and
   focus moves to the map; it can also be closed, and returns after Escape.
 - nginx (port 8080) waited only 60 s for the API, so large example networks (bus

@@ -327,3 +327,14 @@ describe('notification menu', () => {
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
   });
 });
+
+describe('station naming in the inspector', () => {
+  it('always leaves the loading state and lists suggestions', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(within(screen.getByRole('list', { name: 'Stations' })).getAllByRole('button')[0]!);
+    await user.click(screen.getByRole('button', { name: 'Suggest names from nearby features' }));
+    await waitFor(() => expect(screen.getByTestId('name-lookup-status')).not.toHaveTextContent('Looking up'));
+    expect(screen.getByRole('list', { name: 'Name suggestions' })).toBeInTheDocument();
+  });
+});

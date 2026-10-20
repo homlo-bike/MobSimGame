@@ -111,6 +111,7 @@ export type OsmFeatureCategory =
   | 'major_street'
   | 'facility'
   | 'street'
+  | 'place'
   | 'building'
   | 'water'
   | 'railway'

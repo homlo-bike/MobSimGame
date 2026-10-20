@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Scenario, Station, TransportLine } from '../domain/schema';
 import {
   addExistingStationToLine,
@@ -12,11 +12,11 @@ import {
 } from '../domain/network';
 import { useStore } from '../store/projectStore';
 import { backendProviders, mockProviders } from '../providers/registry';
-import { suggestStationNames, type NameSuggestion } from '../names/suggest';
+import { resolvedName, type NameSuggestion } from '../names/suggest';
+import { lookupStationNames } from '../names/lookup';
 import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { CommitField } from './CommitField';
 import { getMapInstance } from '../map/mapInstance';
-import { ProviderError } from '../providers/backend';
 import { createLogger } from '../util/logger';
 
 const log = createLogger('station-inspector');
@@ -27,33 +27,32 @@ export function StationInspector({ station, scenario }: { station: Station; scen
   const fictional = useStore((s) => s.project.fictional);
   const [suggestions, setSuggestions] = useState<NameSuggestion[] | null>(null);
   const [suggestStatus, setSuggestStatus] = useState('');
+  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle');
   const lines = linesServingStation(scenario, station.id);
   const otherLines = scenario.lines.filter((l) => !lines.includes(l));
   const patch = (p: Partial<Station>, label = 'Station updated') =>
     commit(updateStation(scenario, station.id, p), label);
 
+  // Cancel a running lookup when the inspector closes or shows another station.
+  const lookup = useRef<AbortController | null>(null);
+  useEffect(() => () => lookup.current?.abort(), []);
+
   const suggest = async () => {
+    lookup.current?.abort();
+    const ctrl = new AbortController();
+    lookup.current = ctrl;
+    setLookupState('loading');
     setSuggestStatus('Looking up nearby features…');
     const provider = fictional ? mockProviders.osm : backendProviders.osm;
-    try {
-      const res = await provider.featuresNear(station.position, 500);
-      const list = suggestStationNames(station.position, res.data, {
-        provider: res.provenance.provider,
-        language: navigator.language.split('-')[0],
-      });
-      setSuggestions(list);
-      setSuggestStatus(
-        `${list.length} suggestion(s) from ${res.provenance.provider}. ${res.provenance.attribution}.`,
-      );
-    } catch (e) {
-      log.warn('station name lookup failed; offering a generated name', {
-        state: e instanceof ProviderError ? e.state : 'unknown',
-      });
-      setSuggestions(suggestStationNames(station.position, [], { provider: 'MobSimGame' }));
-      setSuggestStatus(
-        `${e instanceof ProviderError ? e.message : 'Lookup failed'}. Showing a generated fallback name only.`,
-      );
-    }
+    // The application language first (OSM name:<lang>), then the local name.
+    const language = (document.documentElement.lang || navigator.language || 'en').split('-')[0];
+    const outcome = await lookupStationNames(station.position, provider, { language, signal: ctrl.signal });
+    if (outcome.status === 'cancelled' || ctrl.signal.aborted) return;
+    if (outcome.status === 'error' || outcome.status === 'timeout')
+      log.warn('station name lookup failed', { status: outcome.status });
+    setSuggestions(outcome.suggestions);
+    setSuggestStatus([outcome.message, outcome.attribution].filter(Boolean).join(' '));
+    setLookupState(outcome.status === 'ok' ? 'idle' : outcome.status === 'empty' ? 'empty' : 'error');
   };
 
   return (
@@ -79,41 +78,69 @@ export function StationInspector({ station, scenario }: { station: Station; scen
           }}
           hint="Names you type are never replaced by suggestions."
         />
-        <Button onClick={suggest}>Suggest names from nearby features</Button>
-        <p className="mt-1 text-xs text-slate-600" aria-live="polite">
+        <Button onClick={suggest} disabled={lookupState === 'loading'}>
+          {lookupState === 'loading'
+            ? 'Looking up…'
+            : lookupState === 'error'
+              ? 'Try again'
+              : 'Suggest names from nearby features'}
+        </Button>
+        <p
+          className={`mt-1 text-xs ${lookupState === 'error' ? 'font-medium text-red-800' : 'text-slate-600'}`}
+          aria-live="polite"
+          data-testid="name-lookup-status"
+        >
+          {lookupState === 'error' && '⛔ '}
           {suggestStatus}
         </p>
         {suggestions && (
           <ul className="mt-1 space-y-1 text-sm" aria-label="Name suggestions">
-            {suggestions.slice(0, 6).map((s) => (
-              <li key={s.name} className="rounded border border-slate-300 p-1">
-                <strong>{s.name}</strong>
-                <span className="block text-xs text-slate-600">
-                  Source: {s.sourceFeature} · {s.distanceM} m away · {s.provider}
-                </span>
-                <div className="mt-1 flex gap-1">
-                  <Button
-                    onClick={() => {
-                      if (station.nameSource === 'user') {
-                        // An explicit accept by the user is itself a user decision.
-                        commit(renameStation(scenario, station.id, s.name), 'Suggestion accepted');
-                      } else {
-                        commit(
-                          applyNameSuggestion(scenario, station.id, s, s.qualifier),
-                          'Suggestion accepted',
-                        );
-                      }
-                      setSuggestions(null);
-                    }}
-                  >
-                    Accept
-                  </Button>
-                  <Button variant="ghost" onClick={() => setSuggestions(suggestions.filter((x) => x !== s))}>
-                    Reject
-                  </Button>
-                </div>
-              </li>
-            ))}
+            {suggestions.slice(0, 8).map((s) => {
+              const finalName = resolvedName(scenario, s, station.id);
+              return (
+                <li
+                  key={s.name}
+                  className={`rounded border p-1 ${s.coordinateFallback ? 'border-dashed border-slate-400' : 'border-slate-300'}`}
+                >
+                  <strong>{s.name}</strong>
+                  {s.coordinateFallback && <Badge tone="warn">Last resort</Badge>}
+                  <span className="block text-xs text-slate-600">
+                    {s.coordinateFallback
+                      ? s.sourceFeature
+                      : `Source: ${s.sourceFeature} · ${s.distanceM} m away · ${s.provider}`}
+                  </span>
+                  {finalName !== s.name && (
+                    <span className="block text-xs text-amber-900">
+                      Already used in this project: saved as “{finalName}”.
+                    </span>
+                  )}
+                  <div className="mt-1 flex gap-1">
+                    <Button
+                      onClick={() => {
+                        if (station.nameSource === 'user') {
+                          // An explicit accept by the user is itself a user decision.
+                          commit(renameStation(scenario, station.id, finalName), 'Suggestion accepted');
+                        } else {
+                          commit(
+                            applyNameSuggestion(scenario, station.id, s, s.qualifier),
+                            'Suggestion accepted',
+                          );
+                        }
+                        setSuggestions(null);
+                      }}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setSuggestions(suggestions.filter((x) => x !== s))}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
         <p className="mt-2 text-xs text-slate-700">

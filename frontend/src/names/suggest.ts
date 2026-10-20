@@ -2,9 +2,10 @@
  * Station-name suggestions from nearby features.
  *
  * Candidate priority (lower number wins, then distance):
- * 1 landmark · 2 transit station · 3 district · 4 intersection · 5 major street
- * 6 facility (university, hospital, market, park, civic) · 7 street
- * 8 generated geographic fallback.
+ * 1 existing transport station · 2 major landmark · 3 district or neighbourhood
+ * 4 facility (university, hospital, market, park, civic building)
+ * 5 major road intersection · 6 major street · 7 nearby street
+ * 8 local geographic place name · 9 coordinates (last resort only).
  *
  * Suggestions never overwrite a user-edited name (see applyNameSuggestion).
  */
@@ -13,14 +14,17 @@ import { distanceM } from '../geo/geometry';
 import type { OsmFeature, OsmFeatureCategory } from '../providers/types';
 
 export const CATEGORY_PRIORITY: Partial<Record<OsmFeatureCategory, number>> = {
-  landmark: 1,
-  transit_station: 2,
+  transit_station: 1,
+  landmark: 2,
   district: 3,
-  intersection: 4,
-  major_street: 5,
-  facility: 6,
+  facility: 4,
+  intersection: 5,
+  major_street: 6,
   street: 7,
+  place: 8,
 };
+
+export const COORDINATE_FALLBACK_PRIORITY = 9;
 
 export interface NameSuggestion {
   name: string;
@@ -30,12 +34,15 @@ export interface NameSuggestion {
   priority: number;
   /** District or street name used to disambiguate duplicates. */
   qualifier?: string;
+  /** True only for the coordinate name offered when nothing else is available. */
+  coordinateFallback?: boolean;
 }
 
-/** Pick the localised name if available: name:<lang> → name. */
+/** Pick the localised name if available: name:<lang> → name → name:en. */
 export function localName(f: OsmFeature, language?: string): string | null {
-  if (language && f.names[`name:${language}`]) return f.names[`name:${language}`]!;
-  return f.name;
+  const name = (language && f.names[`name:${language}`]) || f.name || f.names['name:en'] || null;
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  return trimmed ? trimmed : null;
 }
 
 export function generatedName(position: LngLat): string {
@@ -61,6 +68,13 @@ export function suggestStationNames(
 
   const candidates: NameSuggestion[] = [];
   for (const f of features) {
+    if (
+      !f ||
+      !Array.isArray(f.position) ||
+      !Number.isFinite(f.position[0]) ||
+      !Number.isFinite(f.position[1])
+    )
+      continue;
     const priority = CATEGORY_PRIORITY[f.category];
     const name = localName(f, options.language);
     if (!priority || !name) continue;
@@ -79,10 +93,11 @@ export function suggestStationNames(
   candidates.sort((a, b) => a.priority - b.priority || a.distanceM - b.distanceM);
   candidates.push({
     name: generatedName(position),
-    sourceFeature: 'Generated from coordinates',
+    sourceFeature: 'Coordinates (last resort: no named place found)',
     distanceM: 0,
     provider: 'MobSimGame',
-    priority: 8,
+    priority: COORDINATE_FALLBACK_PRIORITY,
+    coordinateFallback: true,
   });
   // Remove duplicate names, keeping the best-ranked one.
   const seen = new Set<string>();
@@ -94,4 +109,21 @@ export function isNameTaken(scenario: Scenario, name: string, exceptStationId?: 
   return scenario.stations.some(
     (s) => s.id !== exceptStationId && s.name.toLowerCase() === name.toLowerCase(),
   );
+}
+
+/**
+ * The name a suggestion would get in this scenario: unchanged when free,
+ * otherwise with its district or street qualifier, otherwise numbered.
+ */
+export function resolvedName(scenario: Scenario, s: NameSuggestion, exceptStationId?: string): string {
+  if (!isNameTaken(scenario, s.name, exceptStationId)) return s.name;
+  if (s.qualifier && s.qualifier !== s.name) {
+    const q = `${s.name} (${s.qualifier})`;
+    if (!isNameTaken(scenario, q, exceptStationId)) return q;
+  }
+  for (let i = 2; i < 100; i++) {
+    const n = `${s.name} ${i}`;
+    if (!isNameTaken(scenario, n, exceptStationId)) return n;
+  }
+  return s.name;
 }
