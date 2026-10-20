@@ -15,6 +15,7 @@ import { interpolate, measurePath, type VehicleState } from '../simulation/engin
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
+import { curveHandles } from '../domain/curveHandles';
 import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
 import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
@@ -530,3 +531,23 @@ export function findingsCollection(
 }
 
 export const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+/** Curve labels ("C1 · R 250 m") at the middle of each curve of the selected track. */
+export function curveLabelsCollection(scenario: Scenario, selectedTrackId: string | null): FeatureCollection {
+  const net = scenario.trackNetwork;
+  const t = selectedTrackId ? net.tracks.find((x) => x.id === selectedTrackId) : undefined;
+  if (!t) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'FeatureCollection',
+    features: curveHandles(net, t).map((h) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: h.position },
+      properties: {
+        trackId: t.id,
+        index: h.index,
+        label: `C${h.number} · ${h.usedM ? `R ${Math.round(h.usedM)} m` : 'sharp corner'}`,
+        reduced: h.usedM !== null && h.requestedM !== null && Math.abs(h.usedM - h.requestedM) > 0.5,
+      },
+    })),
+  };
+}

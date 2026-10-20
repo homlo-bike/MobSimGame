@@ -189,6 +189,14 @@ export function ToolPanel() {
                 : undefined
             }
           />
+          <label className="mb-1 flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={trackDraw.guides}
+              onChange={(e) => setTrackDraw({ guides: e.target.checked })}
+            />
+            Drawing guides (straight on, 45°, 90° to the last leg; parallel to straight track within 100 m)
+          </label>
           <SelectField
             label="Structure"
             value={trackDraw.structure}

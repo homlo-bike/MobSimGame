@@ -122,12 +122,12 @@ test('draw double track, place stations, create a service and edit a curve', asy
 
   // The curve radius is a design input; undo restores it.
   await page.getByRole('list', { name: 'Tracks' }).getByRole('button').first().click();
-  const radius = page.getByLabel(/Point 1 radius/);
+  const radius = page.getByLabel(/Curve C1 radius/);
   await radius.fill('40');
   await radius.press('Enter');
   await expect(radius).toHaveValue('40');
   await page.getByRole('button', { name: /Undo/ }).click();
-  await expect(page.getByLabel(/Point 1 radius/)).not.toHaveValue('40');
+  await expect(page.getByLabel(/Curve C1 radius/)).not.toHaveValue('40');
 
   // A bus line created from typed coordinates (non-map editing) can share the first station.
   await page.getByRole('button', { name: /Table/ }).click();

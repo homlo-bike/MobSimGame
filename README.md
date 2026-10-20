@@ -53,6 +53,8 @@ set, labelled as such. See the [roadmap](#roadmap).
     order, and on double track the way back uses the other track
     ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
   - Rail lines cannot use "Follows streets" or "Straight segments".
+  - Drawing guides (relative to the last leg, parallel to nearby straight track)
+    and curve labels with drag handles and a radius editor on the map.
   - Each track has an infrastructure class (tram, light rail, metro, railway),
     electrification and gauge. Services are routed only over track their mode may
     use; the matrix is editable per project (*Infrastructure compatibility*).
@@ -298,6 +300,7 @@ See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#backup-and-restore).
 - Provenance rules: [docs/DATA_PROVENANCE.md](docs/DATA_PROVENANCE.md)
 - Formulas: [docs/METHODOLOGY.md](docs/METHODOLOGY.md)
 - Phase 3 plan: [docs/PHASE_3_PLAN.md](docs/PHASE_3_PLAN.md)
+- Rework plan from the owner's feedback: [docs/REWORK_PLAN.md](docs/REWORK_PLAN.md)
 - Track network: [review](docs/TRACK_NETWORK_REVIEW.md), [architecture](docs/TRACK_ARCHITECTURE.md),
   [geometry](docs/TRACK_GEOMETRY.md), [turnouts and crossings](docs/TURNOUTS_AND_CROSSINGS.md),
   [service routing](docs/SERVICE_ROUTING.md), [project format](docs/PROJECT_MIGRATION.md),

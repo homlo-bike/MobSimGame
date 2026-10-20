@@ -25,7 +25,7 @@ import {
   outwardHeading,
   RAIL_MODES,
   setMovement,
-  setTrackRadius,
+  setCurveRadius,
   splitTrack,
   trackGeometry,
   trackUsage,
@@ -223,7 +223,8 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
       <Section title={`Curves (${track.points.length})`} id="track-curves">
         <p className="mb-1 text-xs text-slate-600">
           Each point of the track can carry a circular curve; straight track runs between the curves and meets
-          them tangentially. Empty = a sharp corner (no curve).
+          them tangentially. Empty = a sharp corner (no curve). On the map each curve is labelled C1, C2 …:
+          drag its handle along the corner or click the label to set the radius.
           {rule &&
             ` ${MODES[track.designMode].label}: minimum ${rule.minimumM} m${rule.recommendedM ? `, recommended ${rule.recommendedM} m` : ''} (documented default).`}
         </p>
@@ -234,12 +235,12 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
             return (
               <li key={i}>
                 <CommitField
-                  label={`Point ${i + 1} radius`}
+                  label={`Curve C${i + 1} radius`}
                   unit="m"
                   type="number"
                   min={1}
                   max={100000}
-                  value={r}
+                  value={r === null ? null : Math.round(r * 10) / 10}
                   hint={
                     used !== null && used !== undefined && r !== null && Math.abs(used - r) > 0.5
                       ? `Does not fit: ${Math.round(used)} m is used. Move the points apart.`
@@ -247,10 +248,15 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
                   }
                   onCommit={(v) =>
                     commit(
-                      afterTrackEdit(setTrackRadius(scenario, track.id, i, v === '' ? null : Number(v)), [
-                        track.id,
-                      ]),
-                      v === '' ? `Curve at point ${i + 1} removed` : `Radius at point ${i + 1} set to ${v} m`,
+                      afterTrackEdit(
+                        setCurveRadius(scenario, track.id, i, v === '' ? null : Number(v)),
+                        track.groupId
+                          ? scenario.trackNetwork.tracks
+                              .filter((t) => t.groupId === track.groupId)
+                              .map((t) => t.id)
+                          : [track.id],
+                      ),
+                      v === '' ? `Curve C${i + 1} removed` : `Curve C${i + 1}: radius ${v} m`,
                     )
                   }
                 />

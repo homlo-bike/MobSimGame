@@ -623,6 +623,36 @@ export function setTrackRadius(
   );
 }
 
+/**
+ * Set the radius of a curve and, on double track, of the matching curve of the other track
+ * (same point index) so the two stay concentric: the partner gets the radius plus the track
+ * spacing when the edited track is the inner one, minus it when it is the outer one.
+ */
+export function setCurveRadius(
+  scenario: Scenario,
+  trackId: string,
+  index: number,
+  radiusM: number | null,
+): Scenario {
+  const net = scenario.trackNetwork;
+  const t = net.tracks.find((x) => x.id === trackId);
+  if (!t) return scenario;
+  let sc = setTrackRadius(scenario, trackId, index, radiusM);
+  const group = t.groupId ? net.groups.find((g) => g.id === t.groupId) : undefined;
+  const partner = group
+    ? net.tracks.find((x) => x.groupId === group.id && x.id !== t.id && x.points.length === t.points.length)
+    : undefined;
+  if (!group || !partner) return sc;
+  if (radiusM === null) return setTrackRadius(sc, partner.id, index, null);
+  const mine = trackGeometry(net, t).built.usedRadii[index + 1];
+  const theirs = trackGeometry(net, partner).built.usedRadii[index + 1];
+  const inner =
+    mine === null || mine === undefined || theirs === null || theirs === undefined || mine <= theirs;
+  const other = inner ? radiusM + group.spacingM : radiusM - group.spacingM;
+  if (other > 0) sc = setTrackRadius(sc, partner.id, index, Math.round(other * 10) / 10);
+  return sc;
+}
+
 /** Move a node: every connected track follows because tracks reference the node. */
 export function moveNode(scenario: Scenario, nodeId: string, to: LngLat): Scenario {
   return mapNetwork(scenario, (net) => {
