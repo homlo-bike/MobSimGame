@@ -39,6 +39,8 @@ import {
 } from '../domain/tracks';
 import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../domain/serviceRouting';
 import { deleteLineWithNotice, finishDrawnTrack, requestTrackDeletion } from '../store/trackActions';
+import { addDraftStop, drawingStops, finishStopDraft } from '../store/stopActions';
+import { isStopLineMode } from '../domain/stopLines';
 import { addManualSignal, moveSignal } from '../domain/signals';
 import {
   addHole,
@@ -91,6 +93,7 @@ import {
   trafficCollection,
   transitCollection,
   vehiclesCollection,
+  stopDraftCollection,
 } from './overlays';
 import { setMapInstance } from './mapInstance';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
@@ -214,6 +217,7 @@ export default function MapView() {
   /** Zoom (rounded to half steps) at which direction arrows were laid out. */
   const [arrowZoom, setArrowZoom] = useState(0);
   const serviceDraft = useStore((s) => s.serviceDraft);
+  const stopDraft = useStore((s) => s.stopDraft);
 
   // --- Create map and draw once -------------------------------------------
   useEffect(() => {
@@ -534,6 +538,11 @@ export default function MapView() {
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const state = useStore.getState();
       const sc = activeScenario(state.project);
+      if (drawingStops()) {
+        // Bus, BRT and trolleybus lines: every click is a stop, served in the clicked order.
+        addDraftStop([e.lngLat.lng, e.lngLat.lat]);
+        return;
+      }
       if (state.tool === 'add_station' && isRailMode(state.newLineMode)) {
         // A rail station is an object with its own tracks and platforms, placed where clicked.
         // It lines up with straight track within 100 m, else it runs east–west.
@@ -725,6 +734,12 @@ export default function MapView() {
       }
     };
     map.on('click', onClick);
+    // Right-click finishes a line drawn stop by stop (as Esc does).
+    map.on('contextmenu', (e) => {
+      if (!drawingStops()) return;
+      e.preventDefault();
+      finishStopDraft();
+    });
 
     // Drag stations in select mode.
     let dragging: string | null = null;
@@ -900,16 +915,28 @@ export default function MapView() {
     const map = mapRef.current;
     if (!draw || !map) return;
     if (tool !== 'draw_line' && map.getSource(SRC.guides)) setData(map, SRC.guides, EMPTY);
-    if (tool === 'draw_line' || tool === 'region_split') draw.setMode('draw_line');
+    const stops = tool === 'draw_line' && isStopLineMode(newLineMode);
+    if (stops) {
+      // Street lines are drawn stop by stop by the map click handler, not as a free polyline.
+      if (draw.drawing.isDrawing()) draw.drawing.cancel();
+      draw.setMode('select');
+    } else if (tool === 'draw_line' || tool === 'region_split') draw.setMode('draw_line');
     else if (tool === 'draw_region' || tool === 'region_hole') draw.setMode('draw_polygon');
     else {
       if (draw.drawing.isDrawing()) draw.drawing.cancel();
       draw.setMode('select');
     }
-    const placing = tool === 'add_station' || tool === 'new_service' || tool === 'add_signal';
+    const placing = stops || tool === 'add_station' || tool === 'new_service' || tool === 'add_signal';
     draw.setInteractionLocked(placing);
     map.getCanvas().style.cursor = placing ? 'crosshair' : '';
-  }, [tool]);
+  }, [tool, newLineMode]);
+
+  // The stops placed so far for a new street line.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource(SRC.stopDraft)) return;
+    setData(map, SRC.stopDraft, stopDraftCollection(stopDraft));
+  }, [stopDraft, styleVersion]);
 
   // The curve editor belongs to the selected track.
   useEffect(() => {
@@ -1133,7 +1160,9 @@ export default function MapView() {
         <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
           {isRailMode(newLineMode)
             ? 'Click to place track points (curves at each point) · end on a track or track end to connect · Enter finishes this track and starts the next · Esc to stop drawing'
-            : 'Click to add vertices · Enter or double-click to finish · Esc to cancel'}
+            : isStopLineMode(newLineMode)
+              ? `Click the stops in the order they are served (${stopDraft.length} placed), at the kerb of the side the vehicle stops on · the line returns to the first stop · Esc, Enter or right-click finishes · Backspace removes the last stop`
+              : 'Click to add vertices · Enter or double-click to finish · Esc to cancel'}
         </p>
       )}
       {(tool === 'draw_region' || tool === 'region_hole') && (

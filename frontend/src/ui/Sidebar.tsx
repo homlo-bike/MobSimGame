@@ -14,6 +14,8 @@ import { STRUCTURE_LABELS } from '../domain/modes';
 import { defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
 import { trackSpacingM } from '../domain/trackParameters';
 import { finishServiceDraft } from '../store/trackActions';
+import { finishStopDraft } from '../store/stopActions';
+import { isStopLineMode, stopNear } from '../domain/stopLines';
 import { layoutError, MAX_PLATFORMS } from '../domain/stationLayout';
 import { MODE_TABS, modeCounts, stationsForMode } from '../domain/modeSeparation';
 import { CommitField } from './CommitField';
@@ -159,9 +161,11 @@ export function ToolPanel() {
       <p className="mb-2 text-xs text-slate-600">
         {rail
           ? `${MODES[mode].label}: draw track, place stations, then create services with “New service”. Other modes are shown faded and cannot be edited here.`
-          : MODES[mode].prefersStreetNetwork
-            ? `${MODES[mode].label}: lines follow streets once routed. Other modes are shown faded.`
-            : `${MODES[mode].label}. Other modes are shown faded.`}
+          : isStopLineMode(mode)
+            ? `${MODES[mode].label}: draw a line by clicking its stops in order; it runs one way and returns to the first stop, routed on streets. Other modes are shown faded.`
+            : MODES[mode].prefersStreetNetwork
+              ? `${MODES[mode].label}: lines follow streets once routed. Other modes are shown faded.`
+              : `${MODES[mode].label}. Other modes are shown faded.`}
       </p>
       {rail && (tool === 'draw_line' || tool === 'select') && (
         <fieldset className="mb-2 rounded border border-slate-200 p-2">
@@ -214,6 +218,7 @@ export function ToolPanel() {
           />
         </fieldset>
       )}
+      {tool === 'draw_line' && isStopLineMode(mode) && <StopDraftPanel />}
       {tool === 'new_service' && (
         <fieldset className="mb-2 rounded border border-slate-200 p-2">
           <legend className="px-1 text-xs font-medium text-slate-800">
@@ -576,5 +581,48 @@ function ModeTabs({ mode, onChange }: { mode: TransportMode; onChange: (m: Trans
         ]}
       />
     </div>
+  );
+}
+
+/** The stops placed so far for a new street line, with a keyboard path to finish or undo. */
+function StopDraftPanel() {
+  const draft = useStore((s) => s.stopDraft);
+  const setDraft = useStore((s) => s.setStopDraft);
+  const mode = useStore((s) => s.newLineMode);
+  const scenario = useScenario();
+  return (
+    <fieldset className="mb-2 rounded border border-slate-200 p-2">
+      <legend className="px-1 text-xs font-medium text-slate-800">
+        New {MODES[mode].label} line: stops in the order served
+      </legend>
+      {draft.length === 0 ? (
+        <p className="mb-1 text-sm text-slate-600">
+          Click the first stop on the map, at the kerb on the side the vehicle stops.
+        </p>
+      ) : (
+        <ol className="mb-1 list-decimal ps-5 text-sm" aria-label="Placed stops">
+          {draft.map((p, i) => (
+            <li key={`${p[0]}-${p[1]}-${i}`}>
+              {stopNear(scenario, mode, p)?.name ?? 'New stop'}{' '}
+              <button
+                type="button"
+                className="text-xs underline"
+                aria-label={`Remove stop ${i + 1}`}
+                onClick={() => setDraft(draft.filter((_, k) => k !== i))}
+              >
+                remove
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="mb-1 text-xs text-slate-600">
+        After the last stop the line returns to the first one. Esc, Enter or right-click finishes; Backspace
+        removes the last stop.
+      </p>
+      <Button variant="primary" disabled={draft.length < 2} onClick={() => finishStopDraft()}>
+        Finish line
+      </Button>
+    </fieldset>
   );
 }

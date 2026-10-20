@@ -61,9 +61,11 @@ set, labelled as such. See the [roadmap](#roadmap).
   - One editor tab per mode (Bus, BRT, Trolleybus, Tram, Light rail, Metro,
     Commuter rail): modes never share infrastructure, stations or lines; other
     modes are shown faded. Tracks record electrification and gauge.
-- **Bus and BRT** lines follow streets through waypoints, routed by a self-hosted
-  Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)). Unrouted sections make a line
-  incomplete until routed or marked manual. Cycling and walking corridors use straight
+- **Bus, BRT and trolleybus** lines are drawn by clicking their stops in order (at the
+  kerb where the vehicle stops; Esc, Enter or right-click finishes). They run one way
+  and return to the first stop, routed on streets by a self-hosted Valhalla server
+  that approaches each stop on its side ([docs/ROUTING.md](docs/ROUTING.md)).
+  Unrouted sections make a line incomplete until routed or marked manual. Cycling and walking corridors use straight
   segments.
 - Drawing and point editing with snapping (`@sakuzu/maplibre-gl-draw`). The Table
   view creates track, stations on track, and lines from typed coordinates (no map

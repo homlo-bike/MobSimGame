@@ -23,9 +23,11 @@ export async function routeLineOnStreets(scenario: Scenario, line: TransportLine
   const ring = isRing(line);
   const wps = line.alignment.waypoints;
   const points = ring ? [...wps, wps[0]!] : wps;
-  const mode = line.mode === 'brt' ? 'brt' : 'bus';
+  const mode = line.mode === 'brt' || line.mode === 'trolleybus' ? line.mode : 'bus';
+  // One-way lines serve each stop from one side: arrive with the stop at the kerb.
+  const kerbside = line.direction === 'one_way';
   try {
-    const res = await routeLegs(points, mode);
+    const res = await routeLegs(points, mode, kerbside);
     let next = applyRouteResults(line, res.data, res.provenance.provider, ring);
     if (line.direction === 'bidirectional' && !ring) {
       const back = await routeLegs([...points].reverse(), mode);

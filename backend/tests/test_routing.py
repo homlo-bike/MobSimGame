@@ -72,6 +72,26 @@ def test_routes_each_leg_and_reports_failures(routing_client: TestClient, upstre
     assert all(r.url.host == "valhalla" for r in upstream.requests)
 
 
+def test_kerbside_asks_for_the_stop_side(routing_client: TestClient, upstream: Upstream) -> None:
+    sides: list[list[str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        sides.append([loc.get("preferred_side") for loc in body["locations"]])
+        a, b = body["locations"]
+        shape = encode_polyline6([(a["lon"], a["lat"]), (b["lon"], b["lat"])])
+        return httpx.Response(200, json={"trip": {"legs": [{"shape": shape}], "summary": {"length": 1, "time": 60}}})
+
+    upstream.handlers["valhalla"] = handler
+    waypoints = [[13.40, 52.50], [13.41, 52.51]]
+    assert routing_client.post("/api/v1/routing/route", json={"waypoints": waypoints}).status_code == 200
+    res = routing_client.post(
+        "/api/v1/routing/route", json={"waypoints": waypoints, "mode": "trolleybus", "kerbside": True}
+    )
+    assert res.status_code == 200
+    assert sides == [[None, None], ["same", "same"]]
+
+
 def test_rejects_invalid_waypoints(routing_client: TestClient) -> None:
     assert routing_client.post("/api/v1/routing/route", json={"waypoints": [[200, 0], [0, 0]]}).status_code == 422
     assert routing_client.post("/api/v1/routing/route", json={"waypoints": [[0, 0]]}).status_code == 422

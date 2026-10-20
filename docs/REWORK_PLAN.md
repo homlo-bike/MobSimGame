@@ -33,7 +33,7 @@ with each one.
 | R4a | Mode tabs, strict separation, trolleybus mode | merged (#18) |
 | R4c | Automatic same-level crossings and merges between any lines (also the same mode) with priority; lower priority waits; buses on a shared street keep their distance | this PR (per-crossing priority overrides follow with the project properties page) |
 | R4d | Walking links between stations of different modes | planned |
-| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | planned |
+| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines done; trolleybus wire network planned |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | planned |
 | R7 | Trains drawn to scale (length, width, units per consist) | planned |

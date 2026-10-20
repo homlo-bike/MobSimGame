@@ -10,7 +10,7 @@
  * `line.coordinates` is always the derived geometry; this module recomputes it.
  */
 import type { Alignment, LngLat, RouteLeg, TransportLine, TransportMode } from './schema';
-import { snapToPath } from '../geo/geometry';
+import { pathLengthM, snapToPath } from '../geo/geometry';
 
 export type AlignmentKind = Alignment['kind'];
 
@@ -21,7 +21,7 @@ export const ALIGNMENT_LABELS: Record<AlignmentKind, string> = {
 };
 
 const TRACK_MODES: TransportMode[] = ['tram', 'light_rail', 'metro', 'elevated_metro', 'commuter_rail'];
-const ROUTED_MODES: TransportMode[] = ['bus', 'brt'];
+const ROUTED_MODES: TransportMode[] = ['bus', 'brt', 'trolleybus'];
 
 export function defaultAlignmentKind(mode: TransportMode): AlignmentKind {
   if (TRACK_MODES.includes(mode)) return 'track';
@@ -215,4 +215,26 @@ export function applyReturnRoute<T extends TransportLine>(line: T, results: read
     returnCoordinates = differs ? path : null;
   }
   return { ...line, alignment: { ...line.alignment, returnCoordinates } };
+}
+
+/**
+ * Chainage (metres from the first waypoint) of each waypoint of a street-routed line,
+ * from its legs. Null for other alignments. Stops placed as waypoints sit exactly there,
+ * which keeps their order even where the route passes a stop twice (both sides of a street).
+ */
+export function waypointChainages(line: Pick<TransportLine, 'alignment'>): number[] | null {
+  if (line.alignment.kind !== 'routed') return null;
+  const { waypoints, legs } = line.alignment;
+  const out: number[] = [];
+  let acc = 0;
+  for (let i = 0; i < waypoints.length; i++) {
+    out.push(acc);
+    const leg = legs[i];
+    if (leg)
+      acc += pathLengthM(
+        leg.geometry.length >= 2 ? leg.geometry : [waypoints[i]!, waypoints[(i + 1) % waypoints.length]!],
+        false,
+      );
+  }
+  return out;
 }

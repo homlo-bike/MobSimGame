@@ -109,13 +109,21 @@ class ValhallaRoutingProvider:
             confidence="medium",
         )
 
-    async def _leg(self, a: tuple[float, float], b: tuple[float, float]) -> RoutedLeg:
-        key = hashlib.sha256(json.dumps([a, b]).encode()).hexdigest()
+    async def _leg(self, a: tuple[float, float], b: tuple[float, float], kerbside: bool = False) -> RoutedLeg:
+        key = hashlib.sha256(json.dumps([a, b, kerbside]).encode()).hexdigest()
         cached = self.cache.get(key)
         if isinstance(cached, RoutedLeg):
             return cached
+        locations: list[dict[str, Any]] = [
+            {"lon": a[0], "lat": a[1], "type": "break"},
+            {"lon": b[0], "lat": b[1], "type": "break"},
+        ]
+        if kerbside:
+            # Stops sit at the kerb: leave and arrive with the stop on the side the vehicle drives on.
+            for loc in locations:
+                loc["preferred_side"] = "same"
         body: dict[str, Any] = {
-            "locations": [{"lon": a[0], "lat": a[1], "type": "break"}, {"lon": b[0], "lat": b[1], "type": "break"}],
+            "locations": locations,
             "costing": "bus",
             "directions_type": "none",
             "units": "kilometers",
@@ -166,7 +174,9 @@ class ValhallaRoutingProvider:
         self.cache.set(key, leg, self.settings.routing_cache_ttl_s)
         return leg
 
-    async def route_legs(self, waypoints: list[tuple[float, float]]) -> ProviderResponse[list[RoutedLeg]]:
+    async def route_legs(
+        self, waypoints: list[tuple[float, float]], kerbside: bool = False
+    ) -> ProviderResponse[list[RoutedLeg]]:
         if not self.settings.valhalla_url:
             raise ProviderError("Street routing is not configured", CapabilityState.not_configured)
         if not 2 <= len(waypoints) <= self.settings.routing_max_waypoints:
@@ -180,7 +190,7 @@ class ValhallaRoutingProvider:
 
         async def one(i: int) -> RoutedLeg:
             async with sem:
-                return await self._leg(waypoints[i], waypoints[i + 1])
+                return await self._leg(waypoints[i], waypoints[i + 1], kerbside)
 
         legs = await asyncio.gather(*(one(i) for i in range(len(waypoints) - 1)))
         log.info(

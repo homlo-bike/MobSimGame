@@ -4,6 +4,7 @@ import { MODES } from './domain/modes';
 import type { TransportMode } from './domain/schema';
 import { deleteStationObject } from './domain/stationLayout';
 import { deleteLineWithNotice, finishServiceDraft, requestTrackDeletion } from './store/trackActions';
+import { drawingStops, finishStopDraft, removeLastDraftStop } from './store/stopActions';
 import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
@@ -234,6 +235,18 @@ export default function App() {
       } else if (e.key === 'Enter' && state.tool === 'new_service' && !isEditableTarget(e.target)) {
         e.preventDefault();
         finishServiceDraft();
+      } else if (
+        (e.key === 'Escape' ||
+          (e.key === 'Enter' && (e.target as HTMLElement | null)?.tagName !== 'BUTTON')) &&
+        drawingStops() &&
+        !isEditableTarget(e.target)
+      ) {
+        // A line drawn stop by stop is finished, not discarded (fewer than two stops cancel).
+        e.preventDefault();
+        finishStopDraft();
+      } else if (e.key === 'Backspace' && drawingStops() && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        removeLastDraftStop();
       } else if (e.key === 'Escape' && state.tool !== 'select') {
         state.setTool('select');
         state.announce('Tool cancelled');

@@ -20,6 +20,7 @@ import {
   buildAlignment,
   defaultAlignmentKind,
   editablePoints,
+  waypointChainages,
   withEditedPoints,
   type AlignmentKind,
 } from './alignment';
@@ -50,11 +51,26 @@ export interface OrderedStop {
 export function orderedStops(line: TransportLine, stations: readonly Station[]): OrderedStop[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const out: OrderedStop[] = [];
+  // A stop placed as a waypoint of a street route sits at that waypoint's chainage, even
+  // where the route passes it again on the other side of the street.
+  const wpChainage = waypointChainages(line);
+  const waypoints = line.alignment.kind === 'routed' ? line.alignment.waypoints : [];
+  const used = new Set<number>();
+  const total = lineLengthM(line);
   for (const stop of line.stops) {
     const station = byId.get(stop.stationId);
     if (!station) continue;
     const snap = snapToPath(line.coordinates, isRing(line), station.position);
     if (!snap) continue;
+    const w = wpChainage
+      ? waypoints.findIndex((p, i) => !used.has(i) && distanceM(p, station.position) <= 1)
+      : -1;
+    if (w >= 0 && total > 0) {
+      used.add(w);
+      const chainageM = Math.min(wpChainage![w]!, total);
+      out.push({ station, chainageM, fraction: chainageM / total, offsetM: snap.offsetM });
+      continue;
+    }
     out.push({ station, chainageM: snap.chainageM, fraction: snap.fraction, offsetM: snap.offsetM });
   }
   return out.sort((a, b) => a.chainageM - b.chainageM);

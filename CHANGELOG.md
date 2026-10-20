@@ -8,6 +8,13 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Bus, BRT and trolleybus lines are drawn by clicking their stops in order.**
+  Each click is a stop at the kerb where the vehicle stops; Esc, Enter, a
+  right-click or "Finish line" ends the drawing and Backspace removes the last
+  stop. The line runs one way and returns to the first stop. One-way lines ask the
+  router to approach every stop on its side of the street. Clicks near an existing
+  stop of the same mode reuse it. Trolleybus lines are now street-routed too.
+
 - **Every transport mode is kept separate** (owner decision). The editor has one
   tab per mode (Bus, BRT, Trolleybus, Tram, Light rail, Metro, Commuter rail, and
   other modes in a list). The tab decides what the tools create; other modes are
