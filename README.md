@@ -60,7 +60,10 @@ set, labelled as such. See the [roadmap](#roadmap).
     and curve labels with drag handles and a radius editor on the map.
   - One editor tab per mode (Bus, BRT, Trolleybus, Tram, Light rail, Metro,
     Commuter rail): modes never share infrastructure, stations or lines; other
-    modes are shown faded. Tracks record electrification and gauge.
+    modes are shown faded. Tracks record electrification and gauge. Passengers
+    change between modes over walking links (distance and walking time).
+  - Lines crossing or sharing a street are simulated without collisions: one
+    vehicle at a time at a crossing, by an editable mode priority.
 - **Bus, BRT and trolleybus** lines are drawn by clicking their stops in order (at the
   kerb where the vehicle stops; Esc, Enter or right-click finishes). They run one way
   and return to the first stop, routed on streets by a self-hosted Valhalla server

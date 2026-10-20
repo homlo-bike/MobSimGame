@@ -8,6 +8,7 @@ import { join } from 'node:path';
 vi.mock('./map/MapView', () => ({ default: () => <div data-testid="map">map</div> }));
 
 import { MODES } from './domain/modes';
+import { placeStation } from './domain/stationLayout';
 import App from './App';
 import { blankProject, useStore } from './store/projectStore';
 import { notify, useNotifications } from './store/notifications';
@@ -527,6 +528,42 @@ describe('mode tabs', () => {
     expect(screen.getByRole('group', { name: `${label}, read-only` })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: `Switch to ${label}` }));
     expect(useStore.getState().newLineMode).toBe(line.mode);
+  });
+});
+
+describe('walking links', () => {
+  it('links a tram station to a nearby metro station from the inspector', async () => {
+    const user = userEvent.setup();
+    let sc = blankProject().scenarios[0]!;
+    sc = placeStation(sc, {
+      position: [13.4, 52.52],
+      mode: 'tram',
+      bearingDeg: 90,
+      sidePlatforms: 2,
+      islandPlatforms: 0,
+      name: 'Tram stop',
+    }).scenario;
+    sc = placeStation(sc, {
+      position: [13.402, 52.52],
+      mode: 'metro',
+      bearingDeg: 0,
+      sidePlatforms: 0,
+      islandPlatforms: 1,
+      name: 'Metro stop',
+    }).scenario;
+    const p = blankProject();
+    useStore.setState({ project: { ...p, scenarios: [sc], activeScenarioId: sc.id } });
+    render(<App />);
+    act(() => useStore.getState().select({ kind: 'station', id: sc.stations[0]!.id }));
+    await user.selectOptions(
+      screen.getByLabelText('Link to a station within 2 km'),
+      screen.getByRole('option', { name: /Metro stop/ }),
+    );
+    const links = useStore.getState().project.scenarios[0]!.interchanges;
+    expect(links).toHaveLength(1);
+    expect(screen.getByText(/m straight line/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove link' }));
+    expect(useStore.getState().project.scenarios[0]!.interchanges).toHaveLength(0);
   });
 });
 

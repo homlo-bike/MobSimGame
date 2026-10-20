@@ -31,9 +31,9 @@ with each one.
 | R2 | Drawing guides (relative, parallel to track ≤ 100 m, toggle); curve handles and labels on the map, radius editor with slider; double track edited as a pair | merged (#16) |
 | R3 | Station objects: tracks and platforms (side and island platforms, counts ≥ 1), free placement, move and rotate (with guides), platform dimensions, gradient and radius in project settings, platform shorter than the train is an error, station symbols by layout | merged (#17; gradient and curve checks for platforms, and elevator/escalator symbols, follow with R6/R8) |
 | R4a | Mode tabs, strict separation, trolleybus mode | merged (#18) |
-| R4c | Automatic same-level crossings and merges between any lines (also the same mode) with priority; lower priority waits; buses on a shared street keep their distance | this PR (per-crossing priority overrides follow with the project properties page) |
-| R4d | Walking links between stations of different modes | planned |
-| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines done; trolleybus wire network planned |
+| R4c | Automatic same-level crossings and merges between any lines (also the same mode) with priority; lower priority waits; buses on a shared street keep their distance | merged (#19; per-crossing priority overrides follow with the project properties page) |
+| R4d | Walking links between stations of different modes | merged (#20; shown in the schematic and text view with R11) |
+| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines: this PR; trolleybus wire network planned |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | planned |
 | R7 | Trains drawn to scale (length, width, units per consist) | planned |
