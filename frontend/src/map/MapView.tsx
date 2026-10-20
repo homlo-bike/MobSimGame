@@ -557,6 +557,7 @@ export default function MapView() {
           bearingDeg: nearbyTrackBearing(sc, at) ?? 90,
           sidePlatforms: state.stationDraft.sidePlatforms,
           islandPlatforms: state.stationDraft.islandPlatforms,
+          level: state.stationDraft.level,
         });
         if (res.error || !res.station) {
           state.announce(res.error ?? 'Station could not be added');

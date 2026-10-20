@@ -16,7 +16,9 @@ import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/
 import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
 import { curveHandles } from '../domain/curveHandles';
-import { stationGeometry } from '../domain/stationLayout';
+import { stationGeometry, stationObjectLevel } from '../domain/stationLayout';
+
+const levelText = (l: number) => (l > 0 ? `+${l}` : `−${-l}`);
 import { MODE_PRIORITY, stationMode } from '../domain/modeSeparation';
 import { modeRank } from '../simulation/conflicts';
 import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
@@ -426,6 +428,7 @@ export function crossoversCollection(scenario: Scenario): FeatureCollection {
 }
 
 export function stationsCollection(scenario: Scenario, selectedStationId: string | null): FeatureCollection {
+  const labels = stackedLabels(scenario);
   return {
     type: 'FeatureCollection',
     features: scenario.stations.map((s) => {
@@ -437,6 +440,9 @@ export function stationsCollection(scenario: Scenario, selectedStationId: string
         properties: {
           stationId: s.id,
           name: s.name,
+          // Stations on top of each other on different levels share one label, top level first.
+          label: labels.get(s.id) ?? s.name,
+          level: s.layout ? stationObjectLevel(scenario, s) : 0,
           interchange: isInterchange(scenario, s.id),
           color: lines[0]?.color ?? '#475569',
           lineCount: lines.length,
@@ -446,6 +452,27 @@ export function stationsCollection(scenario: Scenario, selectedStationId: string
       };
     }),
   };
+}
+
+/**
+ * Label of each station; stations standing on top of each other (within 5 m, on different
+ * levels) get one label listing them from the highest level down, on the topmost station.
+ */
+function stackedLabels(scenario: Scenario): Map<string, string> {
+  const out = new Map<string, string>();
+  const done = new Set<string>();
+  const level = (o: Scenario['stations'][number]) => (o.layout ? stationObjectLevel(scenario, o) : 0);
+  const named = (o: Scenario['stations'][number]) =>
+    level(o) === 0 ? o.name : `${o.name} (${levelText(level(o))})`;
+  for (const s of scenario.stations) {
+    if (done.has(s.id)) continue;
+    const stack = scenario.stations.filter((o) => !done.has(o.id) && distanceM(o.position, s.position) <= 5);
+    for (const o of stack) done.add(o.id);
+    stack.sort((a, b) => level(b) - level(a));
+    out.set(stack[0]!.id, stack.map(named).join('\n'));
+    for (const o of stack.slice(1)) out.set(o.id, '');
+  }
+  return out;
 }
 
 export function catchmentsCollection(scenario: Scenario): FeatureCollection {
@@ -467,7 +494,7 @@ export function vehiclesCollection(vehicles: readonly VehicleState[]): FeatureCo
     features: vehicles.map((v) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: v.position },
-      properties: { id: v.id, color: v.color, state: v.state, bearing: v.bearingDeg },
+      properties: { id: v.id, color: v.color, state: v.state, bearing: v.bearingDeg, heightM: v.heightM },
     })),
   };
 }
@@ -480,7 +507,7 @@ export function vehicleBodiesCollection(vehicles: readonly VehicleState[]): Feat
       features.push({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [ring] },
-        properties: { id: v.id, unit: k, color: v.color, state: v.state, lead: k === 0 },
+        properties: { id: v.id, unit: k, color: v.color, state: v.state, lead: k === 0, heightM: v.heightM },
       }),
     );
   return { type: 'FeatureCollection', features };
