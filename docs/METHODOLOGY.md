@@ -149,7 +149,13 @@ Illustrative only: constant speed per segment (no acceleration), fixed dwell,
 2-minute layover at terminals, one trip departing per peak headway, positions a
 pure function of simulated time (each trip is built in time order from its
 departure time). Rings circulate; one-way lines return out of service;
-bidirectional lines reverse at terminals. Services on double track return on the
+bidirectional lines reverse at terminals. Vehicles are drawn to scale from zoom
+15.5: each unit of the consist (`units per consist` of the line, else of the vehicle
+profile) is a rectangle of the profile's length and width from its front to its rear
+point on the path, centred on the simulated position (so a stopped train stands
+centred on the platform). Without a vehicle type the length is the placeholder
+`unknownVehicleLengthM` (20 m); without a width, the placeholder
+`unknownVehicleWidthM` (2.5 m), both editable in Project settings. Services on double track return on the
 other track.
 
 - **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a

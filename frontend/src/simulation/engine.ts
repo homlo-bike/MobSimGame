@@ -31,6 +31,7 @@ import { minSeparationM, parameterValue } from '../domain/trackParameters';
 import { consistLengthM } from '../domain/vehicles';
 import { trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
+import { consistFootprint, consistShape, type ConsistShape } from './footprint';
 
 const R = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -141,6 +142,10 @@ export interface LineSimulationModel {
   context: SimulationContext;
   /** Priority at crossings and merges: 0 = highest (mode order). Higher ranks are scheduled first. */
   rank: number;
+  /** Size of one consist, for drawing vehicles to scale; null = not drawn to scale. */
+  consist: ConsistShape | null;
+  /** True for a ring line: the path closes on itself. */
+  ring: boolean;
 }
 
 export interface VehicleState {
@@ -152,6 +157,8 @@ export interface VehicleState {
   bearingDeg: number;
   direction: 1 | -1;
   state: 'running' | 'dwelling' | 'layover' | 'waiting';
+  /** Outline of each unit of the consist (closed rings), to scale; empty when unknown. */
+  footprint: LngLat[][];
 }
 
 /**
@@ -286,6 +293,19 @@ function buildModel(
   scenario: Scenario,
   options: SimulationOptions,
 ): LineSimulationModel | null {
+  const model = buildModelBody(line, scenario, options);
+  if (model) {
+    model.consist = consistShape(line, scenario);
+    model.ring = isRing(line);
+  }
+  return model;
+}
+
+function buildModelBody(
+  line: TransportLine,
+  scenario: Scenario,
+  options: SimulationOptions,
+): LineSimulationModel | null {
   const ring = isRing(line);
   const path = measurePath(line.coordinates, ring);
   if (path.lengthM <= 0) return null;
@@ -405,6 +425,8 @@ function buildModel(
     ...extras,
     context: privateContext(),
     rank: modeRank(scenario.modePriority ?? MODE_PRIORITY, line.mode),
+    consist: null,
+    ring,
   };
 }
 
@@ -528,6 +550,8 @@ function emptyModel(
     separationM: 0,
     context: privateContext(),
     rank: 0,
+    consist: null,
+    ring: false,
   };
 }
 
@@ -696,6 +720,18 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
             ? interpolate(model.returnPath!, (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM)
             : interpolate(model.path, chainageM);
           const heading = back ? bearingDeg : p.direction === 1 ? bearingDeg : (bearingDeg + 180) % 360;
+          // On the separate return path the vehicle runs forward along that path.
+          const footprint = model.consist
+            ? back
+              ? consistFootprint(
+                  model.returnPath!,
+                  (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM,
+                  1,
+                  model.consist,
+                  false,
+                )
+              : consistFootprint(model.path, chainageM, p.direction, model.consist, model.ring)
+            : [];
           out.push({
             id: `${model.lineId}-${svc.id}-t${j}`,
             lineId: model.lineId,
@@ -705,6 +741,7 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
             bearingDeg: heading,
             direction: p.direction,
             state,
+            footprint,
           });
           break;
         }

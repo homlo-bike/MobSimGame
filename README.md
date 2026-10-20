@@ -122,7 +122,10 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Split and join lines; shared-track detection; scenario duplication and comparison.
 - Undo/redo, autosave in the browser, project JSON save/load, GeoJSON import/export,
   sampled-coordinate CSV export, share links (backend; saving needs the server login).
-- Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Trams
+- Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
+  in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
+  profile, one outline per unit of the consist, bending through curves; a waiting or
+  dwelling vehicle has a thick dashed outline. Trams
   and buses stop at red **traffic signals**, found in OpenStreetMap or placed by hand
   (with type, controlled users, priority, delay and attachment), with simulated cycles
   (assumed, editable timings) and optional per-line **transit signal priority**.

@@ -470,6 +470,20 @@ export function vehiclesCollection(vehicles: readonly VehicleState[]): FeatureCo
   };
 }
 
+/** Vehicles drawn to scale: one polygon per unit of each consist. */
+export function vehicleBodiesCollection(vehicles: readonly VehicleState[]): FeatureCollection {
+  const features: Feature[] = [];
+  for (const v of vehicles)
+    v.footprint.forEach((ring, k) =>
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [ring] },
+        properties: { id: v.id, unit: k, color: v.color, state: v.state, lead: k === 0 },
+      }),
+    );
+  return { type: 'FeatureCollection', features };
+}
+
 export function populationCollection(cells: readonly PopulationCell[]): FeatureCollection {
   return {
     type: 'FeatureCollection',

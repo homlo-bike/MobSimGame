@@ -175,6 +175,17 @@ export const TRACK_PARAMETERS = {
     status: 'demonstration',
     source: PLACEHOLDER,
   },
+  unknownVehicleWidthM: {
+    id: 'unknownVehicleWidthM',
+    label: 'Vehicle width when the vehicle type gives none (drawing to scale)',
+    unit: 'm',
+    defaultValue: 2.5,
+    min: 1,
+    max: 5,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+    notes: 'Enter the width in the vehicle profile for a true-to-scale drawing.',
+  },
   walkingSpeedKmh: {
     id: 'walkingSpeedKmh',
     label: 'Walking speed for walking links between stations',

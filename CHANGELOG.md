@@ -6,6 +6,13 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Vehicles drawn to scale** in the animation when zoomed in (from zoom 15.5):
+  one outline per unit of the consist, with the vehicle profile's length and width,
+  following curves. Waiting and dwelling vehicles have a thick dashed outline. A new
+  placeholder parameter gives the width when a vehicle profile has none.
+
 ### Changed
 
 - **Bus, BRT and trolleybus lines are drawn by clicking their stops in order.**
