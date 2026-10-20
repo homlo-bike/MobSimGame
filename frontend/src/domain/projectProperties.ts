@@ -8,6 +8,7 @@ import { CURVE_RADIUS_RULES } from './modeProfiles';
 import { isRailMode, newTrackDefaults } from './tracks';
 import { minSeparationM, platformLengthM } from './trackParameters';
 import { MODE_TABS } from './modeSeparation';
+import { defaultRates, type Rates } from '../simulation/kinematics';
 
 export interface ModeDefaultRow {
   mode: TransportMode;
@@ -26,6 +27,8 @@ export interface ModeDefaultRow {
   separationM: number;
   gaugeMm: number | null;
   electrification: Electrification;
+  /** Default acceleration and service braking (m/s²) when a vehicle profile gives none. */
+  rates: Rates;
 }
 
 /** One row per mode tab (Bus … Commuter rail). */
@@ -55,6 +58,7 @@ export function modeDefaultRows(scenario: Scenario): ModeDefaultRow[] {
       platformLengthM: rail ? platformLengthM(net, mode) : null,
       separationM: minSeparationM(net, mode),
       ...newTrackDefaults(net, mode),
+      rates: defaultRates(mode),
     };
   });
 }

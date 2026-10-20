@@ -32,6 +32,14 @@ import { consistLengthM } from '../domain/vehicles';
 import { trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
 import { consistFootprint, consistShape, type ConsistShape } from './footprint';
+import {
+  lineRates,
+  profile as speedProfile,
+  profileDistance,
+  profileDuration,
+  stopLossS,
+  type Profile,
+} from './kinematics';
 
 const R = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -82,7 +90,15 @@ export type Phase =
       chainageM: number;
       direction: 1 | -1;
     }
-  | { kind: 'run'; durationS: number; fromM: number; toM: number; direction: 1 | -1 };
+  | {
+      kind: 'run';
+      durationS: number;
+      fromM: number;
+      toM: number;
+      direction: 1 | -1;
+      /** Speed profile (acceleration, cruise, braking); without it the speed is constant. */
+      profile?: Profile;
+    };
 
 /** Something a vehicle waits for at a chainage, in one or both directions. */
 interface StopEvent {
@@ -146,6 +162,8 @@ export interface LineSimulationModel {
   consist: ConsistShape | null;
   /** True for a ring line: the path closes on itself. */
   ring: boolean;
+  /** Acceleration and braking (m/s²); null = constant speed between stops. */
+  rates: { accelMs2: number; decelMs2: number } | null;
 }
 
 export interface VehicleState {
@@ -273,6 +291,8 @@ export interface SimulationOptions {
   signalMatchToleranceM?: number;
   /** Crossings and shared sections between lines (set by buildScenarioModels). */
   conflicts?: ReturnType<typeof findConflicts>;
+  /** Constant speed between stops, no acceleration or braking (for comparisons and tests). */
+  constantSpeed?: boolean;
 }
 
 export function buildLineModel(
@@ -406,10 +426,16 @@ function buildModelBody(
       backward: extras.spans.backward.length ? [...extras.spans.backward, ...more.backward] : [],
     };
   }
+  // Every stop, signal and entry into a shared section can cost a stop and a start.
+  const rates = lineRates(line, scenario);
+  const stopsUpper =
+    (events.length + extras.spans.forward.length + extras.spans.backward.length + 2) *
+    stopLossS(line.maxSpeedKmh / 3.6, rates.accelMs2, rates.decelMs2);
   const maxTripS =
     2 * (speedAt(0, longest) + layoverS) +
     2 * events.reduce((t, e) => t + (e.durationS ?? 0), 0) +
     2 * signalCount * maxSignalWait +
+    2 * stopsUpper +
     1;
   return {
     lineId: line.id,
@@ -427,6 +453,7 @@ function buildModelBody(
     rank: modeRank(scenario.modePriority ?? MODE_PRIORITY, line.mode),
     consist: null,
     ring,
+    rates: options.constantSpeed ? null : lineRates(line, scenario),
   };
 }
 
@@ -552,6 +579,7 @@ function emptyModel(
     rank: 0,
     consist: null,
     ring: false,
+    rates: null,
   };
 }
 
@@ -602,20 +630,65 @@ function buildTrip(
       (x, y) => (x.chainageM - y.chainageM) * dir || ORDER[x.kind] - ORDER[y.kind],
     );
     let pos = from;
-    for (const e of evs) {
-      if (e.chainageM !== pos) {
-        const d = model.speedAt(pos, e.chainageM);
-        phases.push({ kind: 'run', fromM: pos, toM: e.chainageM, direction: dir, durationS: d });
-        t += d;
-        pos = e.chainageM;
+    // Speed at `pos` (m/s): every leg starts from standstill.
+    let speed = 0;
+    // Places the vehicle certainly stops at (stops with a dwell, fixed holds, the end of the leg).
+    const certainStops = [
+      ...dirEvents.filter((x) => (x.kind === 'dwell' || x.kind === 'hold') && (x.durationS ?? 0) > 0),
+      { chainageM: to },
+    ].map((x) => x.chainageM);
+    const nextStopFrom = (c: number) =>
+      Math.min(...certainStops.map((x) => (x - c) * dir).filter((dx) => dx >= -1e-9), Infinity);
+    /** Run from `pos` to `target`; with `stop`, brake to standstill there. */
+    const run = (target: number, stop: boolean) => {
+      const cruiseS = model.speedAt(pos, target);
+      const d = Math.abs(target - pos);
+      const rates = model.rates;
+      if (!rates || cruiseS <= 0 || d <= 0) {
+        phases.push({ kind: 'run', fromM: pos, toM: target, direction: dir, durationS: cruiseS });
+        t += cruiseS;
+        speed = 0;
+      } else {
+        // Never so fast that the next certain stop cannot be reached with service braking.
+        const capEnd = Math.sqrt(2 * rates.decelMs2 * Math.max(0, nextStopFrom(target)));
+        const prof = speedProfile(d, d / cruiseS, speed, stop ? 0 : capEnd, rates.accelMs2, rates.decelMs2);
+        const durationS = profileDuration(prof);
+        phases.push({ kind: 'run', fromM: pos, toM: target, direction: dir, durationS, profile: prof });
+        t += durationS;
+        speed = prof.v1;
       }
+      pos = target;
+    };
+    /** The vehicle has to stop where it is: re-time the run just before to brake into it. */
+    const brakeHere = () => {
+      const last = phases[phases.length - 1];
+      if (speed <= 0 || !last || last.kind !== 'run' || !last.profile || !model.rates) {
+        speed = 0;
+        return;
+      }
+      const p0 = last.profile;
+      const prof = speedProfile(p0.d, Math.max(p0.vp, p0.v0, 1e-6), p0.v0, 0, p0.a, model.rates.decelMs2);
+      const durationS = profileDuration(prof);
+      t += durationS - last.durationS;
+      phases[phases.length - 1] = { ...last, durationS, profile: prof };
+      speed = 0;
+    };
+    for (const e of evs) {
+      if (e.chainageM !== pos)
+        run(e.chainageM, (e.kind === 'dwell' || e.kind === 'hold') && (e.durationS ?? 0) > 0);
       if (e.kind === 'enter' && !scheduled) continue;
       if (e.kind === 'enter') {
         const sp = e.span!;
-        const runS = model.speedAt(sp.fromM, sp.toM);
-        const dwellS = dirEvents
-          .filter((x) => x.kind === 'dwell' && x.chainageM > sp.fromM + 0.01 && x.chainageM < sp.toM - 0.01)
-          .reduce((sum, x) => sum + (x.durationS ?? 0), 0);
+        const cruiseS = model.speedAt(sp.fromM, sp.toM);
+        const inside = dirEvents.filter(
+          (x) => x.kind === 'dwell' && x.chainageM > sp.fromM + 0.01 && x.chainageM < sp.toM - 0.01,
+        );
+        const dwellS = inside.reduce((sum, x) => sum + (x.durationS ?? 0), 0);
+        // Starting from a stop and stopping inside take longer than cruising through.
+        const vSpan = (sp.toM - sp.fromM) / Math.max(cruiseS, 1e-6);
+        const runS = model.rates
+          ? cruiseS + (inside.length + 1) * stopLossS(vSpan, model.rates.accelMs2, model.rates.decelMs2)
+          : cruiseS;
         const lengthM = Math.max(1e-6, sp.toM - sp.fromM);
         const separationS = (model.separationM * runS) / lengthM;
         const start = model.context.ledger.reserve(
@@ -628,7 +701,12 @@ function buildTrip(
           `${model.lineId}:${svc.id}:${dir}`,
           sp.exclusive ?? false,
         );
-        const wait = start - t;
+        let wait = start - t;
+        if (wait > 1e-6) {
+          // The vehicle brakes to wait before the occupied section.
+          brakeHere();
+          wait = Math.max(0, start - t);
+        }
         if (wait > 1e-6) {
           phases.push({ kind: 'occupied', chainageM: pos, direction: dir, durationS: wait });
           t += wait;
@@ -639,20 +717,22 @@ function buildTrip(
         }
         continue;
       }
-      const wait =
+      let wait =
         e.kind === 'signal' && e.signal
           ? signalWaitS(e.signal, t, model.signalPriorityS)
           : (e.durationS ?? 0);
+      if (wait > 0 && e.kind === 'signal' && e.signal) {
+        // Red: brake to the stop line, then wait for green from the later arrival.
+        brakeHere();
+        wait = signalWaitS(e.signal, t, model.signalPriorityS);
+      }
       if (wait > 0) {
         phases.push({ kind: e.kind, chainageM: pos, direction: dir, durationS: wait });
         t += wait;
+        speed = 0;
       }
     }
-    if (pos !== to) {
-      const d = model.speedAt(pos, to);
-      phases.push({ kind: 'run', fromM: pos, toM: to, direction: dir, durationS: d });
-      t += d;
-    }
+    if (pos !== to) run(to, true);
   };
   leg(1);
   if (svc.pattern === 'shuttle') {
@@ -709,7 +789,10 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
           let chainageM: number;
           let state: VehicleState['state'];
           if (p.kind === 'run') {
-            chainageM = p.fromM + (p.toM - p.fromM) * (local / p.durationS);
+            const f = p.profile
+              ? profileDistance(p.profile, local) / Math.max(p.profile.d, 1e-9)
+              : local / p.durationS;
+            chainageM = p.fromM + (p.toM - p.fromM) * Math.min(1, f);
             state = 'running';
           } else {
             chainageM = p.chainageM;

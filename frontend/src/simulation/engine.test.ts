@@ -120,6 +120,14 @@ describe('simulation engine', () => {
     );
     expect(waits.length).toBeGreaterThan(0);
     expect(roundTripS(withSignal)).toBeGreaterThanOrEqual(roundTripS(plain));
+    // A vehicle waiting at red has braked to a standstill at the stop line.
+    for (let j = 0; j < 20; j++) {
+      const ph = tripPhases(withSignal, withSignal.services[0]!, j);
+      ph.forEach((p, i) => {
+        const before = ph[i - 1];
+        if (p.kind === 'signal' && before?.kind === 'run') expect(before.profile?.v1).toBe(0);
+      });
+    }
   });
 
   it('closures turn trains back at crossovers or block service without them', () => {

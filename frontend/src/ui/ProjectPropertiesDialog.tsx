@@ -124,6 +124,9 @@ function ModeDefaults() {
               Following distance
             </th>
             <th scope="col" className="pe-2 text-start">
+              Acceleration / braking
+            </th>
+            <th scope="col" className="pe-2 text-start">
               New track: gauge, electrification
             </th>
           </tr>
@@ -154,6 +157,13 @@ function ModeDefaults() {
               </td>
               <td className="pe-2">{r.platformLengthM != null ? `${r.platformLengthM} m` : '—'}</td>
               <td className="pe-2">{r.separationM} m</td>
+              <td className="pe-2">
+                {r.rates.accelMs2} / {r.rates.decelMs2} m/s² <Badge>Documented</Badge>
+                <div className="text-xs text-slate-600">
+                  SUMO class {r.rates.sumoClass}
+                  {r.rates.note ? ` (${r.rates.note})` : ''}; a vehicle profile overrides it
+                </div>
+              </td>
               <td className="pe-2">
                 {r.rail ? (
                   <div className="flex flex-col gap-1">
