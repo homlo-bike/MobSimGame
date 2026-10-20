@@ -26,7 +26,7 @@ describe('ramps between levels', () => {
     expect(trackRamp(s.trackNetwork, t)).toBeNull();
     s = setNodeLevel(s, t.toNodeId, -1);
     const r = trackRamp(s.trackNetwork, s.trackNetwork.tracks[0]!)!;
-    // Placeholder depth 10 m over 400 m = 2.5 %.
+    // Default depth 10 m over 400 m = 2.5 %.
     expect(r.riseM).toBeCloseTo(-10);
     expect(r.gradientPercent).toBeCloseTo(2.5, 1);
     expect(r.fits).toBe(true);
@@ -57,7 +57,7 @@ describe('ramps between levels', () => {
     s = setNodeLevel(s, s.trackNetwork.tracks[0]!.toNodeId, 1);
     expect(maxRampGradient('commuter_rail')).toMatchObject({ percent: 1.25, cited: true });
     expect(stationMaxGradient(s.trackNetwork, 'commuter_rail')).toMatchObject({ percent: 0.25, cited: true });
-    // 7 m placeholder height over 500 m = 1.4 % > 1.25 %.
+    // 7 m default height over 500 m = 1.4 % > 1.25 %.
     expect(validateTrackNetwork(s).find((x) => x.category === 'grade')?.severity).toBe('error');
   });
 

@@ -12,8 +12,15 @@ All notable changes are documented here. The format follows
   ramp; the track inspector sets the level of each end and shows the gradient, the
   maximum and the length needed. Too steep ramps and platforms on ramps are reported
   (cited EBO limits for railways, placeholders otherwise); the map labels ramps and
-  marks portals. Level heights are new placeholder parameters. The street is taken
+  marks portals. Level heights are system defaults (owner decision): 10 m per
+  underground level and 7 m per elevated level, editable per project. The street is taken
   as flat for now; terrain follows.
+- **Following the vehicle ahead** (R13 part 2). Buses, BRT, trolleybuses, trams and
+  light rail keep the Intelligent Driver Model's steady-state gap (2.5 m + speed ×
+  1.0 s, SUMO defaults, plus the length of the vehicle ahead) instead of a fixed
+  placeholder distance; both values are editable in Project properties. Metro and
+  commuter rail keep the signalled minimum distance. The placeholder parameters for
+  bus and tram separation are removed.
 
 - **Acceleration and braking in the simulation** (R13 part 1). Vehicles accelerate
   after every stop and brake before stations, red signals and occupied sections

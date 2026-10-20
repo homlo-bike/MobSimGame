@@ -95,8 +95,8 @@ track whose two ends are on different levels is a **ramp**: it rises or falls th
 height difference between the levels over its own length, so its gradient is
 `|h(to) − h(from)| ÷ length`.
 
-- Level heights are project parameters (placeholders until set): 10 m per underground
-  level and 7 m per elevated level (top of rail relative to the street).
+- Level heights are system defaults (owner decision), editable per project: 10 m per
+  underground level and 7 m per elevated level (top of rail relative to the street).
 - Steepest ramp: for commuter rail and railways, 12.5 per mille (EBO § 7 (1), new
   main lines); for the other modes, the placeholder warning grade of the mode's
   validation profile. A steeper ramp is an error (cited) or a warning (placeholder)
@@ -220,9 +220,8 @@ other track.
 - **Track occupancy** (services on tracks): a single-track block, meaning a chain of
   bidirectional tracks with nowhere to pass, is reserved by one direction at a time.
   Trains of the other direction wait at its entry. Following vehicles on any track
-  or bus route keep a **minimum separation**, applied as a time gap at entry and
-  exit (distance ÷ running speed). The values are placeholders: 200 m for metro and
-  rail, 50 m for tram and light rail, 20 m for buses (`domain/trackParameters.ts`).
+  or bus route keep their distance, applied as a time gap at entry and exit (see
+  "Following the vehicle ahead" below).
   Trips are scheduled in a fixed order (departure, line, service), so results are
   deterministic.
   - Limitations: a waiting train does not block the track behind it, signals inside
@@ -266,6 +265,22 @@ code is used): `x = v₀t + ½at²`; the peak speed of a section of length `d` i
   (class tram), metro and commuter rail 1.0 / 3.0 m/s² (class rail_urban; SUMO gives
   no rate for subway). SUMO has no BRT, trolleybus or light-rail class; the closest
   class is used. SUMO describes these as comfortable service values, not the maximum
-  a vehicle can reach. Vehicles following each other keep the minimum distance of the
-  occupancy rules; a car-following model is planned (R13 part 2).
+  a vehicle can reach.
+
+### Following the vehicle ahead
+
+- Buses, BRT, trolleybuses, trams and light rail drive **on sight**: they keep the
+  steady-state gap of the Intelligent Driver Model (Treiber, Hennecke & Helbing 2000,
+  "Congested traffic states in empirical observations and microscopic simulations",
+  Physical Review E 62, 1805), `s* = s₀ + v·T`, behind the rear of the vehicle ahead
+  (whose consist length is added). Defaults: minimum gap `s₀` = 2.5 m (SUMO minGap for
+  bus and tram, "Vehicle Type Parameter Defaults") and time gap `T` = 1.0 s (SUMO
+  default tau). In the occupancy rules this is the time gap `T + (s₀ + L) / v` at the
+  entry of each section, with `v` the section's average speed.
+- Metro and commuter rail run under **signalling**: they keep a fixed minimum distance
+  (placeholder 200 m; the real value follows from braking distance and the
+  signalling system).
+- Limitations: this is the steady state of the model, applied where vehicles enter a
+  section; a vehicle does not slow down gradually behind a slower one between two
+  sections, and the IDM's approach term (`v·Δv / (2√(ab))`) is not used.
 
