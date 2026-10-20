@@ -31,21 +31,40 @@ interface CurvatureSample {
 import { routeStatus } from '../domain/alignment';
 import { STRUCTURE_LABELS } from '../domain/modes';
 
-export type Severity = 'info' | 'recommendation' | 'warning' | 'blocking';
+export type Severity = 'info' | 'recommendation' | 'warning' | 'error';
 
 export const SEVERITY_LABELS: Record<Severity, string> = {
   info: 'Information',
   recommendation: 'Recommendation',
   warning: 'Warning',
-  blocking: 'Blocking geometry error',
+  error: 'Error',
 };
+
+export const SEVERITY_PLURALS: Record<Severity, string> = {
+  error: 'Errors',
+  warning: 'Warnings',
+  recommendation: 'Recommendations',
+  info: 'Information',
+};
+
+/** What each category means; shown as help wherever findings are summarised. */
+export const SEVERITY_DEFINITIONS: Record<Severity, string> = {
+  error: 'Prevents a valid route, service, simulation or export. Requires your action.',
+  warning:
+    'The project can continue, but the condition may be unrealistic, unsafe, incomplete or outside the configured preferred range.',
+  recommendation: 'An optional improvement; it does not make the project invalid.',
+  info: 'A neutral observation or calculated status.',
+};
+
+/** Most severe first. */
+export const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'recommendation', 'info'];
 
 /** Text symbols so severity is never conveyed by colour alone. */
 export const SEVERITY_SYMBOLS: Record<Severity, string> = {
   info: 'ℹ',
   recommendation: '◇',
   warning: '⚠',
-  blocking: '⛔',
+  error: '⛔',
 };
 
 export type FindingCategory =
@@ -123,7 +142,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   const path = pathCoordinates(line.coordinates, ring);
   if (!isValidPath(path) || (ring && line.coordinates.length < 3)) {
     add({
-      severity: 'blocking',
+      severity: 'error',
       category: 'geometry',
       message: ring
         ? 'A ring line needs at least three distinct vertices.'
@@ -140,7 +159,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     });
   }
   for (const err of validateSegments(line.segments)) {
-    add({ severity: 'blocking', category: 'geometry', message: `Segment table: ${err}.` });
+    add({ severity: 'error', category: 'geometry', message: `Segment table: ${err}.` });
   }
 
   // --- Stops and termination -------------------------------------------------
@@ -148,7 +167,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   const transitMode = !['cycling', 'pedestrian'].includes(line.mode);
   if (transitMode && stops.length < 2) {
     add({
-      severity: 'blocking',
+      severity: 'error',
       category: 'termination',
       message: `The line has ${stops.length} station(s); at least two are needed before it can be considered complete.`,
     });
@@ -160,7 +179,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     const end = path[path.length - 1]!;
     if (!first || distanceM(first.station.position, start) > terminalTol) {
       add({
-        severity: 'blocking',
+        severity: 'error',
         category: 'termination',
         position: start,
         message:
@@ -169,7 +188,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     }
     if (!last || distanceM(last.station.position, end) > terminalTol) {
       add({
-        severity: 'blocking',
+        severity: 'error',
         category: 'termination',
         position: end,
         message:
@@ -185,7 +204,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
     const snap = head.length >= 2 ? snapToPath(head, false, end) : null;
     if (!snap || snap.offsetM > terminalTol) {
       add({
-        severity: 'blocking',
+        severity: 'error',
         category: 'termination',
         position: end,
         message:
@@ -350,7 +369,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   // --- Track services ----------------------------------------------------------
   if (line.alignment.kind === 'track' && line.alignment.status === 'unrouted') {
     add({
-      severity: existingInfrastructure(line) ? 'info' : 'blocking',
+      severity: existingInfrastructure(line) ? 'info' : 'error',
       category: 'geometry',
       message: `The service is not routed over the tracks: ${line.alignment.message || 'add stations on tracks and connect them.'}`,
     });
@@ -362,7 +381,7 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   const route = routeStatus(line);
   if (route && route.unrouted > 0) {
     add({
-      severity: existingInfrastructure(line) ? 'info' : 'blocking',
+      severity: existingInfrastructure(line) ? 'info' : 'error',
       category: 'road_compatibility',
       message: `${route.unrouted} of ${route.total} section(s) between waypoints are not routed on the street network. Route them, or mark them as manual sketches, before the line counts as complete.`,
     });
@@ -480,7 +499,7 @@ function curveFindings(
     const kind = g.cls === 'below_minimum' ? 'minimum' : 'recommended';
     return {
       lineId: line.id,
-      severity: existing ? 'info' : g.cls === 'below_minimum' ? 'blocking' : 'warning',
+      severity: existing ? 'info' : g.cls === 'below_minimum' ? 'error' : 'warning',
       category: 'curve_radius',
       position: g.min.position,
       message: `${existing ? 'Existing infrastructure: curve' : 'Curve'} radius ≈${r} m at ${Math.round(g.min.chainageM)} m, below the ${kind} ${g.threshold} m (documented default: ${ruleSource(rule)}). ${estimate}`,
@@ -563,5 +582,5 @@ export function isLineComplete(
   scenario: Scenario,
   options?: ValidationOptions,
 ): boolean {
-  return !validateLine(line, scenario, options).some((f) => f.severity === 'blocking');
+  return !validateLine(line, scenario, options).some((f) => f.severity === 'error');
 }

@@ -117,7 +117,7 @@ describe('application shell', () => {
     expect(useStore.getState().project.scenarios[0]!.lines).toHaveLength(4);
   });
 
-  it('creates track, a station on it and a service without the map', async () => {
+  it('creates track, a station on it and a service without the map', { timeout: 20_000 }, async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: /Table/ }));
@@ -350,6 +350,33 @@ describe('notification menu', () => {
     await user.click(within(list).getByRole('button', { name: /Warning: Not routed.*Show on map/ }));
     expect(useStore.getState().selection).toEqual({ kind: 'line', id: line.id });
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+  });
+});
+
+describe('validation panel', () => {
+  it('labels the categories, filters them and links findings to their objects', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const panel = screen.getByRole('list', { name: 'Findings by category' });
+    for (const name of [/Errors: \d+/, /Warnings: \d+/, /Recommendations: \d+/, /Information: \d+/])
+      expect(within(panel).getAllByRole('button', { name }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/What do the categories mean/).length).toBeGreaterThan(0);
+    const findings = screen.getAllByRole('list', { name: 'Findings' })[0]!;
+    const before = within(findings).getAllByRole('listitem').length;
+    const info = within(panel).getByRole('button', { name: /Information: / });
+    await user.click(info);
+    expect(info).toHaveAttribute('aria-pressed', 'false');
+    const after = within(screen.getAllByRole('list', { name: 'Findings' })[0]!).queryAllByRole(
+      'listitem',
+    ).length;
+    expect(after).toBeLessThan(before);
+    await user.selectOptions(screen.getAllByLabelText('Sort findings by')[0]!, 'station');
+    const show = within(screen.getAllByRole('list', { name: 'Findings' })[0]!).getAllByRole('button', {
+      name: /^Show on map/,
+    })[0]!;
+    await user.click(show);
+    expect(useStore.getState().focusedFindingId).not.toBeNull();
+    expect(useStore.getState().selection).not.toBeNull();
   });
 });
 

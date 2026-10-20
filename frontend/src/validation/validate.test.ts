@@ -34,7 +34,7 @@ function lineWith(
   return { s, line: s.lines.find((l) => l.id === r.line.id)! };
 }
 
-const blocking = (f: Finding[]) => f.filter((x) => x.severity === 'blocking');
+const errors = (f: Finding[]) => f.filter((x) => x.severity === 'error');
 
 describe('terminal and loop validation', () => {
   it('blocks a line without terminal stations', () => {
@@ -43,7 +43,7 @@ describe('terminal and loop validation', () => {
       [0.01, 0],
     ]);
     const f = validateLine(line, s);
-    expect(blocking(f).length).toBeGreaterThan(0);
+    expect(errors(f).length).toBeGreaterThan(0);
     expect(isLineComplete(line, s)).toBe(false);
   });
 
@@ -59,7 +59,7 @@ describe('terminal and loop validation', () => {
         [0.01, 0],
       ],
     );
-    expect(blocking(validateLine(line, s))).toEqual([]);
+    expect(errors(validateLine(line, s))).toEqual([]);
     expect(isLineComplete(line, s)).toBe(true);
   });
 
@@ -75,7 +75,7 @@ describe('terminal and loop validation', () => {
         [0.01, 0],
       ],
     );
-    const f = blocking(validateLine(line, s));
+    const f = errors(validateLine(line, s));
     expect(f).toHaveLength(1);
     expect(f[0]!.message).toMatch(/end of the line/);
   });
@@ -97,7 +97,7 @@ describe('terminal and loop validation', () => {
       ],
     );
     expect(line.termination.kind).toBe('ring');
-    expect(blocking(validateLine(line, s))).toEqual([]);
+    expect(errors(validateLine(line, s))).toEqual([]);
   });
 
   it('validates a user-defined loop ending', () => {
@@ -121,7 +121,7 @@ describe('terminal and loop validation', () => {
     );
     const looped = updateLine(s, line.id, { termination: { kind: 'loop', note: '' } });
     const l = looped.lines[0]!;
-    expect(blocking(validateLine(l, looped))).toEqual([]);
+    expect(errors(validateLine(l, looped))).toEqual([]);
     const notLooped = updateLine(looped, line.id, {
       coordinates: [
         [0, 0],
@@ -129,9 +129,9 @@ describe('terminal and loop validation', () => {
         [0.03, 0.01],
       ],
     });
-    expect(
-      blocking(validateLine(notLooped.lines[0]!, notLooped)).some((f) => f.message.includes('loop')),
-    ).toBe(true);
+    expect(errors(validateLine(notLooped.lines[0]!, notLooped)).some((f) => f.message.includes('loop'))).toBe(
+      true,
+    );
   });
 
   it('blocks invalid geometry', () => {
@@ -140,7 +140,7 @@ describe('terminal and loop validation', () => {
       [0.01, 0],
     ]);
     const broken = { ...line, coordinates: [[0, 0]] as LngLat[] };
-    expect(blocking(validateLine(broken, s))[0]!.category).toBe('geometry');
+    expect(errors(validateLine(broken, s))[0]!.category).toBe('geometry');
   });
 });
 
@@ -160,7 +160,7 @@ describe('mode profile validation', () => {
     expect(MODE_PROFILES.bus.curveRadius).toBeNull();
   });
 
-  it('reports track curves below the minimum as blocking and below the recommended value as warnings', () => {
+  it('reports track curves below the minimum as errors and below the recommended value as warnings', () => {
     // Metro: minimum 120 m, recommended 200 m. One curve of radius r between two long straights.
     const curve = (r: number) =>
       railLine([xy(-600, 0), xy(0, 0), xy(0, 600)], 'metro', [xy(-600, 0), xy(0, 600)], {
@@ -169,12 +169,12 @@ describe('mode profile validation', () => {
       }).s;
     const radiusFindings = (s: Scenario) => validateScenario(s).filter((x) => x.category === 'curve_radius');
     const fTight = radiusFindings(curve(90));
-    expect(fTight.some((x) => x.severity === 'blocking')).toBe(true);
+    expect(fTight.some((x) => x.severity === 'error')).toBe(true);
     expect(fTight[0]!.message).toMatch(/MMRDA/);
     expect(fTight[0]!.trackId).toBeTruthy();
     const fMed = radiusFindings(curve(160));
     expect(fMed.map((x) => x.severity)).toContain('warning');
-    expect(fMed.some((x) => x.severity === 'blocking')).toBe(false);
+    expect(fMed.some((x) => x.severity === 'error')).toBe(false);
     expect(radiusFindings(curve(400))).toEqual([]);
   });
 
@@ -184,7 +184,7 @@ describe('mode profile validation', () => {
     const { s } = railLine([xy(-600, 0), xy(0, 0), xy(0, 600)], 'metro', [xy(-600, 0), xy(0, 600)], {
       radiusM: 119,
     });
-    const f = validateScenario(s).filter((x) => x.category === 'curve_radius' && x.severity === 'blocking');
+    const f = validateScenario(s).filter((x) => x.category === 'curve_radius' && x.severity === 'error');
     expect(f).toHaveLength(1);
     expect(f[0]!.message).toMatch(/119 m/);
   });
@@ -214,7 +214,7 @@ describe('mode profile validation', () => {
     });
     const f = validateScenario(s).filter((x) => x.category === 'curve_radius');
     expect(f.some((x) => /does not fit/.test(x.message))).toBe(true);
-    expect(f.some((x) => x.severity === 'blocking')).toBe(true);
+    expect(f.some((x) => x.severity === 'error')).toBe(true);
     expect(f.some((x) => /documented default/.test(x.message))).toBe(true);
   });
 
@@ -286,8 +286,7 @@ describe('mode profile validation', () => {
     );
     expect(
       validateLine(line, s).some(
-        (x) =>
-          x.category === 'road_compatibility' && x.severity === 'blocking' && /not routed/.test(x.message),
+        (x) => x.category === 'road_compatibility' && x.severity === 'error' && /not routed/.test(x.message),
       ),
     ).toBe(true);
   });
@@ -327,8 +326,8 @@ describe('grade summary', () => {
 });
 
 describe('demo scenario', () => {
-  it('has no blocking findings', () => {
+  it('has no errors', () => {
     const s = buildDemoScenario();
-    expect(blocking(validateScenario(s))).toEqual([]);
+    expect(errors(validateScenario(s))).toEqual([]);
   });
 });

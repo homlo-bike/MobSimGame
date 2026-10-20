@@ -6,7 +6,7 @@ waypoints is routed on the street network by a self-hosted
 [Valhalla](https://github.com/valhalla/valhalla) server (MIT licence) with its
 `bus` costing model.
 
-- A section that is not routed makes the line **incomplete** (a blocking finding)
+- A section that is not routed makes the line **incomplete** (an error)
   until it is routed or you **mark it as manual** (an accepted sketch, for example a
   bus-only link missing from the map data).
 - Moving a waypoint re-routes the sections next to it automatically when the routing

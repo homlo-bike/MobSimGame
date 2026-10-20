@@ -8,6 +8,10 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Validation categories are now Errors, Warnings, Recommendations and
+  Information.** "Blocking geometry error" is now "Error". Each category has a
+  definition shown as help, a count and a filter. The dashboard's unclear
+  "4 ⛔ · 3 ⚠" summary is replaced by labelled categories.
 - **Project format schema 3: physical track network.** Track (nodes, tracks,
   double-track groups, permitted movements) is now separate from services. Rail
   lines run over tracks instead of owning a spline. Projects in schema 1 or 2 are
@@ -23,6 +27,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Findings can be sorted by severity, line, station, segment or mode. Each finding
+  links to its object: it is selected, the map zooms to it and the finding is
+  highlighted.
+- **Validation markers on the map**:
+  - one shape per category (square, triangle, diamond, circle) in addition to
+    colour;
+  - clustered when they overlap (the cluster ring shows the worst category);
+  - click a marker to select its object and highlight its finding, or a cluster to
+    zoom in;
+  - categories can be hidden under Map layers (information is hidden by default).
 - **Draw track** for track modes:
   - single or double track, with radius and structure options;
   - ends attach to nodes or open ends, and an end on a track creates a junction;

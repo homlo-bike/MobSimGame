@@ -48,8 +48,16 @@ convention, **not** a probabilistic confidence interval. The relative spread
 
 ## Validation
 
-Findings: *Information*, *Recommendation*, *Warning*, *Blocking geometry error*.
-A line is **complete** only without blocking findings:
+Findings have four categories, shown with a text label and a symbol (never colour alone):
+
+| Category | Meaning |
+| --- | --- |
+| ⛔ **Error** | Prevents a valid route, service, simulation or export; requires your action. |
+| ⚠ **Warning** | The project can continue, but the condition may be unrealistic, unsafe, incomplete or outside the configured preferred range. |
+| ◇ **Recommendation** | An optional improvement; it does not make the project invalid. |
+| ℹ **Information** | A neutral observation or calculated status. |
+
+A line is **complete** only without errors:
 
 - valid geometry (≥ 2 distinct vertices; rings ≥ 3);
 - at least two stations (transit modes);

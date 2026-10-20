@@ -17,7 +17,7 @@ async function openTestNetwork(page: Page) {
 }
 
 async function createProject(page: Page, name = 'E2E project') {
-  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'New project…' }).click();
   await page.getByLabel('Name of the new project').fill(name);
   await page.getByRole('button', { name: 'Create project' }).click();
@@ -162,13 +162,13 @@ test('animation, closures, schematic and exports work', async ({ page }) => {
   await expect(page.getByText(/Text alternative/i)).toBeVisible();
 
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Export GeoJSON' }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/\.geojson$/);
 
   const dl2 = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: /Save project/ }).click();
   expect((await dl2).suggestedFilename()).toMatch(/\.mobsim\.json$/);
 });

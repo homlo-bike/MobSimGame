@@ -2,13 +2,13 @@
 
 Track-guided lines (tram, light rail, metro, commuter rail) are checked against
 **documented default** minimum and recommended curve radii, reviewed and approved by
-the project owner on 2026-10-19. Below the minimum is a **blocking** finding;
+the project owner on 2026-10-19. Below the minimum is an **error**;
 below the recommended value a **warning**. Lines imported from OpenStreetMap and not
 edited are existing infrastructure: their findings are **information** only.
 
 Values are defined in `frontend/src/domain/modeProfiles.ts` (`CURVE_RADIUS_RULES`).
 
-| Mode | Minimum (blocking) | Recommended (warning) | Source |
+| Mode | Minimum (error) | Recommended (warning) | Source |
 | --- | --- | --- | --- |
 | Tram / streetcar | 25 m | none cited (not checked) | TCRP Report 155, 2nd ed. (2012), §3.2.3.2, p. 3-11 |
 | Light rail | 90 m ballasted; 25 m on street sections (embedded or direct-fixation track) | 150 m | TCRP Report 155 (2012), §3.2.3.2, p. 3-13 |

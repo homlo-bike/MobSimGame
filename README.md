@@ -79,8 +79,21 @@ set, labelled as such. See the [roadmap](#roadmap).
 - Per-segment structure (surface, underground, elevated, bridge, bored tunnel,
   cut and cover), right of way and single/double track; split/merge segments.
 - Terminations: terminal/siding/turnback/depot ends, ring lines, user-defined loops.
-- Validation findings (information / recommendation / warning / blocking): terminal
-  or loop rule, geometry, stop spacing, **curve radius against cited minimum and
+- **Validation** in four labelled categories:
+  - ⛔ Error: prevents a valid route, service or export;
+  - ⚠ Warning;
+  - ◇ Recommendation;
+  - ℹ Information.
+
+  Each category shows its meaning, a count and a filter, and findings can be
+  sorted by line, station, segment, mode or severity. Every finding links to its
+  object and zooms the map to it.
+
+  **Markers on the map** have a distinct shape per category (square, triangle,
+  diamond, circle). They are grouped when crowded, can be hidden per category, and
+  open their object and finding when clicked. Direction arrows keep clear of them.
+
+  Checks include: terminal or loop rule, geometry, stop spacing, **curve radius against cited minimum and
   recommended values per mode** ([docs/CURVE_RADII.md](docs/CURVE_RADII.md)), grades
   (with elevation data), structure transitions, unrouted bus sections. Other
   thresholds are uncited placeholders and say so.

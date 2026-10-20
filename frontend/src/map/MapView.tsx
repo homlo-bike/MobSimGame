@@ -5,7 +5,9 @@
  * simulation/engine.ts; this component samples them and pushes GeoJSON into
  * MapLibre sources.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { validateScenario } from '../validation/validate';
+import { findingSubject } from '../validation/locate';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -40,6 +42,8 @@ import {
   STATION_LAYER,
   TRACK_LAYER_PREFIX,
   TRACK_NODE_LAYER,
+  FINDING_CLUSTER_LAYER,
+  FINDING_LAYER,
 } from './layers';
 import {
   arrowsCollection,
@@ -53,6 +57,7 @@ import {
   populationCollection,
   segmentsCollection,
   stationsCollection,
+  findingsCollection,
   trackNodesCollection,
   tracksCollection,
   trafficCollection,
@@ -80,11 +85,13 @@ function directionArrows(
   segments: ReturnType<typeof segmentsCollection>,
   tracks: ReturnType<typeof tracksCollection>,
   scenario: ReturnType<typeof useScenario>,
+  markers: LngLat[] = [],
 ) {
   const mpp = metresPerPixel(map.getZoom(), map.getCenter().lat);
   const options = {
     spacingM: ARROW_SPACING_PX * mpp,
-    avoid: scenario.stations.map((s) => s.position),
+    // Arrows never cover stations or validation markers.
+    avoid: [...scenario.stations.map((s) => s.position), ...markers],
     avoidM: ARROW_STATION_CLEARANCE_PX * mpp,
   };
   const a = arrowsCollection(segments, options);
@@ -111,6 +118,12 @@ export default function MapView() {
   const simulationEpoch = useStore((s) => s.simulationEpoch);
   const closures = useStore((s) => s.closures);
   const newLineMode = useStore((s) => s.newLineMode);
+  const markerVisibility = useStore((s) => s.markerVisibility);
+  const focusedFindingId = useStore((s) => s.focusedFindingId);
+  // Validation markers (also kept for click handling).
+  const findings = useMemo(() => validateScenario(scenario), [scenario]);
+  const findingsRef = useRef(findings);
+  findingsRef.current = findings;
   /** Zoom (rounded to half steps) at which direction arrows were laid out. */
   const [arrowZoom, setArrowZoom] = useState(0);
   const serviceDraft = useStore((s) => s.serviceDraft);
@@ -346,6 +359,30 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station!.id });
         return;
       }
+      // Validation markers: a cluster zooms in; a marker selects its object and highlights the finding.
+      const markerLayers = [FINDING_LAYER, FINDING_CLUSTER_LAYER].filter((id) => map.getLayer(id));
+      const marker = markerLayers.length
+        ? map.queryRenderedFeatures(e.point, { layers: markerLayers })[0]
+        : undefined;
+      if (marker?.properties?.cluster_id !== undefined) {
+        const src = map.getSource(SRC.findings) as maplibregl.GeoJSONSource;
+        void src
+          .getClusterExpansionZoom(Number(marker.properties.cluster_id))
+          .then((z) =>
+            map.easeTo({ center: (marker.geometry as GeoJSON.Point).coordinates as LngLat, zoom: z }),
+          );
+        return;
+      }
+      if (marker?.properties?.findingId) {
+        const f = findingsRef.current.find((x) => x.id === marker.properties!.findingId);
+        if (f) {
+          state.setFocusedFinding(f.id);
+          const subject = findingSubject(f);
+          if (subject) state.select(subject);
+          state.announce(marker.properties.label as string);
+        }
+        return;
+      }
       const trackLayers = (map.getStyle().layers ?? [])
         .map((l) => l.id)
         .filter((id) => id.startsWith(TRACK_LAYER_PREFIX) && map.getLayer(id));
@@ -478,7 +515,19 @@ export default function MapView() {
     setData(map, SRC.tracks, tracks);
     setData(map, SRC.trackNodes, trackNodesCollection(scenario, selectedNodeId));
     setData(map, SRC.segments, segments);
-    setData(map, SRC.arrows, directionArrows(map, segments, tracks, scenario));
+    const markers = findingsCollection(findings, scenario, markerVisibility, focusedFindingId);
+    setData(map, SRC.findings, markers);
+    setData(
+      map,
+      SRC.arrows,
+      directionArrows(
+        map,
+        segments,
+        tracks,
+        scenario,
+        markers.features.map((f) => (f.geometry as GeoJSON.Point).coordinates as LngLat),
+      ),
+    );
     setData(map, SRC.crossovers, crossoversCollection(scenario));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
@@ -488,6 +537,9 @@ export default function MapView() {
     reconcileDraw(draw, scenario, selectedLineId, selectedTrackId);
   }, [
     scenario,
+    findings,
+    markerVisibility,
+    focusedFindingId,
     arrowZoom,
     selectedLineId,
     selectedTrackId,

@@ -14,6 +14,9 @@ import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
+import type { Finding, Severity } from '../validation/validate';
+import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
+import { findingPosition } from '../validation/locate';
 import { stepsCoordinates, stepsSegments } from '../domain/serviceRouting';
 
 /**
@@ -432,6 +435,36 @@ export function transitCollection(routes: readonly TransitRoute[]): FeatureColle
       properties: { name: r.name, mode: r.mode },
     })),
   };
+}
+
+/**
+ * Validation markers: one point per finding at its position (or its object's), with
+ * its severity for the marker shape. Hidden categories are left out.
+ */
+export function findingsCollection(
+  findings: readonly Finding[],
+  scenario: Scenario,
+  visible: Record<Severity, boolean>,
+  focusedId: string | null,
+): FeatureCollection {
+  const features: Feature[] = [];
+  for (const f of findings) {
+    if (!visible[f.severity]) continue;
+    const position = findingPosition(f, scenario);
+    if (!position) continue;
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: position },
+      properties: {
+        findingId: f.id,
+        severity: f.severity,
+        rank: SEVERITY_ORDER.length - SEVERITY_ORDER.indexOf(f.severity),
+        focused: f.id === focusedId,
+        label: `${SEVERITY_LABELS[f.severity]}: ${f.message}`,
+      },
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 export const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };

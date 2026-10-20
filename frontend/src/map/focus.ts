@@ -4,6 +4,30 @@ import type { Scenario } from '../domain/schema';
 import type { NotificationTarget } from '../store/notifications';
 import type { Selection, View } from '../store/projectStore';
 import { getMapInstance } from './mapInstance';
+import type { Finding } from '../validation/validate';
+import { findingPosition, findingSubject } from '../validation/locate';
+
+/**
+ * Select the object a finding is about, highlight the finding and move the map to
+ * it. Returns false when the finding has no object or position on the map.
+ */
+export function focusFinding(
+  scenario: Scenario,
+  f: Finding,
+  select: (s: Selection) => void,
+  setView: (v: View) => void,
+  setFocused: (id: string | null) => void,
+): boolean {
+  const subject = findingSubject(f);
+  const position = findingPosition(f, scenario);
+  setFocused(f.id);
+  if (subject) select(subject);
+  if (!position) return !!subject;
+  setView('map');
+  const map = getMapInstance();
+  map?.flyTo({ center: position, zoom: Math.max(map.getZoom(), 15) });
+  return true;
+}
 
 /** Returns false when the target no longer exists in the scenario. */
 export function focusTarget(

@@ -81,6 +81,10 @@ export interface AppState {
   /** Stations picked so far with the new_service tool, in order. */
   serviceDraft: string[];
   pendingTrackDeletion: PendingTrackDeletion | null;
+  /** The finding highlighted in the validation panel and on the map. */
+  focusedFindingId: string | null;
+  /** Which finding categories show markers on the map. */
+  markerVisibility: Record<'error' | 'warning' | 'recommendation' | 'info', boolean>;
   basemapId: string;
   layers: LayerToggles;
   view: View;
@@ -124,6 +128,8 @@ export interface AppState {
   setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
   setServiceDraft: (ids: string[]) => void;
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
+  setFocusedFinding: (id: string | null) => void;
+  setMarkerVisible: (severity: 'error' | 'warning' | 'recommendation' | 'info', visible: boolean) => void;
   setBasemap: (id: string) => void;
   toggleLayer: (k: keyof LayerToggles) => void;
   setView: (v: View) => void;
@@ -192,6 +198,8 @@ export const useStore = create<AppState>()((set, get) => {
     trackDraw: { double: true, radius: 'default', structure: 'default' },
     serviceDraft: [],
     pendingTrackDeletion: null,
+    focusedFindingId: null,
+    markerVisibility: { error: true, warning: true, recommendation: true, info: false },
     basemapId: DEFAULT_BASEMAP_ID,
     layers: {
       terrain: false,
@@ -283,6 +291,9 @@ export const useStore = create<AppState>()((set, get) => {
     setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
     setServiceDraft: (serviceDraft) => set({ serviceDraft }),
     setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
+    setFocusedFinding: (focusedFindingId) => set({ focusedFindingId }),
+    setMarkerVisible: (severity, visible) =>
+      set({ markerVisibility: { ...get().markerVisibility, [severity]: visible } }),
     setNewLineMode: (newLineMode) => set({ newLineMode }),
     setStationTargetLine: (stationTargetLineId) => set({ stationTargetLineId }),
     setBasemap: (basemapId) => set({ basemapId }),
