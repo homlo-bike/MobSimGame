@@ -16,6 +16,7 @@ import { fetchTrafficSignals, ProviderError } from '../providers/backend';
 import { useStore, useScenario } from '../store/projectStore';
 import { CommitField } from './CommitField';
 import { Badge, Button, Section } from './primitives';
+import { notify } from '../store/notifications';
 
 const STATUS_LABEL: Record<TrafficSignal['timingStatus'], string> = {
   demonstration: 'Placeholder timing (assumed, uncited)',
@@ -49,10 +50,23 @@ export function SignalsPanel() {
         `${added} traffic signal(s) added from OpenStreetMap`,
       );
       setMessage(`${added} new signal(s) found within 15 m of tram and bus lines (OpenStreetMap, ODbL).`);
+      notify({
+        severity: 'success',
+        kind: 'network',
+        title: `${added} traffic signal(s) added`,
+        toast: false,
+      });
     } catch (e) {
-      setMessage(
-        e instanceof ProviderError ? `Not loaded: ${e.message}` : 'Not loaded: the server did not answer',
-      );
+      const msg =
+        e instanceof ProviderError ? `Not loaded: ${e.message}` : 'Not loaded: the server did not answer';
+      setMessage(msg);
+      notify({
+        severity: 'error',
+        kind: 'network',
+        title: 'Traffic signals not loaded',
+        message: msg,
+        toast: false,
+      });
     } finally {
       setBusy(false);
     }

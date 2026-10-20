@@ -92,6 +92,14 @@ direction of travel.
 3. `?share=<id>` loads it read-only into a new browser session; the edit token
    (kept in the sharer's localStorage) allows updates.
 
+## Browser state
+
+The project is the persistent document (Zustand store, undo/redo, autosaved to the
+browser project library). Everything else is UI or runtime state and never enters the
+project: selection, tools, closures, the connection/update status
+(`store/connection.ts`, `runtime/`), and the notification centre
+(`store/notifications.ts`). Caching and updates: [CACHING.md](CACHING.md).
+
 ## Logging
 
 One logger per side, configured at start-up: `backend/app/logging_config.py`

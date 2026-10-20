@@ -44,6 +44,11 @@ export function TableView() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (!useStore.getState().projectActive) {
+      useStore.getState().openProjectGate('create');
+      setErrors(['Create or open a project first, then create the line.']);
+      return;
+    }
     const { coords, errors: errs } = parseCoordinateList(text);
     setErrors(errs);
     if (errs.length) return;

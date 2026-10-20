@@ -6,6 +6,7 @@ import { isRing, updateLine } from '../domain/network';
 import { routeLineOnStreets } from '../routing/routeLine';
 import { useStore } from '../store/projectStore';
 import { backendCapability } from '../providers/backend';
+import { notify } from '../store/notifications';
 import type { Capability } from '../providers/types';
 import { Button, Section } from './primitives';
 
@@ -38,6 +39,12 @@ export function RoutePanel({ line, scenario }: { line: TransportLine; scenario: 
     const outcome = await routeLineOnStreets(scenario, line);
     setBusy(false);
     setMessage(outcome.message);
+    notify({
+      severity: outcome.failed || !outcome.routed ? 'warning' : 'success',
+      kind: 'routing',
+      title: `${line.name}: ${outcome.message}`,
+      target: { lineId: line.id },
+    });
     if (outcome.routed + outcome.failed > 0) commit(outcome.scenario, outcome.message);
     else announce(outcome.message);
   };

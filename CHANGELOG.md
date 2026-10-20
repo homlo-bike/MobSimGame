@@ -8,6 +8,8 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- "Start a network" stayed open after "Draw a line"; it now closes, drawing starts and
+  focus moves to the map; it can also be closed, and returns after Escape.
 - nginx (port 8080) waited only 60 s for the API, so large example networks (bus
   networks) failed with a gateway timeout; it now waits up to 300 s, and the API no
   longer retries a timed-out network query (which exceeded the browser's limit).
@@ -16,6 +18,20 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Connection status** (connected / offline / server unreachable / server problem /
+  updating) from `/api/health`, checked at start, when back online, when the tab is
+  shown again and every 30 s; never "connected" without a healthy answer.
+- **Update detection**: builds publish `/version.json`; open tabs offer an update,
+  check for unsaved work first, save the project, and guard against reload loops.
+  Stale service workers and Cache Storage on the origin are removed
+  (`docs/CACHING.md`).
+- **Notification centre** (🔔): every toast is recorded with severity, time and the
+  related object; repeats are grouped; filter, mark read, dismiss, clear all;
+  selecting one focuses and selects the line or station. Session-only.
+- **Active project required for drawing**: drawing without one opens a create/select
+  dialog and resumes drawing afterwards. Projects are kept in a browser **project
+  library** (File › Switch project); the single stored project of earlier versions
+  migrates automatically.
 - Bus sections that do not follow streets are drawn dashed and labelled
   ("not routed" / "manual"); the Street route panel says when routing is not
   available on the server.

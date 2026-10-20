@@ -73,11 +73,28 @@ export interface AppState {
   /** Polite screen-reader announcements. */
   announcement: string;
   closures: SectionClosure[];
+  /**
+   * Whether the user has an active project (created, opened or restored). On a
+   * first visit the project is an unsaved scratch project and drawing asks the
+   * user to create or select one first. UI state, never saved in the project.
+   */
+  projectActive: boolean;
+  /** The create/select project dialog and the tool to resume afterwards. */
+  projectGate: { open: boolean; mode: 'create' | 'select'; resume: Tool | null };
+  /** The "Start a network" card was closed for this project. */
+  startCardDismissed: boolean;
 
   commitScenario: (scenario: Scenario, label?: string) => void;
   commitProject: (project: Project, label?: string) => void;
   loadProject: (project: Project) => void;
   newProject: () => void;
+  /** Create a new, active project and resume a pending tool if any. */
+  createProject: (input: { name: string; description: string; mapView?: Project['mapView'] }) => Project;
+  /** Make a loaded project the active one and resume a pending tool if any. */
+  activateProject: (project: Project) => void;
+  openProjectGate: (mode: 'create' | 'select', resume?: Tool | null) => void;
+  closeProjectGate: () => void;
+  dismissStartCard: () => void;
   undo: () => void;
   redo: () => void;
   select: (s: Selection) => void;
@@ -123,8 +140,9 @@ const prefersReducedMotion = () =>
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
     : false;
 
-function initialProject(): Project {
-  return loadFromLocalStorage() ?? blankProject();
+function initialProject(): { project: Project; active: boolean } {
+  const stored = loadFromLocalStorage();
+  return stored ? { project: stored, active: true } : { project: blankProject(), active: false };
 }
 
 export const useStore = create<AppState>()((set, get) => {
@@ -138,7 +156,7 @@ export const useStore = create<AppState>()((set, get) => {
       ...(label ? { announcement: label } : {}),
     });
   };
-  const initial = initialProject();
+  const { project: initial, active: initialActive } = initialProject();
   return {
     project: initial,
     past: [],
@@ -165,6 +183,9 @@ export const useStore = create<AppState>()((set, get) => {
     simulationEpoch: 0,
     announcement: '',
     closures: [],
+    projectActive: initialActive,
+    projectGate: { open: false, mode: 'create', resume: null },
+    startCardDismissed: false,
 
     commitScenario: (scenario, label) => push(replaceScenario(get().project, scenario), label),
     commitProject: (project, label) => push(project, label),
@@ -181,12 +202,34 @@ export const useStore = create<AppState>()((set, get) => {
         future: [],
         selection: null,
         closures: [],
+        projectActive: true,
+        startCardDismissed: false,
         // Keep the user's basemap choice across projects; the OSM map is the default.
         basemapId: get().basemapId,
         announcement: `Loaded project ${project.name}`,
       });
     },
-    newProject: () => get().loadProject(blankProject()),
+    newProject: () => get().openProjectGate('create'),
+    createProject: ({ name, description, mapView }) => {
+      const project = {
+        ...blankProject(),
+        name: name.trim() || 'Untitled project',
+        description: description.trim(),
+        // Start where the user is looking, not at the default overview.
+        ...(mapView ? { mapView } : {}),
+      };
+      get().activateProject(project);
+      return project;
+    },
+    activateProject: (project) => {
+      const resume = get().projectGate.resume;
+      get().loadProject(project);
+      set({ projectGate: { open: false, mode: 'create', resume: null } });
+      if (resume) set({ tool: resume });
+    },
+    openProjectGate: (mode, resume = null) => set({ projectGate: { open: true, mode, resume } }),
+    closeProjectGate: () => set({ projectGate: { open: false, mode: 'create', resume: null } }),
+    dismissStartCard: () => set({ startCardDismissed: true }),
     undo: () => {
       const { past, project, future } = get();
       const prev = past[past.length - 1];
@@ -202,7 +245,14 @@ export const useStore = create<AppState>()((set, get) => {
       set({ project: next, past: [...past, project], future: future.slice(1), announcement: 'Redone' });
     },
     select: (selection) => set({ selection }),
-    setTool: (tool) => set({ tool }),
+    setTool: (tool) => {
+      // Lines belong to a project: ask for one first, then resume drawing.
+      if (tool === 'draw_line' && !get().projectActive) {
+        get().openProjectGate('create', 'draw_line');
+        return;
+      }
+      set({ tool });
+    },
     setNewLineMode: (newLineMode) => set({ newLineMode }),
     setStationTargetLine: (stationTargetLineId) => set({ stationTargetLineId }),
     setBasemap: (basemapId) => set({ basemapId }),

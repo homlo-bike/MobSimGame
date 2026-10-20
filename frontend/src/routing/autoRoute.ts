@@ -2,6 +2,7 @@
 import { activeScenario } from '../domain/network';
 import { useStore } from '../store/projectStore';
 import { routeLineOnStreets } from './routeLine';
+import { notify } from '../store/notifications';
 
 export async function autoRoute(lineId: string): Promise<void> {
   const before = activeScenario(useStore.getState().project);
@@ -17,6 +18,14 @@ export async function autoRoute(lineId: string): Promise<void> {
   if (!current || current.alignment.kind !== 'routed') return;
   if (JSON.stringify(current.alignment.waypoints) !== waypoints) return;
   const routed = outcome.scenario.lines.find((l) => l.id === lineId);
+  notify({
+    severity: outcome.failed ? 'warning' : outcome.routed ? 'success' : 'warning',
+    kind: 'routing',
+    title: `${line.name}: ${outcome.message}`,
+    target: { lineId },
+    // Successful automatic re-routing is routine: record it without a toast.
+    toast: outcome.failed > 0 || outcome.routed === 0,
+  });
   if (outcome.routed + outcome.failed > 0 && routed) {
     state.commitScenario(
       { ...now, lines: now.lines.map((l) => (l.id === lineId ? routed : l)) },

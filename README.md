@@ -147,8 +147,10 @@ docker compose up -d --build                      # rebuilds web (8080) and api
 docker compose --profile routing up -d --build    # if you use street routing
 ```
 
-To check which build is running, open **ⓘ Data & licences**: it shows the version and
-the build time. If the build time is older than your pull, you are looking at an old
+Open tabs notice a new deployment by themselves and offer **Update now**; the project
+is saved before the page reloads (details: [docs/CACHING.md](docs/CACHING.md)). The
+footer shows whether the server is reachable. To check which build is running, open
+**ⓘ Data & licences**: it shows the version and the build time. If the build time is older than your pull, you are looking at an old
 image (rebuild), or the browser cached an old page (reload with Ctrl+Shift+R).
 
 ## Troubleshooting: features not visible

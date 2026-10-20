@@ -4,6 +4,7 @@ import { listExampleCities, loadExampleProject, type ExampleCity } from '../api/
 import { ProviderError } from '../providers/backend';
 import { useStore } from '../store/projectStore';
 import { Button } from './primitives';
+import { notify } from '../store/notifications';
 
 export function ExampleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -58,9 +59,23 @@ export function ExampleDialog({ open, onClose }: { open: boolean; onClose: () =>
     try {
       const project = await loadExampleProject(city.id, network.kind);
       loadProject(project);
+      notify({
+        severity: 'success',
+        kind: 'network',
+        title: `Opened ${project.name}`,
+        target: { projectId: project.id },
+      });
       onClose();
     } catch (e) {
-      setError(e instanceof ProviderError ? e.message : 'Loading failed');
+      const msg = e instanceof ProviderError ? e.message : 'Loading failed';
+      setError(msg);
+      notify({
+        severity: 'error',
+        kind: 'network',
+        title: `Could not open ${network.label} of ${city.name}`,
+        message: msg,
+        toast: false,
+      });
     } finally {
       setLoading(false);
     }

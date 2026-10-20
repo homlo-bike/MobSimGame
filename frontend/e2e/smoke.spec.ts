@@ -16,6 +16,14 @@ async function openTestNetwork(page: Page) {
   await expect(page.getByRole('list', { name: 'Lines' }).getByRole('listitem')).toHaveCount(2);
 }
 
+async function createProject(page: Page, name = 'E2E project') {
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'New project…' }).click();
+  await page.getByLabel('Name of the new project').fill(name);
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await expect(page.getByRole('heading', { name: 'New project' })).toHaveCount(0);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
@@ -67,7 +75,11 @@ test('draw a line, add terminal stations, share a station and validate', async (
   const box = (await page.getByTestId('map').boundingBox())!;
   const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
 
+  // Without an active project, drawing first asks for one and then resumes.
   await page.getByRole('button', { name: 'Draw line' }).first().click();
+  await page.getByLabel('Name of the new project').fill('Drawn network');
+  await page.getByRole('button', { name: 'Create and start drawing' }).click();
+  await expect(page.getByRole('heading', { name: 'Start a network' })).toHaveCount(0);
   for (const [fx, fy] of [
     [0.3, 0.75],
     [0.5, 0.7],
@@ -154,9 +166,46 @@ test('animation, closures, schematic and exports work', async ({ page }) => {
 });
 
 test('project persists across reloads', async ({ page }) => {
+  await createProject(page);
   await page.getByText('Scenario', { exact: true }).click();
   await page.getByRole('button', { name: 'Duplicate' }).click();
   await page.waitForTimeout(800);
   await page.reload();
   await expect(page.getByLabel('Active scenario').locator('option')).toHaveCount(2);
+});
+
+test('shows when the server is unreachable and when it recovers', async ({ page }) => {
+  // The preview server has no API: the status must not claim a connection.
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', 'unreachable', {
+    timeout: 10_000,
+  });
+  await page.route('**/api/health', (r) =>
+    r.fulfill({ contentType: 'application/json', body: '{"status":"ok","database":"ok","version":"0.1.0"}' }),
+  );
+  // Returning to the tab triggers a new check.
+  await page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
+  await page.getByRole('button', { name: /Notifications/ }).click();
+  await expect(
+    page.getByRole('list', { name: 'Notification list' }).getByText('Connection to the server restored'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('list', { name: 'Notification list' }).getByText('Cannot reach the MobSimGame server'),
+  ).toBeVisible();
+});
+
+test('detects a new deployment, keeps the project and does not reload in a loop', async ({ page }) => {
+  await createProject(page, 'Kept across update');
+  await page.route('**/version.json*', (r) =>
+    r.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ version: '9.9.9', buildId: 'newer-build', builtAt: '2030-01-01T00:00:00Z' }),
+    }),
+  );
+  await page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await expect(page.getByText('A new version is available')).toBeVisible();
+  await page.getByRole('button', { name: 'Update now' }).click();
+  // The page reloads; the served build is still the old one, so the guard stops a second reload.
+  await expect(page.getByText(/Update not applied/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel('Project name')).toHaveValue('Kept across update');
 });
