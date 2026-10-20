@@ -83,6 +83,7 @@ import {
   regionLabelsCollection,
   curveLabelsCollection,
   conflictsCollection,
+  walkingLinksCollection,
   dimOtherModes,
   platformsCollection,
   stationHandlesCollection,
@@ -961,6 +962,7 @@ export default function MapView() {
     );
     setData(map, SRC.crossovers, crossoversCollection(scenario));
     setData(map, SRC.conflicts, conflictsCollection(scenario, conflicts));
+    setData(map, SRC.walkingLinks, walkingLinksCollection(scenario));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));

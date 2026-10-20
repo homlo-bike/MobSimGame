@@ -644,3 +644,19 @@ export function conflictsCollection(
     }),
   };
 }
+
+/** Walking links between stations as dotted lines. */
+export function walkingLinksCollection(scenario: Scenario): FeatureCollection {
+  const pos = new Map(scenario.stations.map((s) => [s.id, s.position]));
+  const features: Feature[] = [];
+  for (const l of scenario.interchanges) {
+    const pts = l.stationIds.map((id) => pos.get(id)).filter((p): p is LngLat => !!p);
+    if (pts.length >= 2)
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: pts },
+        properties: { linkId: l.id },
+      });
+  }
+  return { type: 'FeatureCollection', features };
+}

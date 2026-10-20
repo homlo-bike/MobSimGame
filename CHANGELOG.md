@@ -40,6 +40,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Walking links between stations** (R4d): modes never share stations, so
+  passengers change on foot. Link a station to another one within 2 km (other modes
+  are offered first) in the station inspector; the link shows the straight-line
+  distance and a walking time calculated at the walking-speed parameter (4.5 km/h,
+  placeholder) or a time you enter. Links are drawn dotted on the map.
+
 - **Crossings and merges in the simulation** (R4c): wherever two lines cross on
   the same level (any modes, also two lines of the same mode on unconnected track
   or streets), only one vehicle at a time uses the crossing. The lower mode in the

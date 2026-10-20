@@ -175,6 +175,18 @@ export const TRACK_PARAMETERS = {
     status: 'demonstration',
     source: PLACEHOLDER,
   },
+  walkingSpeedKmh: {
+    id: 'walkingSpeedKmh',
+    label: 'Walking speed for walking links between stations',
+    unit: 'km/h',
+    defaultValue: 4.5,
+    min: 1,
+    max: 8,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+    notes:
+      'Applied to the straight-line distance; real paths are longer. Enter a measured time per link where known.',
+  },
   minSeparationBusM: {
     id: 'minSeparationBusM',
     label: 'Minimum distance between following buses (simulation)',

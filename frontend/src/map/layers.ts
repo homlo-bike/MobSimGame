@@ -18,6 +18,7 @@ export const SRC = {
   arrows: 'msg-arrows',
   crossovers: 'msg-crossovers',
   conflicts: 'msg-conflicts',
+  walkingLinks: 'msg-walking-links',
   closures: 'msg-closures',
   signals: 'msg-signals',
   routeStatus: 'msg-route-status',
@@ -343,6 +344,14 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-opacity': ['case', ['get', 'dim'], 0.3, 1],
       'circle-stroke-opacity': ['case', ['get', 'dim'], 0.3, 1],
     },
+  });
+  // Walking links between stations: dotted, so they never look like a line or track.
+  add({
+    id: 'msg-walking-link',
+    type: 'line',
+    source: SRC.walkingLinks,
+    layout: { 'line-cap': 'round' },
+    paint: { 'line-color': '#475569', 'line-width': 2, 'line-dasharray': [0.5, 2] },
   });
   // Crossings between lines (any modes): a diamond with the priority shown on hover/label.
   add({
