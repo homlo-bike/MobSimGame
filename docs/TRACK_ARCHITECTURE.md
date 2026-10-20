@@ -69,6 +69,24 @@ Scenario
 | `ui/TrackInspector.tsx` | UI | Track and node inspectors, deletion dialog, parameter panel |
 | `map/overlays.ts`, `map/layers.ts`, `map/MapView.tsx`, `map/drawSync.ts` | map | Rendering and forwarding edits |
 
+## Infrastructure classes and compatibility
+
+- Each track has one primary **infrastructure class**: tram, light rail, metro or
+  railway (`PhysicalTrack.infrastructureClass`). When it is not set, it is derived
+  from the design mode (`domain/compatibility.ts` `DEFAULT_CLASS_FOR_MODE`; an
+  elevated metro builds metro track, commuter rail builds railway track). Bus,
+  BRT, cycling and walking classes exist for the matrix, but those modes are not
+  part of the track graph.
+- A **service mode ↔ class** matrix decides which track a service may use.
+  Routing (`routeThroughStations`, `shortestPath` with a track filter) ignores
+  other track, and a station without allowed track makes the service unrouted
+  with a message. The defaults (each mode its own class; tram ↔ light rail) are a
+  modelling convention of this tool, not a cited rule. Projects override them per
+  mode (`trackNetwork.serviceCompatibility`); a mode always keeps its own class.
+- **Vehicle ↔ track**: a known vehicle gauge must match a known track gauge, and
+  a vehicle with an overhead or third-rail supply needs that electrification.
+  Unknown values never conflict. Violations are errors.
+
 ## Editing rules
 
 - **Draw track**: with a track mode selected, *Draw track* places PIs. The first and

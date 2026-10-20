@@ -53,6 +53,9 @@ set, labelled as such. See the [roadmap](#roadmap).
     order, and on double track the way back uses the other track
     ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
   - Rail lines cannot use "Follows streets" or "Straight segments".
+  - Each track has an infrastructure class (tram, light rail, metro, railway),
+    electrification and gauge. Services are routed only over track their mode may
+    use; the matrix is editable per project (*Infrastructure compatibility*).
 - **Bus and BRT** lines follow streets through waypoints, routed by a self-hosted
   Valhalla server ([docs/ROUTING.md](docs/ROUTING.md)). Unrouted sections make a line
   incomplete until routed or marked manual. Cycling and walking corridors use straight

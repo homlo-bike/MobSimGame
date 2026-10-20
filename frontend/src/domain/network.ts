@@ -491,6 +491,7 @@ export function joinLines(
   const b = scenario.lines.find((l) => l.id === bId);
   if (!a || !b || a.id === b.id) return { scenario, error: 'Choose two different lines' };
   if (isRing(a) || isRing(b)) return { scenario, error: 'Ring lines cannot be joined' };
+  if (a.mode !== b.mode) return { scenario, error: 'Lines of different modes cannot be joined' };
   if (a.alignment.kind === 'track' || b.alignment.kind === 'track')
     return { scenario, error: 'Services on tracks are extended by adding stops, not by joining lines' };
   const aEnd = a.coordinates[a.coordinates.length - 1]!;

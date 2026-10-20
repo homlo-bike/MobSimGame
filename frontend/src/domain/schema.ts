@@ -226,6 +226,8 @@ export const VehicleTypeSchema = z.object({
       'unknown',
     ])
     .default('unknown'),
+  /** Track gauge in millimetres for rail vehicles; null = not specified. */
+  gaugeMm: z.number().int().positive().nullable().default(null),
   /** Platform types the vehicle can serve (free text such as "low-floor 30 cm"); empty = not specified. */
   compatiblePlatforms: z.array(z.string()).default([]),
   status: z.enum(['documented_default', 'user_override', 'demonstration']),
@@ -298,6 +300,22 @@ export type TrackDirection = z.infer<typeof TrackDirectionSchema>;
  * polygon of points of intersection (PIs) with a radius at each interior PI;
  * lines and circular arcs are derived from it (geo/track/alignment.ts).
  */
+/** Primary infrastructure class of a track: which services it is built for. */
+export const InfrastructureClassSchema = z.enum([
+  'tram',
+  'light_rail',
+  'metro',
+  'railway',
+  'bus',
+  'brt',
+  'cycling',
+  'walking',
+]);
+export type InfrastructureClass = z.infer<typeof InfrastructureClassSchema>;
+
+export const ElectrificationSchema = z.enum(['overhead', 'third_rail', 'none', 'unknown']);
+export type Electrification = z.infer<typeof ElectrificationSchema>;
+
 export const PhysicalTrackSchema = z.object({
   id: z.string(),
   name: z.string().default(''),
@@ -313,6 +331,11 @@ export const PhysicalTrackSchema = z.object({
   rightOfWay: RightOfWaySchema,
   /** Mode whose design rules (minimum radius) apply. */
   designMode: TransportModeSchema,
+  /** Primary infrastructure class; null = derived from `designMode` (domain/compatibility.ts). */
+  infrastructureClass: InfrastructureClassSchema.nullable().default(null),
+  /** Track gauge in millimetres; null = not specified. */
+  gaugeMm: z.number().int().positive().nullable().default(null),
+  electrification: ElectrificationSchema.default('unknown'),
   speedLimitKmh: z.number().positive().nullable().default(null),
   /** Double track: both tracks share a group. */
   groupId: z.string().nullable().default(null),
@@ -356,6 +379,8 @@ export const TrackNetworkSchema = z.object({
   runningSide: z.enum(['right', 'left']).default('right'),
   /** User overrides of the parameters in domain/trackParameters.ts, by id. */
   parameterOverrides: z.record(z.string(), z.number()).default({}),
+  /** User overrides of which infrastructure classes a service mode may use (domain/compatibility.ts). */
+  serviceCompatibility: z.partialRecord(TransportModeSchema, z.array(InfrastructureClassSchema)).default({}),
 });
 export type TrackNetwork = z.infer<typeof TrackNetworkSchema>;
 
@@ -366,6 +391,7 @@ export const EMPTY_TRACK_NETWORK: TrackNetwork = {
   groups: [],
   runningSide: 'right',
   parameterOverrides: {},
+  serviceCompatibility: {},
 };
 
 /**

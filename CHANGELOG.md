@@ -29,6 +29,23 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Infrastructure classes and compatibility** (P3-02a):
+  - every track has a primary class (tram, light rail, metro, railway), set in the
+    track inspector or derived from its design rules;
+  - tracks also record electrification and gauge;
+  - rail services are routed only over track their mode may use. By default each
+    mode uses its own class, and tram and light rail may use each other's track;
+    the matrix is a modelling convention, not a cited rule, and is editable per
+    project in *Infrastructure compatibility*;
+  - errors are reported for a service on track its mode may not use, and for a
+    vehicle whose gauge or electrification does not match the track; unknown
+    values never conflict;
+  - vehicle profiles have a gauge;
+  - lines of different modes cannot be joined.
+
+  Loading gauge, platform dimensions, signalling and mode × structure profiles
+  follow in P3-02b.
+
 - **Find a city, district or neighbourhood** in the Regions panel (P3-01b). The
   results show the place type and the places around it. *Go to* zooms to the place.
   *Create region from boundary* imports its OpenStreetMap boundary as a region typed

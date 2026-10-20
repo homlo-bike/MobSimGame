@@ -1,3 +1,4 @@
+import { CompatibilityPanel } from './ui/CompatibilityPanel';
 import { deleteLineWithNotice, finishServiceDraft, requestTrackDeletion } from './store/trackActions';
 import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
@@ -259,6 +260,7 @@ export default function App() {
           <RegionsPanel />
           <SignalsPanel />
           <TrackParametersPanel />
+          <CompatibilityPanel />
           <VehicleProfilesPanel />
           <ScenarioPanel />
           <LayerPanel />
