@@ -7,7 +7,7 @@
  * except for geometry edits which are fed back through `commitScenario`.
  */
 import { create } from 'zustand';
-import type { StructureType, Project, Scenario, TransportMode } from '../domain/schema';
+import type { LngLat, StructureType, Project, Scenario, TransportMode } from '../domain/schema';
 import { activeScenario, duplicateScenario, emptyScenario, replaceScenario } from '../domain/network';
 import { SCHEMA_VERSION } from '../domain/schema';
 import { newId, nowIso } from '../util/id';
@@ -92,6 +92,8 @@ export interface AppState {
   /** Stations picked so far with the new_service tool, in order. */
   serviceDraft: string[];
   pendingTrackDeletion: PendingTrackDeletion | null;
+  /** A drawn track whose last point is back at its first: waiting for "close the loop?". */
+  pendingLoop: LngLat[] | null;
   /** The finding highlighted in the validation panel and on the map. */
   focusedFindingId: string | null;
   /** Which finding categories show markers on the map. */
@@ -139,6 +141,7 @@ export interface AppState {
   setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
   setServiceDraft: (ids: string[]) => void;
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
+  setPendingLoop: (points: LngLat[] | null) => void;
   setFocusedFinding: (id: string | null) => void;
   setMarkerVisible: (severity: 'error' | 'warning' | 'recommendation' | 'info', visible: boolean) => void;
   setBasemap: (id: string) => void;
@@ -209,6 +212,7 @@ export const useStore = create<AppState>()((set, get) => {
     trackDraw: { double: true, radius: 'default', structure: 'default' },
     serviceDraft: [],
     pendingTrackDeletion: null,
+    pendingLoop: null,
     focusedFindingId: null,
     markerVisibility: { error: true, warning: true, recommendation: true, info: false },
     basemapId: DEFAULT_BASEMAP_ID,
@@ -305,6 +309,7 @@ export const useStore = create<AppState>()((set, get) => {
     setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
     setServiceDraft: (serviceDraft) => set({ serviceDraft }),
     setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
+    setPendingLoop: (pendingLoop) => set({ pendingLoop }),
     setFocusedFinding: (focusedFindingId) => set({ focusedFindingId }),
     setMarkerVisible: (severity, visible) =>
       set({ markerVisibility: { ...get().markerVisibility, [severity]: visible } }),

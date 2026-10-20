@@ -27,6 +27,21 @@ All notable changes are documented here. The format follows
 - Imported OpenStreetMap rail lines become a double track fitted with lines and arcs,
   with stations on both tracks and a service routed over them.
 
+### Fixed
+
+- **Track drawing:**
+  - new track joins existing track tangentially, so there is no kink at an open
+    end or at a junction in the middle of a track;
+  - a track closes into a loop only after you confirm it in a dialog;
+  - the drawing tool stays on after each track (Esc stops);
+  - dragging an end onto another track end or onto a track connects them;
+  - clicking an end without dragging no longer makes it jump to a nearby point or
+    close a loop.
+- **Rail services:**
+  - an unrouted service is no longer drawn as straight lines that look like trains
+    jumping between tracks; red dashed "not routed" links show the gaps;
+  - a two-way service without a track path back is now an error.
+
 ### Added
 
 - **Infrastructure classes and compatibility** (P3-02a):

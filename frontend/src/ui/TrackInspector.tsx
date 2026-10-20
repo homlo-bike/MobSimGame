@@ -44,7 +44,7 @@ import { parameter, TRACK_PARAMETERS, type TrackParameterId } from '../domain/tr
 import { CURVE_RADIUS_RULES } from '../domain/modeProfiles';
 import { formatDistance } from '../analysis/units';
 import { useStore } from '../store/projectStore';
-import { requestTrackDeletion, resolveTrackDeletion } from '../store/trackActions';
+import { requestTrackDeletion, resolveLoop, resolveTrackDeletion } from '../store/trackActions';
 import { getMapInstance } from '../map/mapInstance';
 import { validateTrackNetwork } from '../validation/trackValidation';
 import { CommitField } from './CommitField';
@@ -569,5 +569,44 @@ export function TrackParametersPanel() {
         ]}
       />
     </Section>
+  );
+}
+
+/** Asks whether a drawn track that ends at its first point should close into a loop. */
+export function LoopDialog() {
+  const pending = useStore((s) => s.pendingLoop);
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d || !pending) return;
+    if (typeof d.showModal === 'function' && !d.open) d.showModal();
+    else d.setAttribute('open', '');
+  }, [pending]);
+  if (!pending) return null;
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby="track-loop-title"
+      className="max-w-md rounded-lg border border-slate-300 p-4 shadow-xl"
+      onCancel={(e) => {
+        e.preventDefault();
+        resolveLoop('cancel');
+      }}
+    >
+      <h2 id="track-loop-title" className="mb-2 text-base font-semibold">
+        Close the track into a loop?
+      </h2>
+      <p className="mb-3 text-sm">
+        The last point is where the track started. A loop joins the two ends with a curve; otherwise the track
+        keeps two separate ends there.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" onClick={() => resolveLoop(true)}>
+          Close the loop
+        </Button>
+        <Button onClick={() => resolveLoop(false)}>Keep two ends</Button>
+        <Button onClick={() => resolveLoop('cancel')}>Discard the track</Button>
+      </div>
+    </dialog>
   );
 }

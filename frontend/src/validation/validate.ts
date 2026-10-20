@@ -383,6 +383,18 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
       category: 'geometry',
       message: `The service is not routed over the tracks: ${line.alignment.message || 'add stations on tracks and connect them.'}`,
     });
+  } else if (
+    line.alignment.kind === 'track' &&
+    line.direction === 'bidirectional' &&
+    !isRing(line) &&
+    line.alignment.returnPath === null
+  ) {
+    // Trains must be able to get back over the tracks; otherwise the infrastructure is incomplete.
+    add({
+      severity: existingInfrastructure(line) ? 'info' : 'error',
+      category: 'geometry',
+      message: `No track path back: ${line.alignment.message.replace(/^Return direction: /, '') || 'the return direction cannot be routed.'} Add a return track, a crossover or a turning loop.`,
+    });
   } else if (line.alignment.kind === 'track' && line.alignment.message) {
     add({ severity: 'warning', category: 'geometry', message: line.alignment.message });
   }
