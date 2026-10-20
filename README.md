@@ -53,6 +53,9 @@ set, labelled as such. See the [roadmap](#roadmap).
     order, and on double track the way back uses the other track
     ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
   - Rail lines cannot use "Follows streets" or "Straight segments".
+  - Rail stations are objects with their own tracks and side or island
+    platforms, placed, moved and rotated freely and connected by drawing track to
+    their ends; platforms shorter than the trains are an error.
   - Drawing guides (relative to the last leg, parallel to nearby straight track)
     and curve labels with drag handles and a radius editor on the map.
   - Each track has an infrastructure class (tram, light rail, metro, railway),

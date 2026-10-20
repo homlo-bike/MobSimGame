@@ -22,7 +22,8 @@ import {
 import { validateSegments } from '../geo/segments';
 import { validateTrackNetwork } from './trackValidation';
 import { servingLines } from '../domain/stationKinds';
-import { isVehicleCompatible } from '../domain/vehicles';
+import { consistLengthM, isVehicleCompatible } from '../domain/vehicles';
+import { platformLengthM } from '../domain/trackParameters';
 import {
   INFRASTRUCTURE_CLASS_LABELS,
   serviceCanUse,
@@ -448,6 +449,27 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
       for (const [msg, n] of issues)
         add({ severity: 'error', category: 'operations', message: `${msg} (${n} track(s)).` });
     }
+  }
+  // --- Station objects: mode and platform length --------------------------------
+  const consist = consistLengthM(line, vehicle);
+  for (const stop of line.stops) {
+    const st = scenario.stations.find((s) => s.id === stop.stationId);
+    if (!st?.layout) continue;
+    if (st.layout.mode !== line.mode) {
+      add({
+        severity: 'error',
+        category: 'station_alignment',
+        message: `"${st.name}" is a ${MODES[st.layout.mode].label} station; ${MODES[line.mode].label} services cannot call there. Modes are kept separate.`,
+      });
+      continue;
+    }
+    const platformM = st.layout.platformLengthM ?? platformLengthM(scenario.trackNetwork, st.layout.mode);
+    if (consist !== null && consist > platformM + 1e-6)
+      add({
+        severity: 'error',
+        category: 'station_alignment',
+        message: `Platforms at "${st.name}" are ${Math.round(platformM)} m long; trains of this line are ${Math.round(consist)} m. Lengthen the platforms or shorten the trains.`,
+      });
   }
   const fleet = transitMode ? lineFleet(line, scenario) : null;
   if (fleet && fleet.assigned !== null && fleet.shortfall > 0)

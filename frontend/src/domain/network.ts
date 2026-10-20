@@ -291,6 +291,7 @@ export function addStationOnLine(
     construction,
     platformType: 'unknown',
     busStopType: 'unknown',
+    layout: null,
     verticalOffsetM: null,
     entrances: [],
     accessibility: { stepFree: null, elevators: null, tactilePaving: null },

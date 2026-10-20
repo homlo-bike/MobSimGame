@@ -433,6 +433,31 @@ function tangentAtEnd(
   };
 }
 
+/**
+ * For double track: when a drawn end is near two open track ends that lie the track spacing
+ * apart (the end of another double track, or of a two-track station), move it to their
+ * midpoint so both new tracks join them.
+ */
+function snapEndToPair(net: TrackNetwork, p: LngLat, level: number, spacing: number): LngLat {
+  const frame = networkFrame(net, p);
+  const q = frame.toMetres(p);
+  const open = net.nodes
+    .filter((n) => n.level === level && nodeEnds(net, n.id).length === 1)
+    .map((n) => ({ n, v: frame.toMetres(n.position) }))
+    .filter((x) => Math.hypot(x.v[0] - q[0], x.v[1] - q[1]) <= spacing * 1.2);
+  let best: { mid: [number, number]; d: number } | null = null;
+  for (let i = 0; i < open.length; i++)
+    for (let j = i + 1; j < open.length; j++) {
+      const a = open[i]!.v;
+      const b = open[j]!.v;
+      if (Math.abs(Math.hypot(a[0] - b[0], a[1] - b[1]) - spacing) > spacing * 0.15) continue;
+      const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const d = Math.hypot(mid[0] - q[0], mid[1] - q[1]);
+      if (!best || d < best.d) best = { mid, d };
+    }
+  return best ? frame.toLngLat(best.mid) : p;
+}
+
 /** Tangent connections at both ends of a drawn centre line. */
 function tangentEnds(
   net: TrackNetwork,
@@ -491,8 +516,18 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     return { scenario, trackIds: [], groupId: null, error: 'A track needs at least two points' };
   let sc: Scenario = { ...scenario, trackNetwork: withFrame(scenario.trackNetwork, input.points[0]!) };
   const net = sc.trackNetwork;
-  const pts0 = input.loop === false ? input.points : closeLoop(net, input.points);
-  const looped = pts0 !== input.points;
+  let drawn = input.points;
+  if (input.double && net.tracks.length) {
+    const sp = trackSpacingM(net, input.mode);
+    const lvl = input.level ?? levelOfStructure(input.structure ?? MODES[input.mode].defaultStructure);
+    drawn = [
+      snapEndToPair(net, drawn[0]!, lvl, sp),
+      ...drawn.slice(1, -1),
+      snapEndToPair(net, drawn[drawn.length - 1]!, lvl, sp),
+    ];
+  }
+  const pts0 = input.loop === false ? drawn : closeLoop(net, drawn);
+  const looped = pts0 !== drawn;
   // Per-point radii only apply when the points were not reordered.
   const inputRadii = !looped ? input.radii : undefined;
   const structure = input.structure ?? MODES[input.mode].defaultStructure;
@@ -525,6 +560,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     electrification: 'unknown' as const,
     speedLimitKmh: null,
     groupId: null as string | null,
+    stationId: null as string | null,
     origin: input.origin ?? { source: 'user' as const, ref: null, edited: false },
     metadata: {},
     notes: '',
@@ -593,6 +629,48 @@ export function updateTrack(scenario: Scenario, trackId: string, patch: Partial<
     const t = next.tracks.find((x) => x.id === trackId);
     return t ? refreshNodes(next, [t.fromNodeId, t.toNodeId]) : next;
   });
+}
+
+/**
+ * Add one track between two new nodes, without joining anything nearby (station tracks: the
+ * user connects to their ends afterwards).
+ */
+export function addDetachedTrack(
+  scenario: Scenario,
+  points: LngLat[],
+  radii: (number | null)[],
+  base: Omit<PhysicalTrack, 'id' | 'fromNodeId' | 'toNodeId' | 'points' | 'radii'>,
+): { scenario: Scenario; trackId: string } {
+  const node = (p: LngLat): TrackNode => ({
+    id: newId('tn'),
+    position: [p[0], p[1]],
+    level: base.level,
+    kind: 'connection',
+    movementMode: 'auto',
+    movements: [],
+    metadata: {},
+  });
+  const a = node(points[0]!);
+  const b = node(points[points.length - 1]!);
+  const track: PhysicalTrack = {
+    ...base,
+    id: newId('trk'),
+    fromNodeId: a.id,
+    toNodeId: b.id,
+    points: points.slice(1, -1).map((p) => [p[0], p[1]] as LngLat),
+    radii: radii.slice(1, -1),
+  };
+  const net = withFrame(scenario.trackNetwork, points[0]!);
+  return {
+    scenario: touch({
+      ...scenario,
+      trackNetwork: refreshNodes({ ...net, nodes: [...net.nodes, a, b], tracks: [...net.tracks, track] }, [
+        a.id,
+        b.id,
+      ]),
+    }),
+    trackId: track.id,
+  };
 }
 
 /** Replace the interior PIs (and their radii) of a track. */

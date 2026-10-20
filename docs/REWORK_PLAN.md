@@ -25,9 +25,9 @@ with each one.
 
 | # | Item | Status |
 | --- | --- | --- |
-| R1 | Track drawing: tangent connections (drawing and dragging), loop confirmation, draw mode stays on, connect to track ends and along a track, no jump on click; unrouted services shown as gaps; missing return path is an error | PR #15 |
-| R2 | Drawing guides (relative, parallel to track ≤ 100 m, toggle); curve handles and labels on the map, radius editor with slider; double track edited as a pair | this PR |
-| R3 | Station objects: tracks and platforms (side and island platforms, counts ≥ 1), free placement, move and rotate (with guides), platform dimensions, gradient and radius in project settings, platform shorter than the train is an error, station symbols by layout | planned |
+| R1 | Track drawing: tangent connections (drawing and dragging), loop confirmation, draw mode stays on, connect to track ends and along a track, no jump on click; unrouted services shown as gaps; missing return path is an error | merged (#15) |
+| R2 | Drawing guides (relative, parallel to track ≤ 100 m, toggle); curve handles and labels on the map, radius editor with slider; double track edited as a pair | merged (#16) |
+| R3 | Station objects: tracks and platforms (side and island platforms, counts ≥ 1), free placement, move and rotate (with guides), platform dimensions, gradient and radius in project settings, platform shorter than the train is an error, station symbols by layout | this PR (gradient and curve checks for platforms, and elevator/escalator symbols, follow with R6/R8) |
 | R4 | Mode tabs (Bus/BRT, Trolleybus, Tram, Light rail, Metro): separate infrastructure, stations and lines; services only offer stations of their mode; modes never convert; walking interchange links | planned |
 | R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | planned |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |

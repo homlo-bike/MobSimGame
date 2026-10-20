@@ -69,6 +69,40 @@ Scenario
 | `ui/TrackInspector.tsx` | UI | Track and node inspectors, deletion dialog, parameter panel |
 | `map/overlays.ts`, `map/layers.ts`, `map/MapView.tsx`, `map/drawSync.ts` | map | Rendering and forwarding edits |
 
+## Station objects
+
+A rail station is an object with its own tracks and platforms
+(`domain/stationLayout.ts`, `station.layout`), placed anywhere and connected
+afterwards:
+
+- **Layout**: side and island platforms, at least one in total (at most 8 of
+  each). Across the station, left to right facing its direction: half the side
+  platforms (rounded up), the islands, the other side platforms. Each track is
+  served by exactly one platform face: one side = 1 track, two sides = 2, one
+  island = 2, one side + one island = 3.
+- **Sizes**: platform length per mode, side and island platform width, and the
+  track centre distance are track parameters (placeholders; see the Track
+  parameters panel). A station can set its own platform length.
+- **Tracks**: straight along the platforms. Beyond them each track bends with two
+  curves of the mode's default radius back to the normal track spacing, centred on
+  the station (approach length about 3·√(R·d) for a lateral shift d), so single or
+  double track drawn to a station end connects directly. Station tracks carry
+  `stationId`.
+- **Connecting**: a track drawn into a station joins the station end that faces
+  the rest of the drawing (both tracks of a double track at once), never the
+  middle of a platform track. A double track drawn near two open ends the spacing
+  apart joins both.
+- **Moving and rotating**: drag the station (or its platforms) to move it, drag
+  the round handle at either end to rotate it; it lines up with straight track
+  within 100 m (Alt rotates freely). The inspector has number fields for the
+  platforms, length and direction (keyboard path). Track ends are nodes, so track
+  connected to the station follows; services are routed again.
+- **Rules**: a service of another mode cannot call at the station (error), and
+  platforms shorter than a calling line's trains (vehicle length × units per
+  consist) are an error.
+- Stops on existing track without a layout (imported OpenStreetMap networks)
+  keep working as before.
+
 ## Infrastructure classes and compatibility
 
 - Each track has one primary **infrastructure class**: tram, light rail, metro or

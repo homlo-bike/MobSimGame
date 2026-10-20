@@ -16,6 +16,7 @@ import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/
 import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
 import { curveHandles } from '../domain/curveHandles';
+import { stationGeometry } from '../domain/stationLayout';
 import { pointOnSurface } from '@sakuzu/maplibre-gl-draw/geometry';
 import type { Finding, Severity } from '../validation/validate';
 import { SEVERITY_LABELS, SEVERITY_ORDER } from '../validation/validate';
@@ -548,6 +549,39 @@ export function curveLabelsCollection(scenario: Scenario, selectedTrackId: strin
         label: `C${h.number} · ${h.usedM ? `R ${Math.round(h.usedM)} m` : 'sharp corner'}`,
         reduced: h.usedM !== null && h.requestedM !== null && Math.abs(h.usedM - h.requestedM) > 0.5,
       },
+    })),
+  };
+}
+
+/** Platforms of every station object, as polygons. */
+export function platformsCollection(scenario: Scenario, selectedStationId: string | null): FeatureCollection {
+  const features: Feature[] = [];
+  for (const st of scenario.stations) {
+    if (!st.layout) continue;
+    for (const p of stationGeometry(scenario.trackNetwork, st.position, st.layout).platforms)
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [p.ring] },
+        properties: { stationId: st.id, kind: p.kind, selected: st.id === selectedStationId },
+      });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+/** Rotation handles at both ends of the selected station object's axis. */
+export function stationHandlesCollection(
+  scenario: Scenario,
+  selectedStationId: string | null,
+): FeatureCollection {
+  const st = selectedStationId ? scenario.stations.find((s) => s.id === selectedStationId) : undefined;
+  if (!st?.layout) return { type: 'FeatureCollection', features: [] };
+  const g = stationGeometry(scenario.trackNetwork, st.position, st.layout);
+  return {
+    type: 'FeatureCollection',
+    features: g.axis.map((p, i) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: p },
+      properties: { stationId: st.id, end: i },
     })),
   };
 }

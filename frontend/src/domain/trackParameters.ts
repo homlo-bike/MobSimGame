@@ -93,6 +93,67 @@ export const TRACK_PARAMETERS = {
     source: PLACEHOLDER,
     notes: 'Trams usually run on sight; the real value depends on speed and braking.',
   },
+  platformLengthTramM: {
+    id: 'platformLengthTramM',
+    label: 'Platform length, tram',
+    unit: 'm',
+    defaultValue: 45,
+    min: 10,
+    max: 150,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+    notes: 'Set it to the longest tram (all coupled units) plus a margin.',
+  },
+  platformLengthLightRailM: {
+    id: 'platformLengthLightRailM',
+    label: 'Platform length, light rail',
+    unit: 'm',
+    defaultValue: 75,
+    min: 10,
+    max: 250,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+  },
+  platformLengthMetroM: {
+    id: 'platformLengthMetroM',
+    label: 'Platform length, metro',
+    unit: 'm',
+    defaultValue: 120,
+    min: 20,
+    max: 400,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+  },
+  platformLengthRailM: {
+    id: 'platformLengthRailM',
+    label: 'Platform length, commuter rail',
+    unit: 'm',
+    defaultValue: 210,
+    min: 20,
+    max: 450,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+  },
+  sidePlatformWidthM: {
+    id: 'sidePlatformWidthM',
+    label: 'Side platform width',
+    unit: 'm',
+    defaultValue: 3,
+    min: 1,
+    max: 15,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+  },
+  islandPlatformWidthM: {
+    id: 'islandPlatformWidthM',
+    label: 'Island platform width',
+    unit: 'm',
+    defaultValue: 6,
+    min: 2,
+    max: 25,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+  },
   minSeparationBusM: {
     id: 'minSeparationBusM',
     label: 'Minimum distance between following buses (simulation)',
@@ -147,4 +208,20 @@ export function minSeparationM(
   if (mode === 'bus' || mode === 'brt') return parameterValue(network, 'minSeparationBusM');
   if (mode === 'tram' || mode === 'light_rail') return parameterValue(network, 'minSeparationTramM');
   return parameterValue(network, 'minSeparationRailM');
+}
+
+/** Default platform length of a station of this mode. */
+export function platformLengthM(
+  network: Pick<TrackNetwork, 'parameterOverrides'>,
+  mode: TransportMode,
+): number {
+  const id: TrackParameterId =
+    mode === 'tram'
+      ? 'platformLengthTramM'
+      : mode === 'light_rail' || mode === 'custom'
+        ? 'platformLengthLightRailM'
+        : mode === 'commuter_rail'
+          ? 'platformLengthRailM'
+          : 'platformLengthMetroM';
+  return parameterValue(network, id);
 }

@@ -71,7 +71,9 @@ test('opens a real network as existing infrastructure without synthetic figures'
   await expect(page.getByText(/DEMONSTRATION DATA/)).toHaveCount(0);
 });
 
-test('draw double track, place stations, create a service and edit a curve', async ({ page }) => {
+test('place stations, connect them with double track, create a service and edit a curve', async ({
+  page,
+}) => {
   await page.getByText('Map layers').click();
   await page.getByLabel('Basemap', { exact: true }).selectOption('plain');
   await page.waitForTimeout(500);
@@ -82,11 +84,34 @@ test('draw double track, place stations, create a service and edit a curve', asy
     await page.mouse.click(p.x, p.y);
   };
 
+  // Street-level zoom: stations and track are drawn at their real size.
+  await page.getByPlaceholder('Place or "lat, lon"').fill('52.52, 13.40');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: /entered coordinates/ }).click();
+  await page.waitForTimeout(2500);
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.waitForTimeout(700);
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.waitForTimeout(700);
+
   // Without an active project, drawing first asks for one and then resumes.
   await page.getByRole('button', { name: 'Draw track', exact: true }).click();
   await page.getByLabel('Name of the new project').fill('Drawn network');
   await page.getByRole('button', { name: 'Create and start drawing' }).click();
   await expect(page.getByRole('heading', { name: 'Start a network' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // Station objects with their own tracks and platforms (two side platforms: two tracks each).
+  await page.getByRole('button', { name: 'Add station', exact: true }).click();
+  await expect(page.getByLabel('Side platforms for new stations')).toHaveValue('2');
+  await click(0.3, 0.75);
+  await click(0.7, 0.75);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('list', { name: 'Stations' }).getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'Station layout' })).toBeVisible();
+
+  // Double track drawn from one station to the other joins their ends.
+  await page.getByRole('button', { name: 'Draw track', exact: true }).click();
   for (const [fx, fy] of [
     [0.3, 0.75],
     [0.5, 0.6],
@@ -98,36 +123,33 @@ test('draw double track, place stations, create a service and edit a curve', asy
   await expect(page.getByText(/Enter finishes this track and starts the next/)).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByText(/Enter finishes this track and starts the next/)).toHaveCount(0);
-  // Double track: two physical tracks with their own ids.
-  await expect(page.getByRole('heading', { name: 'Track', exact: true })).toBeVisible();
   await expect(page.getByText(/Double track/).first()).toBeVisible();
-  await page.getByText(/^Tracks \(2\)/).click();
-  await expect(page.getByRole('list', { name: 'Tracks' }).getByRole('listitem')).toHaveCount(2);
+  await page.getByText(/^Tracks \(6\)/).click();
+  await expect(page.getByRole('list', { name: 'Tracks' }).getByRole('listitem')).toHaveCount(6);
 
-  // Stations on the track serve both tracks.
-  await page.getByRole('button', { name: 'Add station', exact: true }).click();
-  await click(0.3, 0.75);
-  await click(0.7, 0.75);
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('list', { name: 'Stations' }).getByRole('listitem')).toHaveCount(2);
-
-  // A service calling at both stations, routed over the tracks.
+  // A service calling at both stations, routed over the tracks both ways.
+  // (The map zoomed to the new track; pick the stations by name, the keyboard path.)
   await page.getByRole('button', { name: 'New service', exact: true }).click();
-  await click(0.3, 0.75);
-  await click(0.7, 0.75);
-  await page.keyboard.press('Enter');
+  await page.getByLabel('Add a station').selectOption({ label: 'Station 1' });
+  await page.getByLabel('Add a station').selectOption({ label: 'Station 2' });
+  await page.getByRole('button', { name: 'Create service' }).click();
   await expect(page.getByRole('list', { name: 'Lines' }).getByRole('listitem')).toHaveCount(1);
   await expect(page.getByTestId('track-route-status')).toContainText('Routed over tracks');
   await expect(page.getByText(/out, \d+ back/)).toBeVisible();
 
   // The curve radius is a design input; undo restores it.
-  await page.getByRole('list', { name: 'Tracks' }).getByRole('button').first().click();
-  const radius = page.getByLabel(/Curve C1 radius/);
+  await page
+    .getByRole('list', { name: 'Tracks' })
+    .getByRole('button')
+    .filter({ hasNotText: 'Station' })
+    .first()
+    .click();
+  const radius = page.getByLabel(/Curve C\d radius/).first();
   await radius.fill('40');
   await radius.press('Enter');
   await expect(radius).toHaveValue('40');
   await page.getByRole('button', { name: /Undo/ }).click();
-  await expect(page.getByLabel(/Curve C1 radius/)).not.toHaveValue('40');
+  await expect(page.getByLabel(/Curve C\d radius/).first()).not.toHaveValue('40');
 
   // A bus line created from typed coordinates (non-map editing) can share the first station.
   await page.getByRole('button', { name: /Table/ }).click();
