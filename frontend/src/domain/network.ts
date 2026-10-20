@@ -3,7 +3,7 @@
  * returns a new Scenario so the store can keep undo history by reference.
  */
 import type { LngLat, Scenario, Station, TransportLine, TransportMode, Project, SharedTrack } from './schema';
-import { PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
+import { EMPTY_TRACK_NETWORK, PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
 import { MODES, defaultVehicleTypes } from './modes';
 import { newId, nowIso } from '../util/id';
 import {
@@ -154,6 +154,7 @@ export function createLine(
     vehicleTypeId: vehicle?.id ?? null,
     dwellTimeS: mode.defaultDwellTimeS,
     maxSpeedKmh: mode.defaultMaxSpeedKmh,
+    metadata: {},
     notes: '',
   };
   return { scenario: touch({ ...scenario, lines: [...scenario.lines, line] }), line };
@@ -173,7 +174,8 @@ export function updateLine(scenario: Scenario, lineId: string, patch: Partial<Tr
  */
 export function updateLineGeometry(scenario: Scenario, lineId: string, points: LngLat[]): Scenario {
   const line = scenario.lines.find((l) => l.id === lineId);
-  if (!line) return scenario;
+  // Track services take their geometry from the tracks.
+  if (!line || line.alignment.kind === 'track') return scenario;
   let coords = points;
   if (isRing(line) && coords.length > 3 && distanceM(coords[0]!, coords[coords.length - 1]!) <= 1) {
     coords = coords.slice(0, -1);
@@ -185,18 +187,17 @@ export function updateLineGeometry(scenario: Scenario, lineId: string, points: L
 /** Switch a line between smooth curve, street routing and straight segments. */
 export function setLineAlignmentKind(scenario: Scenario, lineId: string, kind: AlignmentKind): Scenario {
   const line = scenario.lines.find((l) => l.id === lineId);
-  if (!line) return scenario;
-  const { alignment, coordinates } = buildAlignment(
-    kind,
-    line.alignment.kind === 'spline' && kind === 'polyline' ? line.coordinates : editablePoints(line),
-    isRing(line),
-  );
+  // Track services always run on tracks; other modes cannot be switched onto tracks.
+  if (!line || line.alignment.kind === kind || line.alignment.kind === 'track' || kind === 'track')
+    return scenario;
+  const { alignment, coordinates } = buildAlignment(kind, editablePoints(line), isRing(line));
   return reorderStops(updateLine(scenario, lineId, { alignment, coordinates }), lineId);
 }
 
 export function reorderStops(scenario: Scenario, lineId: string): Scenario {
   const line = scenario.lines.find((l) => l.id === lineId);
-  if (!line) return scenario;
+  // A track service keeps the stop order the user chose; its path follows that order.
+  if (!line || line.alignment.kind === 'track') return scenario;
   const ordered = orderedStops(line, scenario.stations);
   const known = new Set(ordered.map((o) => o.station.id));
   const stops = [
@@ -291,6 +292,8 @@ export function addStationOnLine(
     accessibility: { stepFree: null, elevators: null, tactilePaving: null },
     catchmentRadiusM: mode.defaultCatchmentRadiusM,
     notes: '',
+    trackRefs: [],
+    metadata: {},
     imageUrls: [],
   };
   const withStation = touch({ ...scenario, stations: [...scenario.stations, station] });
@@ -411,7 +414,8 @@ function pointFractions(line: TransportLine, points: readonly LngLat[]): number[
 /** Split a line at a fraction into two lines. Stops go to the side they lie on. */
 export function splitLine(scenario: Scenario, lineId: string, fraction: number): Scenario {
   const line = scenario.lines.find((l) => l.id === lineId);
-  if (!line || isRing(line) || fraction <= 0.01 || fraction >= 0.99) return scenario;
+  if (!line || isRing(line) || line.alignment.kind === 'track' || fraction <= 0.01 || fraction >= 0.99)
+    return scenario;
   const splitAt = positionAtFraction(line.coordinates, false, fraction);
   const points = editablePoints(line);
   const fractions = pointFractions(line, points);
@@ -483,6 +487,8 @@ export function joinLines(
   const b = scenario.lines.find((l) => l.id === bId);
   if (!a || !b || a.id === b.id) return { scenario, error: 'Choose two different lines' };
   if (isRing(a) || isRing(b)) return { scenario, error: 'Ring lines cannot be joined' };
+  if (a.alignment.kind === 'track' || b.alignment.kind === 'track')
+    return { scenario, error: 'Services on tracks are extended by adding stops, not by joining lines' };
   const aEnd = a.coordinates[a.coordinates.length - 1]!;
   const dStart = distanceM(aEnd, b.coordinates[0]!);
   const dEnd = distanceM(aEnd, b.coordinates[b.coordinates.length - 1]!);
@@ -615,6 +621,7 @@ export function emptyScenario(name = 'Scenario A'): Scenario {
     name,
     description: '',
     systems: [{ id: newId('sys'), name: 'Network', color: '#0f766e', visible: true }],
+    trackNetwork: { ...EMPTY_TRACK_NETWORK },
     lines: [],
     stations: [],
     platforms: [],

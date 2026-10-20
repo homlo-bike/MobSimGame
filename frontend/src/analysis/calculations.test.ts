@@ -209,6 +209,8 @@ describe('exploratory demand', () => {
       accessibility: { stepFree: null, elevators: null, tactilePaving: null },
       catchmentRadiusM: 500,
       notes: '',
+      trackRefs: [],
+      metadata: {},
       imageUrls: [],
     });
     const uniform = () => 1000; // people per km²

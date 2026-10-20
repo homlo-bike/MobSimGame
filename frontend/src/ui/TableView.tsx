@@ -5,6 +5,8 @@
 import { useId, useState, type FormEvent } from 'react';
 import type { LngLat, TransportMode } from '../domain/schema';
 import { createLine, isInterchange, lineLengthM, linesServingStation } from '../domain/network';
+import { createTracks, defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
+import { addStationOnTracks, afterTrackEdit } from '../domain/serviceRouting';
 import { MODES, MODE_LIST } from '../domain/modes';
 import { formatDistance } from '../analysis/units';
 import { useStore, useScenario } from '../store/projectStore';
@@ -40,7 +42,29 @@ export function TableView() {
   const [mode, setMode] = useState<TransportMode>('tram');
   const [ring, setRing] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-  const ids = { text: useId(), name: useId(), err: useId() };
+  const [double, setDouble] = useState(true);
+  const [radius, setRadius] = useState('');
+  const [stationAt, setStationAt] = useState('');
+  const [stationError, setStationError] = useState<string | null>(null);
+  const ids = { text: useId(), name: useId(), err: useId(), radius: useId(), station: useId() };
+  const rail = isRailMode(mode);
+
+  const addStation = (e: FormEvent) => {
+    e.preventDefault();
+    const { coords, errors: errs } = parseCoordinateList(`${stationAt}\n${stationAt}`);
+    if (errs.length || !coords[0]) return setStationError(errs[0] ?? 'Enter "longitude, latitude"');
+    const res = addStationOnTracks(scenario, coords[0], { maxDistanceM: 200 });
+    if (res.error || !res.station) return setStationError(res.error ?? 'No track within 200 m');
+    setStationError(null);
+    commit(
+      res.scenario,
+      res.reused
+        ? `Station "${res.station.name}" also serves this track`
+        : `Station "${res.station.name}" added`,
+    );
+    select({ kind: 'station', id: res.station.id });
+    setStationAt('');
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -50,8 +74,22 @@ export function TableView() {
       return;
     }
     const { coords, errors: errs } = parseCoordinateList(text);
+    const r = radius.trim() === '' ? undefined : Number(radius);
+    if (r !== undefined && !(r > 0)) errs.push('The radius must be a positive number of metres');
     setErrors(errs);
     if (errs.length) return;
+    if (rail) {
+      const pts = ring ? [...coords, coords[0]!] : coords;
+      const t = createTracks(scenario, { points: pts, mode, double, radiusM: r });
+      if (t.error) return setErrors([t.error]);
+      commit(
+        afterTrackEdit(t.scenario, t.trackIds),
+        `${double ? 'Double track' : 'Track'} created from ${coords.length} coordinates`,
+      );
+      select({ kind: 'track', id: t.trackIds[0]! });
+      setText('');
+      return;
+    }
     const res = createLine(scenario, {
       coordinates: coords,
       mode,
@@ -66,7 +104,10 @@ export function TableView() {
 
   return (
     <div className="h-full overflow-auto bg-white">
-      <Section title="Create a line from coordinates" id="create-line">
+      <Section
+        title={rail ? 'Create track from coordinates' : 'Create a line from coordinates'}
+        id="create-line"
+      >
         <form onSubmit={submit} aria-describedby={errors.length ? ids.err : undefined}>
           {errors.length > 0 && (
             <div
@@ -93,31 +134,131 @@ export function TableView() {
             className="mb-2 w-full rounded border border-slate-500 p-1 font-mono text-sm"
             placeholder={'0.0000, 0.0100\n0.0200, 0.0100'}
           />
-          <label htmlFor={ids.name} className="block text-xs font-medium">
-            Line name (optional)
-          </label>
-          <input
-            id={ids.name}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mb-2 w-full rounded border border-slate-500 px-2 py-1 text-sm"
-          />
+          {!rail && (
+            <>
+              <label htmlFor={ids.name} className="block text-xs font-medium">
+                Line name (optional)
+              </label>
+              <input
+                id={ids.name}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mb-2 w-full rounded border border-slate-500 px-2 py-1 text-sm"
+              />
+            </>
+          )}
           <SelectField
-            label="Mode"
+            label="Mode of the new track or line"
             value={mode}
             onChange={(e) => setMode(e.target.value as TransportMode)}
             options={MODE_LIST.map((m) => ({ value: m, label: MODES[m].label }))}
           />
+          {rail && (
+            <>
+              <Checkbox label="Double track (two physical tracks)" checked={double} onChange={setDouble} />
+              <label htmlFor={ids.radius} className="block text-xs font-medium">
+                Curve radius at each interior point (m; empty = default {defaultRadiusM(mode) ?? 'none'} m
+                {double ? ', inner track' : ''})
+              </label>
+              <input
+                id={ids.radius}
+                type="number"
+                min={1}
+                value={radius}
+                onChange={(e) => setRadius(e.target.value)}
+                className="mb-2 w-32 rounded border border-slate-500 px-2 py-1 text-sm"
+              />
+            </>
+          )}
           <Checkbox
-            label="Ring line (closes back to the first coordinate)"
+            label={
+              rail
+                ? 'Closed loop (back to the first coordinate)'
+                : 'Ring line (closes back to the first coordinate)'
+            }
             checked={ring}
             onChange={setRing}
           />
           <Button type="submit" variant="primary">
-            Create line
+            {rail ? 'Create track' : 'Create line'}
           </Button>
         </form>
-        <p className="mt-2 text-xs text-slate-600">Then add stations by chainage in the line inspector.</p>
+        <p className="mt-2 text-xs text-slate-600">
+          {rail
+            ? 'Then add stations on the track below and create a service with the “New service” tool (its station list works without the map).'
+            : 'Then add stations by chainage in the line inspector.'}
+        </p>
+      </Section>
+      <Section title="Add a station on tracks" id="table-add-station">
+        <form onSubmit={addStation}>
+          <label htmlFor={ids.station} className="block text-xs font-medium">
+            Position “longitude, latitude” (the station snaps to the nearest track within 200 m)
+          </label>
+          <input
+            id={ids.station}
+            value={stationAt}
+            onChange={(e) => setStationAt(e.target.value)}
+            className="mb-2 w-full rounded border border-slate-500 px-2 py-1 font-mono text-sm"
+            aria-describedby={stationError ? `${ids.station}-err` : undefined}
+          />
+          {stationError && (
+            <p id={`${ids.station}-err`} role="alert" className="mb-1 text-sm text-red-800">
+              ⛔ {stationError}
+            </p>
+          )}
+          <Button type="submit">Add station at this position</Button>
+        </form>
+      </Section>
+      <Section title={`Tracks (${scenario.trackNetwork.tracks.length})`} id="table-tracks">
+        <table className="w-full text-sm">
+          <caption className="sr-only">Tracks in {scenario.name}</caption>
+          <thead>
+            <tr>
+              <th scope="col" className="text-start">
+                Track
+              </th>
+              <th scope="col" className="text-start">
+                Structure
+              </th>
+              <th scope="col" className="text-end">
+                Length
+              </th>
+              <th scope="col" className="text-start ps-2">
+                Direction
+              </th>
+              <th scope="col" className="text-start ps-2">
+                Double
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenario.trackNetwork.tracks.map((t, i) => (
+              <tr key={t.id}>
+                <th scope="row" className="text-start font-normal">
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => select({ kind: 'track', id: t.id })}
+                  >
+                    {t.name || `Track ${i + 1}`}
+                  </button>
+                </th>
+                <td>{t.structure}</td>
+                <td className="text-end">
+                  {formatDistance(trackGeometry(scenario.trackNetwork, t).lengthM, unitSystem)}
+                </td>
+                <td className="ps-2">
+                  {t.direction === 'both'
+                    ? 'Both'
+                    : t.direction === 'forward'
+                      ? 'Drawn direction'
+                      : 'Against drawn'}
+                </td>
+                <td className="ps-2">{t.groupId ? 'Yes' : 'No'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Section>
       <Section title="Lines" id="table-lines">
         <table className="w-full text-sm">

@@ -8,11 +8,13 @@
  * (import, load, local storage) and the TypeScript types used in the app.
  */
 import { z } from 'zod';
-import { migrateProjectData } from './migrate';
 
-export const SCHEMA_VERSION = 2;
-/** Older versions that `domain/migrate.ts` can upgrade. */
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const;
+/**
+ * Schema 3 separates physical track (scenario.trackNetwork) from services
+ * (lines). Older, unpublished formats are not migrated (owner decision).
+ */
+export const SCHEMA_VERSION = 3;
+export const SUPPORTED_SCHEMA_VERSIONS = [3] as const;
 
 /** [longitude, latitude] with range checks. */
 export const LngLatSchema = z
@@ -191,6 +193,119 @@ export const RouteLegSchema = z.object({
 });
 export type RouteLeg = z.infer<typeof RouteLegSchema>;
 
+/** Free key/value metadata for user-defined fields (e.g. "owner", "built"). */
+export const MetadataSchema = z.record(z.string(), z.string());
+export type Metadata = z.infer<typeof MetadataSchema>;
+
+/** Vertical level: 0 = ground, negative = below ground, positive = above ground. */
+export const LevelSchema = z.number().int().min(-9).max(9);
+
+export const TrackEndSchema = z.enum(['start', 'end']);
+export type TrackEnd = z.infer<typeof TrackEndSchema>;
+
+export const TrackEndRefSchema = z.object({ trackId: z.string(), end: TrackEndSchema });
+export type TrackEndRef = z.infer<typeof TrackEndRefSchema>;
+
+/** A permitted movement through a node between two track ends (both ways). */
+export const MovementSchema = z.object({ a: TrackEndRefSchema, b: TrackEndRefSchema });
+export type Movement = z.infer<typeof MovementSchema>;
+
+/**
+ * A point where track ends meet. Tracks are connected only through nodes and
+ * only along permitted movements: two tracks that merely cross on the map are
+ * not connected (bridges, tunnels, or a missing crossing).
+ */
+export const TrackNodeSchema = z.object({
+  id: z.string(),
+  position: LngLatSchema,
+  level: LevelSchema.default(0),
+  kind: z.enum(['connection', 'buffer_stop']).default('connection'),
+  /** auto: movements follow the geometry (no reversing); manual: as listed. */
+  movementMode: z.enum(['auto', 'manual']).default('auto'),
+  movements: z.array(MovementSchema).default([]),
+  metadata: MetadataSchema.default({}),
+});
+export type TrackNode = z.infer<typeof TrackNodeSchema>;
+
+/** Running direction permitted on a track, relative to its from → to orientation. */
+export const TrackDirectionSchema = z.enum(['both', 'forward', 'backward']);
+export type TrackDirection = z.infer<typeof TrackDirectionSchema>;
+
+/**
+ * One physical track between two nodes. The editable horizontal alignment is a
+ * polygon of points of intersection (PIs) with a radius at each interior PI;
+ * lines and circular arcs are derived from it (geo/track/alignment.ts).
+ */
+export const PhysicalTrackSchema = z.object({
+  id: z.string(),
+  name: z.string().default(''),
+  fromNodeId: z.string(),
+  toNodeId: z.string(),
+  /** Interior PIs, [lng, lat]; the ends are the node positions. */
+  points: z.array(LngLatSchema).default([]),
+  /** Radius in metres at each interior PI; null = no curve (a kink). */
+  radii: z.array(z.number().positive().finite().nullable()).default([]),
+  direction: TrackDirectionSchema.default('both'),
+  structure: StructureTypeSchema,
+  level: LevelSchema.default(0),
+  rightOfWay: RightOfWaySchema,
+  /** Mode whose design rules (minimum radius) apply. */
+  designMode: TransportModeSchema,
+  speedLimitKmh: z.number().positive().nullable().default(null),
+  /** Double track: both tracks share a group. */
+  groupId: z.string().nullable().default(null),
+  origin: z
+    .object({
+      source: z.enum(['user', 'osm']),
+      ref: z.string().nullable().default(null),
+      edited: z.boolean().default(false),
+    })
+    .default({ source: 'user', ref: null, edited: false }),
+  metadata: MetadataSchema.default({}),
+  notes: z.string().default(''),
+});
+export type PhysicalTrack = z.infer<typeof PhysicalTrackSchema>;
+
+/** Tracks laid together (members are the tracks whose `groupId` is this id). */
+export const TrackGroupSchema = z.object({
+  id: z.string(),
+  kind: z.literal('double'),
+  /** Distance between track centres, metres. */
+  spacingM: z.number().positive(),
+});
+export type TrackGroup = z.infer<typeof TrackGroupSchema>;
+
+/** A traversal of (part of) one track; fractions are in the track's own from → to orientation. */
+export const TrackStepSchema = z.object({
+  trackId: z.string(),
+  reversed: z.boolean(),
+  from: z.number().min(0).max(1),
+  to: z.number().min(0).max(1),
+});
+export type TrackStep = z.infer<typeof TrackStepSchema>;
+
+export const TrackNetworkSchema = z.object({
+  /** Origin of the project metric frame (geo/track/projection.ts); set by the first track. */
+  frameOrigin: LngLatSchema.nullable().default(null),
+  nodes: z.array(TrackNodeSchema).default([]),
+  tracks: z.array(PhysicalTrackSchema).default([]),
+  groups: z.array(TrackGroupSchema).default([]),
+  /** Default running side for new double track. */
+  runningSide: z.enum(['right', 'left']).default('right'),
+  /** User overrides of the parameters in domain/trackParameters.ts, by id. */
+  parameterOverrides: z.record(z.string(), z.number()).default({}),
+});
+export type TrackNetwork = z.infer<typeof TrackNetworkSchema>;
+
+export const EMPTY_TRACK_NETWORK: TrackNetwork = {
+  frameOrigin: null,
+  nodes: [],
+  tracks: [],
+  groups: [],
+  runningSide: 'right',
+  parameterOverrides: {},
+};
+
 /**
  * How a line's geometry is produced. `coordinates` always holds the resulting
  * geometry that every measurement uses; the alignment keeps what the user edits.
@@ -198,8 +313,19 @@ export type RouteLeg = z.infer<typeof RouteLegSchema>;
 export const AlignmentSchema = z.discriminatedUnion('kind', [
   /** Straight segments between the vertices in `coordinates` (cycling, walking, custom). */
   z.object({ kind: z.literal('polyline') }),
-  /** Smooth curve (centripetal Catmull–Rom) through the control points; for track-guided modes. */
-  z.object({ kind: z.literal('spline'), controlPoints: z.array(LngLatSchema) }),
+  /**
+   * Track-guided service routed over the physical track network. `path` is the
+   * outbound route from the first to the last stop; `returnPath` the way back
+   * (on double track the other track). Geometry is derived from the tracks.
+   */
+  z.object({
+    kind: z.literal('track'),
+    path: z.array(TrackStepSchema),
+    returnPath: z.array(TrackStepSchema).nullable().default(null),
+    /** routed: a permitted path exists; unrouted: see `message`. */
+    status: z.enum(['routed', 'unrouted']),
+    message: z.string().default(''),
+  }),
   /** Street-following route through waypoints; one leg per pair of consecutive waypoints. */
   z.object({
     kind: z.literal('routed'),
@@ -261,6 +387,7 @@ export const TransportLineSchema = z.object({
   vehicleTypeId: z.string().nullable(),
   dwellTimeS: z.number().nonnegative(),
   maxSpeedKmh: z.number().positive(),
+  metadata: MetadataSchema.default({}),
   notes: z.string().default(''),
 });
 export type TransportLine = z.infer<typeof TransportLineSchema>;
@@ -288,6 +415,9 @@ export const StationSchema = z.object({
     })
     .default({ stepFree: null, elevators: null, tactilePaving: null }),
   catchmentRadiusM: z.number().positive(),
+  /** Tracks this station serves (platform tracks), as fractions along each track. */
+  trackRefs: z.array(z.object({ trackId: z.string(), fraction: z.number().min(0).max(1) })).default([]),
+  metadata: MetadataSchema.default({}),
   notes: z.string().default(''),
   imageUrls: z.array(z.string().url()).default([]),
 });
@@ -392,6 +522,7 @@ export const ScenarioSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(''),
   systems: z.array(TransportSystemSchema),
+  trackNetwork: TrackNetworkSchema.default(EMPTY_TRACK_NETWORK),
   lines: z.array(TransportLineSchema),
   stations: z.array(StationSchema),
   platforms: z.array(PlatformSchema).default([]),
@@ -414,6 +545,7 @@ export const ProjectSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   description: z.string().default(''),
+  metadata: MetadataSchema.default({}),
   /** True for synthetic/demonstration projects. Shown prominently in the UI. */
   fictional: z.boolean(),
   mapView: z.object({ center: LngLatSchema, zoom: z.number(), bearing: z.number(), pitch: z.number() }),
@@ -430,7 +562,20 @@ export type Project = z.infer<typeof ProjectSchema>;
 export function parseProject(
   data: unknown,
 ): { ok: true; project: Project } | { ok: false; errors: string[] } {
-  const result = ProjectSchema.safeParse(migrateProjectData(data));
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { schemaVersion?: unknown }).schemaVersion === 'number' &&
+    (data as { schemaVersion: number }).schemaVersion < SCHEMA_VERSION
+  )
+    return {
+      ok: false,
+      errors: [
+        `This project was saved in an older, unpublished format (schema ${(data as { schemaVersion: number }).schemaVersion}). ` +
+          `It cannot be opened by this version (schema ${SCHEMA_VERSION}); please start a new project.`,
+      ],
+    };
+  const result = ProjectSchema.safeParse(data);
   if (result.success) {
     const refErrors = checkReferences(result.data);
     if (refErrors.length) return { ok: false, errors: refErrors };
@@ -460,6 +605,23 @@ export function checkReferences(project: Project): string[] {
         }
       }
     }
+    const net = s.trackNetwork;
+    const nodeIds = new Set(net.nodes.map((n) => n.id));
+    const trackIds = new Set(net.tracks.map((t) => t.id));
+    for (const t of net.tracks) {
+      if (!nodeIds.has(t.fromNodeId) || !nodeIds.has(t.toNodeId))
+        errors.push(`Scenario "${s.name}": track ${t.id} references a missing node`);
+      if (t.radii.length !== t.points.length)
+        errors.push(`Scenario "${s.name}": track ${t.id} needs one radius entry per point`);
+    }
+    const groupIds = new Set(net.groups.map((g) => g.id));
+    for (const t of net.tracks)
+      if (t.groupId && !groupIds.has(t.groupId))
+        errors.push(`Scenario "${s.name}": track ${t.id} references missing group ${t.groupId}`);
+    for (const st of s.stations)
+      for (const r of st.trackRefs)
+        if (!trackIds.has(r.trackId))
+          errors.push(`Scenario "${s.name}": station "${st.name}" references missing track ${r.trackId}`);
     for (const st of s.sharedTracks) {
       for (const m of st.members) {
         if (!lineIds.has(m.lineId)) errors.push(`Shared track ${st.id} references missing line ${m.lineId}`);

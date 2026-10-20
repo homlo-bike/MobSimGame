@@ -18,6 +18,15 @@ import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 import { CommitField } from './CommitField';
 import { getMapInstance } from '../map/mapInstance';
 import { createLogger } from '../util/logger';
+import {
+  rerouteServices,
+  setServiceStops,
+  setStationTrack,
+  stationLevel,
+  suggestStationTracks,
+} from '../domain/serviceRouting';
+import { parameterValue } from '../domain/trackParameters';
+import { MetadataEditor } from './MetadataEditor';
 
 const log = createLogger('station-inspector');
 
@@ -221,6 +230,11 @@ export function StationInspector({ station, scenario }: { station: Station; scen
           />
         </fieldset>
         <CommitField label="Notes" value={station.notes} onCommit={(v) => patch({ notes: v })} />
+        <MetadataEditor
+          value={station.metadata}
+          onChange={(metadata) => patch({ metadata }, 'Station details changed')}
+          idPrefix={`station-${station.id}`}
+        />
         <CommitField
           label="Image URL (https)"
           value={station.imageUrls[0] ?? ''}
@@ -233,6 +247,74 @@ export function StationInspector({ station, scenario }: { station: Station; scen
         <p className="text-xs text-slate-700">
           Entrances: {station.entrances.length} (entrance editing is planned for Phase 2)
         </p>
+      </Section>
+
+      <Section title={`Tracks at this station (${station.trackRefs.length})`} id="station-tracks">
+        {(() => {
+          const net = scenario.trackNetwork;
+          const radius = parameterValue(net, 'stationTrackSearchM');
+          const near = suggestStationTracks(scenario, station.position, stationLevel(station));
+          const ids = [
+            ...new Set([...station.trackRefs.map((r) => r.trackId), ...near.map((h) => h.track.id)]),
+          ];
+          if (!ids.length)
+            return (
+              <p className="text-sm text-slate-700">
+                No track within {radius} m on this level. Services on tracks can only call at stations on
+                tracks.
+              </p>
+            );
+          return (
+            <>
+              <p className="mb-1 text-xs text-slate-600">
+                Tracks within {radius} m on the same level are suggested (set the distance under Track
+                parameters). Services stop on the ticked tracks.
+              </p>
+              <ul className="space-y-0.5 text-sm">
+                {ids.map((id) => {
+                  const i = net.tracks.findIndex((t) => t.id === id);
+                  const t = net.tracks[i];
+                  if (!t) return null;
+                  const served = station.trackRefs.some((r) => r.trackId === id);
+                  const hit = near.find((h) => h.track.id === id);
+                  const cid = `st-${station.id}-trk-${id}`;
+                  return (
+                    <li key={id} className="flex items-center gap-2">
+                      <input
+                        id={cid}
+                        type="checkbox"
+                        checked={served}
+                        onChange={(e) =>
+                          commit(
+                            setStationTrack(scenario, station.id, id, e.target.checked),
+                            e.target.checked
+                              ? 'Track added to the station'
+                              : 'Track removed from the station',
+                          )
+                        }
+                      />
+                      <label htmlFor={cid} className="flex-1">
+                        {t.name || `Track ${i + 1}`}
+                        <span className="text-xs text-slate-600">
+                          {hit
+                            ? ` · ${hit.distanceM.toFixed(1)} m away`
+                            : ' · further away or on another level'}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="text-xs underline"
+                        onClick={() => select({ kind: 'track', id })}
+                      >
+                        show
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          );
+        })()}
       </Section>
 
       <Section title={`Lines at this station (${lines.length})`} id="station-lines">
@@ -250,7 +332,18 @@ export function StationInspector({ station, scenario }: { station: Station; scen
               <Button
                 variant="ghost"
                 aria-label={`Remove from ${l.name}`}
-                onClick={() => commit(removeStopFromLine(scenario, l.id, station.id), 'Stop removed')}
+                onClick={() =>
+                  commit(
+                    l.alignment.kind === 'track'
+                      ? setServiceStops(
+                          scenario,
+                          l.id,
+                          l.stops.filter((x) => x.stationId !== station.id).map((x) => x.stationId),
+                        )
+                      : removeStopFromLine(scenario, l.id, station.id),
+                    'Stop removed',
+                  )
+                }
               >
                 ✕
               </Button>
@@ -263,18 +356,34 @@ export function StationInspector({ station, scenario }: { station: Station; scen
             value=""
             onChange={(e) =>
               e.target.value &&
-              commit(addExistingStationToLine(scenario, e.target.value, station.id), 'Station shared')
+              commit(
+                otherLines.find((l) => l.id === e.target.value)?.alignment.kind === 'track'
+                  ? setServiceStops(scenario, e.target.value, [
+                      ...otherLines.find((l) => l.id === e.target.value)!.stops.map((x) => x.stationId),
+                      station.id,
+                    ])
+                  : addExistingStationToLine(scenario, e.target.value, station.id),
+                'Station shared',
+              )
             }
             options={[
               { value: '', label: 'Choose a line…' },
-              ...otherLines.map((l) => ({ value: l.id, label: l.name })),
+              ...otherLines
+                .filter((l) => l.alignment.kind !== 'track' || station.trackRefs.length > 0)
+                .map((l) => ({ value: l.id, label: l.name })),
             ]}
           />
         )}
         <Button
           variant="danger"
           onClick={() => {
-            commit(deleteStation(scenario, station.id), `Station "${station.name}" deleted`);
+            commit(
+              rerouteServices(
+                deleteStation(scenario, station.id),
+                lines.filter((l) => l.alignment.kind === 'track').map((l) => l.id),
+              ),
+              `Station "${station.name}" deleted`,
+            );
             select(null);
           }}
         >

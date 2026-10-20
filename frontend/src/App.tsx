@@ -1,3 +1,5 @@
+import { finishServiceDraft, requestTrackDeletion } from './store/trackActions';
+import { rerouteServices } from './domain/serviceRouting';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useStore, useScenario } from './store/projectStore';
 import { saveToLocalStorage } from './store/persistence';
@@ -6,6 +8,12 @@ import { fetchSharedProject } from './api/projects';
 import { Header } from './ui/Header';
 import { LayerPanel, NetworkLists, ScenarioPanel, SearchBox, ToolPanel } from './ui/Sidebar';
 import { LineInspector } from './ui/LineInspector';
+import {
+  NodeInspector,
+  TrackDeletionDialog,
+  TrackInspector,
+  TrackParametersPanel,
+} from './ui/TrackInspector';
 import { StationInspector } from './ui/StationInspector';
 import { SimulationControls } from './ui/SimulationControls';
 import { SchematicView } from './ui/SchematicView';
@@ -54,6 +62,14 @@ function Inspector() {
     const line = scenario.lines.find((l) => l.id === id);
     if (line) return <LineInspector key={line.id} line={line} scenario={scenario} />;
   }
+  if (selection?.kind === 'track') {
+    const track = scenario.trackNetwork.tracks.find((t) => t.id === selection.id);
+    if (track) return <TrackInspector key={track.id} track={track} scenario={scenario} />;
+  }
+  if (selection?.kind === 'node') {
+    const node = scenario.trackNetwork.nodes.find((n) => n.id === selection.id);
+    if (node) return <NodeInspector key={node.id} node={node} scenario={scenario} />;
+  }
   if (selection?.kind === 'signal') {
     const signal = scenario.trafficSignals.find((s) => s.id === selection.id);
     if (signal) return <SignalInspector key={signal.id} signal={signal} scenario={scenario} />;
@@ -66,7 +82,7 @@ function Inspector() {
     <>
       <Section title={t('inspector')} id="inspector-empty">
         <p className="text-sm text-slate-700">
-          Select a line or station on the map or in the lists to edit it.
+          Select a track, node, line or station on the map or in the lists to edit it.
         </p>
       </Section>
       <Section title="Display" id="display" collapsible defaultOpen={false}>
@@ -165,6 +181,9 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === 'y' && !isEditableTarget(e.target)) {
         e.preventDefault();
         state.redo();
+      } else if (e.key === 'Enter' && state.tool === 'new_service' && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        finishServiceDraft();
       } else if (e.key === 'Escape' && state.tool !== 'select') {
         state.setTool('select');
         state.announce('Tool cancelled');
@@ -175,8 +194,19 @@ export default function App() {
       ) {
         const sc = activeScenario(state.project);
         const sel = state.selection;
-        if (sel.kind === 'station') state.commitScenario(deleteStation(sc, sel.id), 'Station deleted');
-        else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        if (sel.kind === 'station') {
+          const serving = sc.lines.filter(
+            (l) => l.alignment.kind === 'track' && l.stops.some((x) => x.stationId === sel.id),
+          );
+          state.commitScenario(
+            rerouteServices(
+              deleteStation(sc, sel.id),
+              serving.map((l) => l.id),
+            ),
+            'Station deleted',
+          );
+        } else if (sel.kind === 'line') state.commitScenario(deleteLine(sc, sel.id), 'Line deleted');
+        else if (sel.kind === 'track') requestTrackDeletion([sel.id]);
         state.select(null);
         e.preventDefault();
       }
@@ -221,6 +251,7 @@ export default function App() {
           <ToolPanel />
           <NetworkLists />
           <SignalsPanel />
+          <TrackParametersPanel />
           <ScenarioPanel />
           <LayerPanel />
         </aside>
@@ -233,6 +264,7 @@ export default function App() {
           </div>
           {view === 'map' &&
             scenario.lines.length === 0 &&
+            scenario.trackNetwork.tracks.length === 0 &&
             tool === 'select' &&
             !startCardDismissed &&
             !projectGateOpen && (
@@ -255,13 +287,13 @@ export default function App() {
                 </div>
                 <p className="mb-3 text-sm text-slate-700">
                   Open a city’s existing tram, metro or bus network, or search for a place and draw your own
-                  lines.
+                  track and lines.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="primary" onClick={() => setExamplesOpen(true)}>
                     Open a real network…
                   </Button>
-                  <Button onClick={startDrawing}>Draw a line</Button>
+                  <Button onClick={startDrawing}>Draw track or a line</Button>
                 </div>
               </section>
             )}
@@ -292,6 +324,7 @@ export default function App() {
       <Toast />
       <DataSourcesDialog open={dataOpen} onClose={() => setDataOpen(false)} />
       {projectGateOpen && <ProjectGate />}
+      <TrackDeletionDialog />
       {examplesOpen && <ExampleDialog open={examplesOpen} onClose={() => setExamplesOpen(false)} />}
     </div>
   );

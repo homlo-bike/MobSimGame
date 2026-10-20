@@ -9,7 +9,12 @@ import { CAPABILITY_LABELS, type GeocodeResult } from '../providers/types';
 import { getMapInstance } from '../map/mapInstance';
 import { Badge, Button, Checkbox, Section, SelectField } from './primitives';
 import { t } from '../i18n';
-import type { TransportMode } from '../domain/schema';
+import type { StructureType, TransportMode } from '../domain/schema';
+import { STRUCTURE_LABELS } from '../domain/modes';
+import { defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
+import { trackSpacingM } from '../domain/trackParameters';
+import { finishServiceDraft } from '../store/trackActions';
+import { CommitField } from './CommitField';
 
 export function SearchBox() {
   const [q, setQ] = useState('');
@@ -88,15 +93,29 @@ export function ToolPanel() {
   const target = useStore((s) => s.stationTargetLineId);
   const setTarget = useStore((s) => s.setStationTargetLine);
   const scenario = useScenario();
+  const trackDraw = useStore((s) => s.trackDraw);
+  const setTrackDraw = useStore((s) => s.setTrackDraw);
+  const draft = useStore((s) => s.serviceDraft);
+  const setDraft = useStore((s) => s.setServiceDraft);
+  const rail = isRailMode(mode);
+  const hasTracks = scenario.trackNetwork.tracks.length > 0;
+  const onTrackStations = scenario.stations.filter((st) => st.trackRefs.length > 0);
   const tools: { id: typeof tool; label: string; disabled?: boolean }[] = [
     { id: 'select', label: t('toolSelect') },
-    { id: 'draw_line', label: t('toolDrawLine') },
-    { id: 'add_station', label: t('toolAddStation'), disabled: scenario.lines.length === 0 },
+    { id: 'draw_line', label: rail ? 'Draw track' : t('toolDrawLine') },
+    {
+      id: 'add_station',
+      label: t('toolAddStation'),
+      disabled: rail ? !hasTracks : scenario.lines.length === 0 && !hasTracks,
+    },
+    { id: 'new_service', label: 'New service', disabled: onTrackStations.length < 2 },
   ];
+  const defaultR = defaultRadiusM(mode);
+  const spacing = trackSpacingM(scenario.trackNetwork, mode);
   return (
     <Section title={t('tools')} id="tools" hideTitle>
       <div
-        className="mb-3 grid grid-cols-3 rounded-md bg-slate-100 p-0.5"
+        className="mb-3 grid grid-cols-2 gap-0.5 rounded-md bg-slate-100 p-0.5"
         role="group"
         aria-label="Editing tool"
       >
@@ -118,24 +137,106 @@ export function ToolPanel() {
         ))}
       </div>
       <SelectField
-        label="Mode for new lines"
+        label="Mode"
         value={mode}
         onChange={(e) => setMode(e.target.value as TransportMode)}
         options={MODE_LIST.map((m) => ({ value: m, label: MODES[m].label }))}
         hint={
-          tool === 'draw_line' && MODES[mode].prefersStreetNetwork
-            ? 'Road-based mode: street routing is planned for Phase 2; drawn lines are conceptual.'
-            : undefined
+          rail
+            ? 'Track mode: draw physical track, place stations on it, then create services with “New service”.'
+            : MODES[mode].prefersStreetNetwork
+              ? 'Road-based mode: the drawn line follows streets once routed.'
+              : undefined
         }
       />
-      {tool === 'add_station' && (
+      {rail && (tool === 'draw_line' || tool === 'select') && (
+        <fieldset className="mb-2 rounded border border-slate-200 p-2">
+          <legend className="px-1 text-xs font-medium text-slate-800">New track</legend>
+          <div className="mb-1 flex gap-3 text-sm">
+            {([false, true] as const).map((d) => (
+              <label key={String(d)} className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="track-count"
+                  checked={trackDraw.double === d}
+                  onChange={() => setTrackDraw({ double: d })}
+                />
+                {d ? `Double (${spacing} m apart)` : 'Single'}
+              </label>
+            ))}
+          </div>
+          <CommitField
+            label="Curve radius at each point"
+            unit={`m, empty = sharp corners; default ${defaultR ?? 'none'}`}
+            type="number"
+            min={1}
+            max={100000}
+            value={trackDraw.radius === 'default' ? (defaultR ?? null) : trackDraw.radius}
+            onCommit={(v) =>
+              setTrackDraw({ radius: v === '' ? null : Number(v) === defaultR ? 'default' : Number(v) })
+            }
+            hint={
+              trackDraw.double
+                ? 'For double track this is the inner track; the outer track gets the radius plus the spacing.'
+                : undefined
+            }
+          />
+          <SelectField
+            label="Structure"
+            value={trackDraw.structure}
+            onChange={(e) => setTrackDraw({ structure: e.target.value as StructureType | 'default' })}
+            options={[
+              { value: 'default', label: `Mode default (${STRUCTURE_LABELS[MODES[mode].defaultStructure]})` },
+              ...Object.entries(STRUCTURE_LABELS).map(([value, label]) => ({ value, label })),
+            ]}
+          />
+        </fieldset>
+      )}
+      {tool === 'new_service' && (
+        <fieldset className="mb-2 rounded border border-slate-200 p-2">
+          <legend className="px-1 text-xs font-medium text-slate-800">
+            New service: stations in calling order
+          </legend>
+          <ol className="mb-1 list-decimal ps-5 text-sm" aria-label="Picked stations">
+            {draft.map((id, i) => (
+              <li key={`${id}-${i}`}>
+                {scenario.stations.find((x) => x.id === id)?.name ?? id}{' '}
+                <button
+                  type="button"
+                  className="text-xs underline"
+                  aria-label={`Remove stop ${i + 1}`}
+                  onClick={() => setDraft(draft.filter((_, k) => k !== i))}
+                >
+                  remove
+                </button>
+              </li>
+            ))}
+          </ol>
+          <SelectField
+            label="Add a station"
+            value=""
+            onChange={(e) => e.target.value && setDraft([...draft, e.target.value])}
+            options={[
+              { value: '', label: 'Choose a station on tracks…' },
+              ...onTrackStations.map((st) => ({ value: st.id, label: st.name })),
+            ]}
+            hint="Or click stations on the map."
+          />
+          <Button variant="primary" disabled={draft.length < 2} onClick={() => finishServiceDraft()}>
+            Create service
+          </Button>
+        </fieldset>
+      )}
+      {tool === 'add_station' && !rail && (
         <SelectField
           label="Add stations to"
           value={target ?? ''}
           onChange={(e) => setTarget(e.target.value || null)}
           options={[
             { value: '', label: 'Nearest line to the click' },
-            ...scenario.lines.map((l) => ({ value: l.id, label: l.name })),
+            ...scenario.lines
+              .filter((l) => l.alignment.kind !== 'track')
+              .map((l) => ({ value: l.id, label: l.name })),
           ]}
           hint="Clicking within ~60 m of an existing station reuses it, creating an interchange."
         />
@@ -246,7 +347,10 @@ export function NetworkLists() {
     <>
       <Section title={`${t('lines')} (${scenario.lines.length})`} id="lines">
         {scenario.lines.length === 0 && (
-          <p className="text-sm text-slate-600">No lines yet. Choose “Draw line” or use the Table view.</p>
+          <p className="text-sm text-slate-600">
+            No lines yet. Draw track and stations, then “New service”; or draw a bus line. The Table view
+            works without the map.
+          </p>
         )}
         <ul className="max-h-72 space-y-0.5 overflow-auto" aria-label="Lines">
           {scenario.lines.map((l) => (
@@ -271,6 +375,37 @@ export function NetworkLists() {
                     stations
                     {isRing(l) ? ' · ring' : ''}
                   </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Section>
+      <Section
+        title={`Tracks (${scenario.trackNetwork.tracks.length})`}
+        id="tracks"
+        collapsible
+        defaultOpen={false}
+      >
+        {scenario.trackNetwork.tracks.length === 0 && (
+          <p className="text-sm text-slate-600">No track yet. Choose a track mode and “Draw track”.</p>
+        )}
+        <ul className="max-h-60 space-y-0.5 overflow-auto" aria-label="Tracks">
+          {scenario.trackNetwork.tracks.map((tr, i) => (
+            <li key={tr.id}>
+              <button
+                type="button"
+                className={`w-full rounded px-1 py-0.5 text-start text-sm hover:bg-slate-100 ${
+                  selection?.kind === 'track' && selection.id === tr.id ? 'bg-teal-100 font-semibold' : ''
+                }`}
+                aria-current={selection?.kind === 'track' && selection.id === tr.id ? 'true' : undefined}
+                onClick={() => select({ kind: 'track', id: tr.id })}
+              >
+                {tr.name || `Track ${i + 1}`}
+                <span className="block text-xs text-slate-600">
+                  {formatDistance(trackGeometry(scenario.trackNetwork, tr).lengthM, unitSystem)} ·{' '}
+                  {tr.groupId ? 'double track' : 'single track'} ·{' '}
+                  {tr.direction === 'both' ? 'both ways' : 'one way'}
                 </span>
               </button>
             </li>

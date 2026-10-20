@@ -106,6 +106,7 @@ describe('application shell', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: /Table/ }));
+    await user.selectOptions(screen.getByLabelText('Mode of the new track or line'), 'bus');
     const area = screen.getByLabelText(/Coordinates, one/);
     await user.type(area, '52.5, 113.4');
     await user.click(screen.getByRole('button', { name: 'Create line' }));
@@ -114,6 +115,30 @@ describe('application shell', () => {
     await user.type(area, '0.01, 0.03{Enter}0.02, 0.03');
     await user.click(screen.getByRole('button', { name: 'Create line' }));
     expect(useStore.getState().project.scenarios[0]!.lines).toHaveLength(4);
+  });
+
+  it('creates track, a station on it and a service without the map', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: /Table/ }));
+    await user.selectOptions(screen.getByLabelText('Mode of the new track or line'), 'tram');
+    const before = useStore.getState().project.scenarios[0]!.trackNetwork.tracks.length;
+    await user.type(screen.getByLabelText(/Coordinates, one/), '0.10, 0.10{Enter}0.12, 0.10');
+    await user.click(screen.getByRole('button', { name: 'Create track' }));
+    expect(useStore.getState().project.scenarios[0]!.trackNetwork.tracks).toHaveLength(before + 2);
+    for (const at of ['0.10, 0.10', '0.12, 0.10']) {
+      await user.clear(screen.getByLabelText(/Position “longitude, latitude”/));
+      await user.type(screen.getByLabelText(/Position “longitude, latitude”/), at);
+      await user.click(screen.getByRole('button', { name: 'Add station at this position' }));
+    }
+    const stations = useStore.getState().project.scenarios[0]!.stations.slice(-2);
+    expect(stations.every((s) => s.trackRefs.length === 2)).toBe(true);
+    act(() => useStore.getState().setNewLineMode('tram'));
+    await user.click(screen.getByRole('button', { name: 'New service' }));
+    for (const st of stations) await user.selectOptions(screen.getByLabelText('Add a station'), st.id);
+    await user.click(screen.getByRole('button', { name: 'Create service' }));
+    const line = useStore.getState().project.scenarios[0]!.lines.at(-1)!;
+    expect(line.alignment.kind === 'track' && line.alignment.status).toBe('routed');
   });
 
   it('opens the data sources dialog listing provider states', async () => {
@@ -281,7 +306,7 @@ describe('Start a network card', () => {
     act(() => useStore.getState().loadProject(blankProject()));
     render(<App />);
     expect(screen.getByRole('heading', { name: 'Start a network' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Draw a line' }));
+    await user.click(screen.getByRole('button', { name: 'Draw track or a line' }));
     expect(screen.queryByRole('heading', { name: 'Start a network' })).not.toBeInTheDocument();
     expect(useStore.getState().tool).toBe('draw_line');
     await user.keyboard('{Escape}');
@@ -298,7 +323,7 @@ describe('Start a network card', () => {
       useStore.setState({ projectActive: false });
     });
     render(<App />);
-    await user.click(screen.getByRole('button', { name: 'Draw a line' }));
+    await user.click(screen.getByRole('button', { name: 'Draw track or a line' }));
     expect(screen.getByRole('heading', { name: 'Choose a project for your line' })).toBeInTheDocument();
     await user.type(screen.getByLabelText('Name of the new project'), 'Harbour tram');
     await user.click(screen.getByRole('button', { name: 'Create and start drawing' }));

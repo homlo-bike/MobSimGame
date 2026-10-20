@@ -27,6 +27,9 @@ import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
 import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
+import { applyTrackHandles, isRailMode, nearestOnTrack, pointOnTrack } from '../domain/tracks';
+import { addStationOnTracks, afterTrackEdit, moveStationOnTracks } from '../domain/serviceRouting';
+import { drawTracks, requestTrackDeletion } from '../store/trackActions';
 import {
   ensureLayers,
   setBasemapSourceLayersVisible,
@@ -35,6 +38,8 @@ import {
   SIGNAL_LAYER,
   SRC,
   STATION_LAYER,
+  TRACK_LAYER_PREFIX,
+  TRACK_NODE_LAYER,
 } from './layers';
 import {
   arrowsCollection,
@@ -47,6 +52,8 @@ import {
   populationCollection,
   segmentsCollection,
   stationsCollection,
+  trackNodesCollection,
+  tracksCollection,
   trafficCollection,
   transitCollection,
   vehiclesCollection,
@@ -81,6 +88,8 @@ export default function MapView() {
   const reducedMotion = useStore((s) => s.reducedMotion);
   const simulationEpoch = useStore((s) => s.simulationEpoch);
   const closures = useStore((s) => s.closures);
+  const newLineMode = useStore((s) => s.newLineMode);
+  const serviceDraft = useStore((s) => s.serviceDraft);
 
   // --- Create map and draw once -------------------------------------------
   useEffect(() => {
@@ -151,6 +160,14 @@ export default function MapView() {
         }
         const coords = featureLineCoords(feature, false);
         if (!coords || coords.length < 2) return;
+        if (isRailMode(state.newLineMode)) {
+          // Rail modes draw physical track; services are created on it with the Service tool.
+          draw.transact(() => draw.features.delete(feature.id), { source: REMOTE });
+          const ids = drawTracks(coords);
+          if (ids[0]) state.select({ kind: 'track', id: ids[0] });
+          state.setTool('select');
+          return;
+        }
         const sc = activeScenario(state.project);
         const { scenario: next, line } = createLine(sc, {
           coordinates: coords,
@@ -167,6 +184,19 @@ export default function MapView() {
         if (source === REMOTE || intermediate) return;
         const state = useStore.getState();
         const sc = activeScenario(state.project);
+        const track = sc.trackNetwork.tracks.find((t) => t.id === feature.id);
+        if (track) {
+          const handles = featureLineCoords(feature, false);
+          if (!handles || handles.length < 2) return;
+          const moved = applyTrackHandles(sc, track.id, handles);
+          // Every track at a moved node changes shape too.
+          const nodes = new Set([track.fromNodeId, track.toNodeId]);
+          const touched = moved.trackNetwork.tracks
+            .filter((t) => t.id === track.id || nodes.has(t.fromNodeId) || nodes.has(t.toNodeId))
+            .map((t) => t.id);
+          state.commitScenario(afterTrackEdit(moved, touched), 'Track edited');
+          return;
+        }
         const line = sc.lines.find((l) => l.id === feature.id);
         if (!line) return;
         const coords = featureLineCoords(feature, isRing(line));
@@ -179,14 +209,20 @@ export default function MapView() {
         if (source === REMOTE) return;
         const state = useStore.getState();
         const sc = activeScenario(state.project);
-        if (sc.lines.some((l) => l.id === feature.id))
+        if (sc.trackNetwork.tracks.some((t) => t.id === feature.id)) {
+          requestTrackDeletion([feature.id]);
+          // Until the user decides, the drawing shows the track again.
+          reconcileDraw(draw, sc, null, null);
+        } else if (sc.lines.some((l) => l.id === feature.id))
           state.commitScenario(deleteLine(sc, feature.id), 'Line deleted');
       }),
       draw.on('selection.changed', ({ selection: sel }) => {
         if (sel.type === 'feature' && sel.ids.length === 1) {
           const state = useStore.getState();
-          if (activeScenario(state.project).lines.some((l) => l.id === sel.ids[0]))
-            state.select({ kind: 'line', id: sel.ids[0]! });
+          const sc = activeScenario(state.project);
+          if (sc.lines.some((l) => l.id === sel.ids[0])) state.select({ kind: 'line', id: sel.ids[0]! });
+          else if (sc.trackNetwork.tracks.some((t) => t.id === sel.ids[0]))
+            state.select({ kind: 'track', id: sel.ids[0]! });
         }
       }),
     ];
@@ -195,11 +231,67 @@ export default function MapView() {
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const state = useStore.getState();
       const sc = activeScenario(state.project);
+      if (state.tool === 'add_station' && (isRailMode(state.newLineMode) || !sc.lines.length)) {
+        // Stations on track: snap to the nearest track within a few pixels.
+        const at: LngLat = [e.lngLat.lng, e.lngLat.lat];
+        const net = sc.trackNetwork;
+        let best: { px: number; position: LngLat } | null = null;
+        for (const t of net.tracks) {
+          const hit = nearestOnTrack(net, t, at);
+          const position = pointOnTrack(net, t, hit.fraction).position;
+          const p = map.project(position);
+          const px = Math.hypot(p.x - e.point.x, p.y - e.point.y);
+          if (!best || px < best.px) best = { px, position };
+        }
+        if (!best || best.px > STATION_SNAP_PX) {
+          state.announce('No track close enough to the click. Click on a track to add a station.');
+          return;
+        }
+        const res = addStationOnTracks(sc, best.position, { mode: state.newLineMode });
+        if (res.error || !res.station) {
+          state.announce(res.error ?? 'Station could not be added');
+          return;
+        }
+        state.commitScenario(
+          res.scenario,
+          res.reused
+            ? `Existing station "${res.station.name}" now also serves this track`
+            : `Station "${res.station.name}" added on ${res.station.trackRefs.length} track(s)`,
+        );
+        state.select({ kind: 'station', id: res.station.id });
+        return;
+      }
+      if (state.tool === 'new_service') {
+        // Nearest station on screen (from the project data, not from what is rendered yet).
+        let st: (typeof sc.stations)[number] | null = null;
+        let bestPx = STATION_SNAP_PX;
+        for (const x of sc.stations) {
+          const p = map.project(x.position);
+          const px = Math.hypot(p.x - e.point.x, p.y - e.point.y);
+          if (px <= bestPx) {
+            bestPx = px;
+            st = x;
+          }
+        }
+        if (!st) {
+          state.announce('Click on a station that lies on a track.');
+          return;
+        }
+        if (!st.trackRefs.length) {
+          state.announce(`"${st.name}" is not on a track.`);
+          return;
+        }
+        const draft = state.serviceDraft;
+        if (draft[draft.length - 1] === st.id) return;
+        state.setServiceDraft([...draft, st.id]);
+        state.announce(`Stop ${draft.length + 1}: ${st.name}. Press Enter to create the service.`);
+        return;
+      }
       if (state.tool === 'add_station') {
         const at: LngLat = [e.lngLat.lng, e.lngLat.lat];
         const candidates = state.stationTargetLineId
           ? sc.lines.filter((l) => l.id === state.stationTargetLineId)
-          : sc.lines;
+          : sc.lines.filter((l) => l.alignment.kind !== 'track');
         let best: { id: string; px: number } | null = null;
         for (const l of candidates) {
           const snap = snapToPath(l.coordinates, isRing(l), at);
@@ -226,10 +318,24 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station!.id });
         return;
       }
-      const hit = map.queryRenderedFeatures(e.point, { layers: [STATION_LAYER, SIGNAL_LAYER] })[0];
+      const trackLayers = (map.getStyle().layers ?? [])
+        .map((l) => l.id)
+        .filter((id) => id.startsWith(TRACK_LAYER_PREFIX) && map.getLayer(id));
+      const hit = map.queryRenderedFeatures(e.point, {
+        layers: [STATION_LAYER, SIGNAL_LAYER, TRACK_NODE_LAYER].filter((id) => map.getLayer(id)),
+      })[0];
       if (hit?.properties?.stationId) state.select({ kind: 'station', id: String(hit.properties.stationId) });
       else if (hit?.properties?.signalId)
         state.select({ kind: 'signal', id: String(hit.properties.signalId) });
+      else if (hit?.properties?.nodeId) state.select({ kind: 'node', id: String(hit.properties.nodeId) });
+      else if (state.tool === 'select' && trackLayers.length) {
+        const box: [maplibregl.PointLike, maplibregl.PointLike] = [
+          [e.point.x - 4, e.point.y - 4],
+          [e.point.x + 4, e.point.y + 4],
+        ];
+        const t = map.queryRenderedFeatures(box, { layers: trackLayers })[0];
+        if (t?.properties?.trackId) state.select({ kind: 'track', id: String(t.properties.trackId) });
+      }
     };
     map.on('click', onClick);
 
@@ -248,7 +354,10 @@ export default function MapView() {
     map.on('mousemove', (e) => {
       if (!dragging) return;
       const sc = activeScenario(useStore.getState().project);
-      const preview = moveStation(sc, dragging, [e.lngLat.lng, e.lngLat.lat]);
+      const onTracks = sc.stations.find((x) => x.id === dragging)?.trackRefs.length;
+      const preview = onTracks
+        ? moveStationOnTracks(sc, dragging, [e.lngLat.lng, e.lngLat.lat])
+        : moveStation(sc, dragging, [e.lngLat.lng, e.lngLat.lat]);
       setData(map, SRC.stations, stationsCollection(preview, dragging));
     });
     map.on('mouseup', (e) => {
@@ -259,8 +368,12 @@ export default function MapView() {
       draw.setInteractionLocked(false);
       map.getCanvas().style.cursor = '';
       const state = useStore.getState();
+      const sc = activeScenario(state.project);
+      const to: LngLat = [e.lngLat.lng, e.lngLat.lat];
       state.commitScenario(
-        moveStation(activeScenario(state.project), id, [e.lngLat.lng, e.lngLat.lat]),
+        sc.stations.find((x) => x.id === id)?.trackRefs.length
+          ? moveStationOnTracks(sc, id, to)
+          : moveStation(sc, id, to),
         'Station moved',
       );
       state.select({ kind: 'station', id });
@@ -317,8 +430,8 @@ export default function MapView() {
       if (draw.drawing.isDrawing()) draw.drawing.cancel();
       draw.setMode('select');
     }
-    draw.setInteractionLocked(tool === 'add_station');
-    map.getCanvas().style.cursor = tool === 'add_station' ? 'crosshair' : '';
+    draw.setInteractionLocked(tool === 'add_station' || tool === 'new_service');
+    map.getCanvas().style.cursor = tool === 'add_station' || tool === 'new_service' ? 'crosshair' : '';
   }, [tool]);
 
   // --- Network overlays and draw features ---------------------------------------
@@ -326,23 +439,34 @@ export default function MapView() {
     selection?.kind === 'line' ? selection.id : selection?.kind === 'segment' ? selection.lineId : null;
   const selectedStationId = selection?.kind === 'station' ? selection.id : null;
   const selectedSignalId = selection?.kind === 'signal' ? selection.id : null;
+  const selectedTrackId = selection?.kind === 'track' ? selection.id : null;
+  const selectedNodeId = selection?.kind === 'node' ? selection.id : null;
   useEffect(() => {
     const map = mapRef.current;
     const draw = drawRef.current;
     if (!map || !draw || !map.getSource(SRC.segments)) return;
     const segments = segmentsCollection(scenario, selectedLineId);
+    const tracks = tracksCollection(scenario, selectedTrackId);
+    setData(map, SRC.tracks, tracks);
+    setData(map, SRC.trackNodes, trackNodesCollection(scenario, selectedNodeId));
     setData(map, SRC.segments, segments);
-    setData(map, SRC.arrows, arrowsCollection(segments));
+    const arrows = arrowsCollection(segments);
+    setData(map, SRC.arrows, {
+      ...arrows,
+      features: [...arrows.features, ...arrowsCollection(tracks).features],
+    });
     setData(map, SRC.crossovers, crossoversCollection(scenario));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
     setData(map, SRC.closures, closuresCollection(scenario, closures));
     setData(map, SRC.signals, signalsCollection(scenario, simulationClock.timeS, selectedSignalId));
     setData(map, SRC.stations, stationsCollection(scenario, selectedStationId));
     setData(map, SRC.catchments, layers.catchments ? catchmentsCollection(scenario) : EMPTY);
-    reconcileDraw(draw, scenario, selectedLineId);
+    reconcileDraw(draw, scenario, selectedLineId, selectedTrackId);
   }, [
     scenario,
     selectedLineId,
+    selectedTrackId,
+    selectedNodeId,
     selectedStationId,
     selectedSignalId,
     styleVersion,
@@ -475,12 +599,22 @@ export default function MapView() {
       )}
       {tool === 'add_station' && (
         <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
-          Click on a line to add a station · Esc to finish
+          {isRailMode(newLineMode) || !scenario.lines.length
+            ? 'Click on a track to add a station (it serves every track within the set distance) · Esc to finish'
+            : 'Click on a line to add a station · Esc to finish'}
         </p>
       )}
       {tool === 'draw_line' && (
         <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
-          Click to add vertices · Enter or double-click to finish · Esc to cancel
+          {isRailMode(newLineMode)
+            ? 'Click to place track points (curves at each point) · end on a track or track end to connect · Enter to finish · Esc to cancel'
+            : 'Click to add vertices · Enter or double-click to finish · Esc to cancel'}
+        </p>
+      )}
+      {tool === 'new_service' && (
+        <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
+          Click stations in calling order ({serviceDraft.length} picked) · Enter to create the service · Esc
+          to cancel
         </p>
       )}
     </div>

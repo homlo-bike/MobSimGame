@@ -69,16 +69,20 @@ meanings of one name).
 | Bus services | Existing street-routed alignment (waypoints, legs, return path) | Kept separate from the track graph. |
 | Simulation | `VehicleRun` (runtime only) | Not persisted. |
 
-## 4. Migrations required to preserve saved projects
+## 4. Migrations
 
-| From | To | Approach |
+**Owner decision (2026-10-20): no migration.** The project is not yet published,
+so schema 3 starts from scratch. A v1 or v2 project is rejected on load with a clear
+message ("saved with an older, unpublished format"), and the bundled examples are
+regenerated in the new format. The table below records what an automatic migration
+would have needed, in case it is wanted later.
+
+| From | To | Approach (not implemented) |
 | --- | --- | --- |
-| Schema v2 rail/tram/metro lines (`alignment.kind = 'spline'`, line-owned `coordinates`) | Track edges + one service line per old line | Fit lines and circular arcs to the sampled curve (tolerance-based), create nodes at ends and at shared stations, one edge per structure segment; double-track segments become two edges with a group ID. Mark every converted edge `needsReview`. |
-| Schema v2 `segments[]` (structure, right of way, tracks, speed limit, notes) | Track-edge properties | Copied per edge; nothing dropped. |
-| Stations, stops, crossovers | Station + StationTrack; scheduled stops; crossover connection objects | Station IDs kept. |
-| Bus/BRT routed lines | Unchanged (street-routed services) | No conversion. |
-| Shared tracks detected between lines | Merged edges where the overlap is exact enough, otherwise warnings | Ask before merging (see questions). |
-| Any project | `schemaVersion: 3` with `migration` record (from-version, warnings, backup of the original document) | Original JSON kept as a backup inside browser storage; failed migrations open read-only. |
+| v2 rail lines (spline, line-owned `coordinates`) | Tracks plus one service per line | `geo/track/fit.ts` fits lines and arcs to the samples (already implemented and tested) |
+| v2 `segments[]` | Track properties | Copy per track |
+| Stations, stops, crossovers | Station track references; crossovers as track connections | Keep IDs |
+| Bus/BRT routed lines | Unchanged | — |
 
 ## 5. Fixed in this branch during the review
 
@@ -88,9 +92,12 @@ meanings of one name).
   loading state that always ends, and a clear message instead of silently returning
   coordinates. Details in the CHANGELOG.
 
-## 6. Decisions needed from the owner
+## 6. Owner decisions
 
-See the questions asked with this review (recorded in
-[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) once answered): migration of
-existing rail lines, metric projection, default track spacing and safety
-distances, and the scope of this session.
+| Question | Decision |
+| --- | --- |
+| Migration of v2 projects | None: start from scratch (not yet published) |
+| Default values (spacing, separation, blocking) | Cited sources; anything uncited is labelled placeholder and is editable |
+| Bus/BRT in the track graph | No: buses stay street-routed and separate |
+| Scope of this session | Priority 1 in full; Priority 2 documented as next |
+| Metric projection | Transverse Mercator per project (implemented, `TRACK_GEOMETRY.md`) |

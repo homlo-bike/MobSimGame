@@ -3,10 +3,17 @@
  *
  * This is an operational animation, not a railway or traffic simulator:
  * vehicles run at constant speed per segment (no acceleration, no train
- * protection, no conflicts between vehicles), dwell a fixed time at each stop,
- * lay over at terminals, wait at road traffic signals on red (simulated cycles
- * with assumed timings) and follow a simplified closure model (turn back at
- * crossovers, or a worst-case wait for single-track working).
+ * protection), dwell a fixed time at each stop, lay over at terminals, wait at
+ * road traffic signals on red (simulated cycles with assumed timings) and
+ * follow a simplified closure model (turn back at crossovers, or a worst-case
+ * wait for single-track working).
+ *
+ * Track occupancy (simulation/occupancy.ts): a single-track block used in both
+ * directions is reserved by one direction at a time, so opposing trains wait at
+ * its entry until it is clear; vehicles following each other on a track (or on
+ * the same bus route) keep a minimum separation. Trips are scheduled in a fixed
+ * global order (departure time, line, service), so the result stays a pure,
+ * deterministic function of simulated time.
  *
  * Vehicle state is a pure function of simulated time, so rendering frame rate
  * never affects where vehicles are. The map layer only samples `vehicleStates`.
@@ -16,6 +23,11 @@ import { isRing, orderedStops, placedCrossovers } from '../domain/network';
 import { pathCoordinates, snapToPath } from '../geo/geometry';
 import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
+import { returnCoordinates } from '../domain/serviceRouting';
+import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
+import { minSeparationM } from '../domain/trackParameters';
+import { trackGeometry } from '../domain/tracks';
+import { OccupancyLedger, type ResourceSpan } from './occupancy';
 
 const R = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -60,13 +72,19 @@ export function interpolate(path: MeasuredPath, chainageM: number): { position: 
 }
 
 export type Phase =
-  | { kind: 'dwell' | 'layover' | 'hold' | 'signal'; durationS: number; chainageM: number; direction: 1 | -1 }
+  | {
+      kind: 'dwell' | 'layover' | 'hold' | 'signal' | 'occupied';
+      durationS: number;
+      chainageM: number;
+      direction: 1 | -1;
+    }
   | { kind: 'run'; durationS: number; fromM: number; toM: number; direction: 1 | -1 };
 
 /** Something a vehicle waits for at a chainage, in one or both directions. */
 interface StopEvent {
   chainageM: number;
-  kind: 'dwell' | 'hold' | 'signal';
+  kind: 'dwell' | 'hold' | 'signal' | 'enter';
+  span?: ResourceSpan;
   /** Direction it applies to; 0 = both. */
   direction: 1 | -1 | 0;
   durationS?: number;
@@ -110,6 +128,14 @@ export interface LineSimulationModel {
   maxTripS: number;
   /** Memoised trip phases per service and trip index. */
   cache: Map<string, Phase[]>;
+  /** Geometry of the way back when it differs (double track, one-way streets); chainage maps by fraction. */
+  returnPath: MeasuredPath | null;
+  /** Shared resources along the path per travel direction (line chainage, from < to). */
+  spans: { forward: ResourceSpan[]; backward: ResourceSpan[] };
+  /** Minimum distance to the vehicle ahead, metres (placeholder parameter). */
+  separationM: number;
+  /** Shared scheduling context (one per scenario, or private for a single line). */
+  context: SimulationContext;
 }
 
 export interface VehicleState {
@@ -121,6 +147,57 @@ export interface VehicleState {
   bearingDeg: number;
   direction: 1 | -1;
   state: 'running' | 'dwelling' | 'layover' | 'waiting';
+}
+
+/**
+ * Builds trips of all lines in one global order so that occupancy waits are
+ * deterministic: trips are processed by departure time, then line, then service.
+ */
+export class SimulationContext {
+  readonly models: LineSimulationModel[] = [];
+  readonly ledger = new OccupancyLedger();
+  private next = new Map<string, number>();
+  private startS = 0;
+  /** Messages about capacity problems found while scheduling. */
+  readonly warnings = new Set<string>();
+
+  add(model: LineSimulationModel) {
+    this.models.push(model);
+    const warm = Math.max(...this.models.map((m) => m.maxTripS), 0);
+    // Earlier than the furthest look-back of vehicleStates (3 × the undisturbed trip time).
+    this.startS = Math.min(this.startS, -4 * warm);
+  }
+
+  /** First trip index scheduled in order for a model (earlier ones are built standalone). */
+  firstIndex(model: LineSimulationModel): number {
+    return Math.floor(this.startS / model.headwayS);
+  }
+
+  /** Build every trip, of every line, that departs at or before `departS`. */
+  ensure(departS: number) {
+    for (;;) {
+      let pick: { m: LineSimulationModel; svc: ServiceModel; j: number; t: number; k: string } | null = null;
+      this.models.forEach((m) => {
+        m.services.forEach((svc) => {
+          const k = `${m.lineId}:${svc.id}`;
+          const j = this.next.get(k) ?? this.firstIndex(m);
+          const t = j * m.headwayS;
+          if (t <= departS && (!pick || t < pick.t)) pick = { m, svc, j, t, k };
+        });
+      });
+      if (!pick) return;
+      const { m, svc, j, t, k } = pick as {
+        m: LineSimulationModel;
+        svc: ServiceModel;
+        j: number;
+        t: number;
+        k: string;
+      };
+      this.ledger.prune(t);
+      m.cache.set(`${svc.id}:${j}`, buildTrip(m, svc, t, true));
+      this.next.set(k, j + 1);
+    }
+  }
 }
 
 /** Running time over [fromM, toM] using piecewise-constant segment speeds. */
@@ -164,6 +241,19 @@ export function buildLineModel(
   line: TransportLine,
   scenario: Scenario,
   options: SimulationOptions = {},
+): LineSimulationModel | null {
+  const model = buildModel(line, scenario, options);
+  if (model) {
+    model.context = new SimulationContext();
+    model.context.add(model);
+  }
+  return model;
+}
+
+function buildModel(
+  line: TransportLine,
+  scenario: Scenario,
+  options: SimulationOptions,
 ): LineSimulationModel | null {
   const ring = isRing(line);
   const path = measurePath(line.coordinates, ring);
@@ -252,6 +342,7 @@ export function buildLineModel(
   if (!services.length) return { ...emptyModel(line, path, headwayS, speedAt), notes };
 
   const longest = Math.max(...services.map((s) => s.endM - s.startM));
+  const extras = occupancyInputs(line, scenario, path);
   const maxTripS =
     2 * (speedAt(0, longest) + layoverS) +
     2 * events.reduce((t, e) => t + (e.durationS ?? 0), 0) +
@@ -268,7 +359,61 @@ export function buildLineModel(
     notes,
     maxTripS,
     cache: new Map(),
+    ...extras,
+    context: privateContext(),
   };
+}
+
+const privateContext = (): SimulationContext => new SimulationContext();
+
+/** Resources a line occupies: track blocks and tracks for services on tracks, the route itself for others. */
+function occupancyInputs(
+  line: TransportLine,
+  scenario: Scenario,
+  path: MeasuredPath,
+): Pick<LineSimulationModel, 'returnPath' | 'spans' | 'separationM'> {
+  const back = line.direction === 'bidirectional' ? returnCoordinates(scenario, line) : null;
+  const returnPath = back && back.length >= 2 ? measurePath(back, false) : null;
+  const separationM = minSeparationM(scenario.trackNetwork, line.mode);
+  if (line.alignment.kind !== 'track' || !line.alignment.path.length) {
+    const whole = (sign: 1 | -1): ResourceSpan[] => [
+      { fromM: 0, toM: path.lengthM, resourceId: `line:${line.id}:${sign}`, sign, opposing: false },
+    ];
+    return { returnPath, separationM, spans: { forward: whole(1), backward: whole(-1) } };
+  }
+  const net = scenario.trackNetwork;
+  const blocks = singleTrackBlocks(net);
+  const byId = new Map(net.tracks.map((t) => [t.id, t]));
+  const toSpans = (steps: typeof line.alignment.path, reverseMap: boolean): ResourceSpan[] => {
+    const total = stepsLengthM(net, steps);
+    if (total <= 0) return [];
+    const scale = path.lengthM / total;
+    const out: ResourceSpan[] = [];
+    let at = 0;
+    for (const st of steps) {
+      const t = byId.get(st.trackId);
+      if (!t) continue;
+      const len = Math.abs(st.to - st.from) * trackGeometry(net, t).lengthM * scale;
+      const block = blocks.get(st.trackId);
+      const resourceId = block ? block.blockId : `track:${st.trackId}`;
+      const own: 1 | -1 = st.reversed ? -1 : 1;
+      const sign = (block ? own * block.orientation : own) as 1 | -1;
+      const a = at;
+      at += len;
+      // The way back runs from the end of the outbound chainage towards 0.
+      const fromM = reverseMap ? path.lengthM - at : a;
+      const toM = reverseMap ? path.lengthM - a : at;
+      const last = out[out.length - 1];
+      if (last && last.resourceId === resourceId && last.sign === sign) {
+        if (reverseMap) last.fromM = fromM;
+        else last.toM = toM;
+      } else out.push({ fromM, toM, resourceId, sign, opposing: !!block });
+    }
+    return out;
+  };
+  const forward = toSpans(line.alignment.path, false);
+  const backward = line.alignment.returnPath?.length ? toSpans(line.alignment.returnPath, true) : [];
+  return { returnPath, separationM, spans: { forward, backward } };
 }
 
 function emptyModel(
@@ -288,6 +433,10 @@ function emptyModel(
     notes: [],
     maxTripS: 0,
     cache: new Map(),
+    returnPath: null,
+    spans: { forward: [], backward: [] },
+    separationM: 0,
+    context: privateContext(),
   };
 }
 
@@ -304,15 +453,39 @@ export function signalWaitS(sig: SignalTiming, t: number, priorityS = 0): number
  * Phases of one trip departing at `departS`. Signal waits depend on the arrival
  * time, so each trip is built by walking the route in time order.
  */
-function buildTrip(model: LineSimulationModel, svc: ServiceModel, departS: number): Phase[] {
+function buildTrip(
+  model: LineSimulationModel,
+  svc: ServiceModel,
+  departS: number,
+  scheduled = false,
+): Phase[] {
   const phases: Phase[] = [];
   let t = departS;
+  const ORDER = { dwell: 0, signal: 1, hold: 2, enter: 3 } as const;
   const leg = (dir: 1 | -1) => {
     const from = dir === 1 ? svc.startM : svc.endM;
     const to = dir === 1 ? svc.endM : svc.startM;
-    const evs = svc.events
-      .filter((e) => e.direction === 0 || e.direction === dir)
-      .sort((x, y) => (x.chainageM - y.chainageM) * dir);
+    const lo = Math.min(from, to);
+    const hi = Math.max(from, to);
+    const dirEvents = svc.events.filter((e) => e.direction === 0 || e.direction === dir);
+    // Spans of the way back fall back to the outbound spans (same track used both ways).
+    const spans = dir === 1 || !model.spans.backward.length ? model.spans.forward : model.spans.backward;
+    const enters: StopEvent[] = spans
+      .filter((sp) => sp.toM > lo + 0.01 && sp.fromM < hi - 0.01)
+      .map((sp) => {
+        const a = Math.max(lo, sp.fromM);
+        const b = Math.min(hi, sp.toM);
+        const sign = (dir === 1 || model.spans.backward.length ? sp.sign : -sp.sign) as 1 | -1;
+        return {
+          chainageM: dir === 1 ? a : b,
+          kind: 'enter' as const,
+          direction: dir,
+          span: { ...sp, fromM: a, toM: b, sign },
+        };
+      });
+    const evs = [...dirEvents, ...enters].sort(
+      (x, y) => (x.chainageM - y.chainageM) * dir || ORDER[x.kind] - ORDER[y.kind],
+    );
     let pos = from;
     for (const e of evs) {
       if (e.chainageM !== pos) {
@@ -320,6 +493,35 @@ function buildTrip(model: LineSimulationModel, svc: ServiceModel, departS: numbe
         phases.push({ kind: 'run', fromM: pos, toM: e.chainageM, direction: dir, durationS: d });
         t += d;
         pos = e.chainageM;
+      }
+      if (e.kind === 'enter' && !scheduled) continue;
+      if (e.kind === 'enter') {
+        const sp = e.span!;
+        const runS = model.speedAt(sp.fromM, sp.toM);
+        const dwellS = dirEvents
+          .filter((x) => x.kind === 'dwell' && x.chainageM > sp.fromM + 0.01 && x.chainageM < sp.toM - 0.01)
+          .reduce((sum, x) => sum + (x.durationS ?? 0), 0);
+        const lengthM = Math.max(1e-6, sp.toM - sp.fromM);
+        const separationS = (model.separationM * runS) / lengthM;
+        const start = model.context.ledger.reserve(
+          sp.resourceId,
+          sp.sign,
+          sp.opposing,
+          t,
+          runS + dwellS,
+          separationS,
+          `${model.lineId}:${svc.id}:${dir}`,
+        );
+        const wait = start - t;
+        if (wait > 1e-6) {
+          phases.push({ kind: 'occupied', chainageM: pos, direction: dir, durationS: wait });
+          t += wait;
+          if (wait > model.headwayS)
+            model.context.warnings.add(
+              `${model.lineId}: vehicles wait longer than the headway for occupied track; the timetable exceeds the capacity of the section.`,
+            );
+        }
+        continue;
       }
       const wait =
         e.kind === 'signal' ? signalWaitS(e.signal!, t, model.signalPriorityS) : (e.durationS ?? 0);
@@ -337,6 +539,8 @@ function buildTrip(model: LineSimulationModel, svc: ServiceModel, departS: numbe
   leg(1);
   if (svc.pattern === 'shuttle') {
     phases.push({ kind: 'layover', chainageM: svc.endM, direction: 1, durationS: svc.layoverS });
+    // The way back starts after the layover (signal and occupancy times depend on it).
+    t += svc.layoverS;
     leg(-1);
     phases.push({ kind: 'layover', chainageM: svc.startM, direction: -1, durationS: svc.layoverS });
   } else if (svc.pattern === 'one_way') {
@@ -348,8 +552,13 @@ function buildTrip(model: LineSimulationModel, svc: ServiceModel, departS: numbe
 export function tripPhases(model: LineSimulationModel, svc: ServiceModel, j: number): Phase[] {
   const key = `${svc.id}:${j}`;
   let phases = model.cache.get(key);
+  if (phases) return phases;
+  if (j >= model.context.firstIndex(model)) {
+    // Scheduled in global order with every other line of the context.
+    model.context.ensure(j * model.headwayS);
+    phases = model.cache.get(key);
+  }
   if (!phases) {
-    if (model.cache.size > 2000) model.cache.clear();
     phases = buildTrip(model, svc, j * model.headwayS);
     model.cache.set(key, phases);
   }
@@ -371,7 +580,8 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
   const out: VehicleState[] = [];
   const h = model.headwayS;
   for (const svc of model.services) {
-    const first = Math.floor((tS - model.maxTripS) / h);
+    // Occupancy waits can lengthen trips: look back further than the undisturbed trip time.
+    const first = Math.floor((tS - 3 * model.maxTripS) / h);
     const last = Math.floor(tS / h);
     for (let j = first; j <= last; j++) {
       let local = tS - j * h;
@@ -387,14 +597,18 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
             chainageM = p.chainageM;
             state = p.kind === 'dwell' ? 'dwelling' : p.kind === 'layover' ? 'layover' : 'waiting';
           }
-          const { position, bearingDeg } = interpolate(model.path, chainageM);
+          const back = p.direction === -1 && model.returnPath;
+          const { position, bearingDeg } = back
+            ? interpolate(model.returnPath!, (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM)
+            : interpolate(model.path, chainageM);
+          const heading = back ? bearingDeg : p.direction === 1 ? bearingDeg : (bearingDeg + 180) % 360;
           out.push({
             id: `${model.lineId}-${svc.id}-t${j}`,
             lineId: model.lineId,
             color: model.color,
             chainageM,
             position,
-            bearingDeg: p.direction === 1 ? bearingDeg : (bearingDeg + 180) % 360,
+            bearingDeg: heading,
             direction: p.direction,
             state,
           });
@@ -408,10 +622,16 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
 }
 
 export function buildScenarioModels(scenario: Scenario, options?: SimulationOptions): LineSimulationModel[] {
-  return scenario.lines
+  const context = new SimulationContext();
+  const models = scenario.lines
     .filter((l) => !['cycling', 'pedestrian'].includes(l.mode))
-    .map((l) => buildLineModel(l, scenario, options))
+    .map((l) => buildModel(l, scenario, options ?? {}))
     .filter((m): m is LineSimulationModel => m !== null);
+  for (const m of models) {
+    m.context = context;
+    context.add(m);
+  }
+  return models;
 }
 
 /** Simulation clock: converts real elapsed time into simulated time with a multiplier. */

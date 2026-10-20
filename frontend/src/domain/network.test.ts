@@ -38,7 +38,7 @@ function twoCrossingLines() {
       [0, 0],
       [0.02, 0],
     ],
-    mode: 'tram',
+    mode: 'custom',
   });
   s = a.scenario;
   const b = createLine(s, {
@@ -69,12 +69,12 @@ describe('lines', () => {
         [0.01, 0.01],
         [0, 0],
       ],
-      mode: 'light_rail',
+      mode: 'custom',
     });
     expect(line.termination.kind).toBe('ring');
-    expect(line.alignment.kind).toBe('spline');
-    if (line.alignment.kind === 'spline') expect(line.alignment.controlPoints).toHaveLength(3);
-    // The smooth ring is stored open (first coordinate not repeated).
+    expect(line.alignment.kind).toBe('polyline');
+    // The ring is stored open (first coordinate not repeated).
+    expect(line.coordinates).toHaveLength(3);
     expect(line.coordinates[0]).not.toEqual(line.coordinates[line.coordinates.length - 1]);
   });
 
@@ -194,7 +194,7 @@ describe('editing operations', () => {
     let sc = addStationOnLine(s, a.id, [0.0, 0]).scenario;
     sc = addStationOnLine(sc, a.id, [0.02, 0]).scenario;
     const split = splitLine(sc, a.id, 0.5);
-    const parts = split.lines.filter((l) => l.mode === 'tram');
+    const parts = split.lines.filter((l) => l.mode === 'custom');
     expect(parts).toHaveLength(2);
     expect(parts[0]!.stops).toHaveLength(1);
     expect(parts[1]!.stops).toHaveLength(1);
@@ -209,7 +209,7 @@ describe('editing operations', () => {
         [0, 0],
         [0.01, 0],
       ],
-      mode: 'tram',
+      mode: 'custom',
     });
     s = a.scenario;
     const b = createLine(s, {
@@ -217,7 +217,7 @@ describe('editing operations', () => {
         [0.02, 0],
         [0.01, 0],
       ],
-      mode: 'tram',
+      mode: 'custom',
     });
     s = b.scenario;
     const { scenario, error } = joinLines(s, a.line.id, b.line.id);
@@ -236,8 +236,8 @@ describe('editing operations', () => {
       [0.03, 0],
     ] as LngLat[]);
     const edited = updated.lines[0]!;
-    expect(edited.alignment.kind === 'spline' && edited.alignment.controlPoints).toHaveLength(3);
-    expect(edited.coordinates.length).toBeGreaterThan(3);
+    expect(edited.alignment.kind).toBe('polyline');
+    expect(edited.coordinates).toHaveLength(3);
     expect(edited.segments[0]!.toFraction).toBe(1);
   });
 
@@ -248,7 +248,7 @@ describe('editing operations', () => {
         [0, 0],
         [0.02, 0],
       ],
-      mode: 'tram',
+      mode: 'custom',
     }).scenario;
     s = createLine(s, {
       coordinates: [
@@ -256,7 +256,7 @@ describe('editing operations', () => {
         [0.02, 0],
         [0.03, 0.01],
       ],
-      mode: 'tram',
+      mode: 'custom',
     }).scenario;
     const shared = detectSharedTracks(s);
     expect(shared).toHaveLength(1);
@@ -306,7 +306,7 @@ describe('direction, crossovers and track sides', () => {
         [0.01, 0],
         [0.02, 0],
       ],
-      mode: 'tram',
+      mode: 'custom',
     });
     s = r.scenario;
     for (const p of [

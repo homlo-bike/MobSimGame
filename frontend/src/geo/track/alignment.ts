@@ -14,6 +14,8 @@
 import { z } from 'zod';
 import type { Vec } from './projection';
 import {
+  length as primLength,
+  pointAt as pointAtPrim,
   add,
   arcCenter,
   cross,
@@ -42,8 +44,12 @@ export type AlignmentWarning =
   | { kind: 'reversal'; vertex: number }
   | { kind: 'too_short'; vertex: number };
 
+/** Which PI a primitive belongs to: a straight on leg k (PI k → k+1) or the arc at vertex k. */
+export type PrimitiveOwner = { kind: 'leg' | 'vertex'; index: number };
+
 export interface BuiltAlignment {
   primitives: Primitive[];
+  owners: PrimitiveOwner[];
   warnings: AlignmentWarning[];
   /** Radius actually used at each vertex (null where there is no arc). */
   usedRadii: (number | null)[];
@@ -70,7 +76,8 @@ export function buildPrimitives(a: PiAlignment): BuiltAlignment {
   const pts = a.points;
   const n = pts.length;
   const warnings: AlignmentWarning[] = [];
-  if (n < 2) return { primitives: [], warnings: [{ kind: 'too_short', vertex: 0 }], usedRadii: [] };
+  if (n < 2)
+    return { primitives: [], owners: [], warnings: [{ kind: 'too_short', vertex: 0 }], usedRadii: [] };
   const used: (number | null)[] = pts.map(() => null);
   const tangentLen: number[] = pts.map(() => 0);
   const geo = pts.map((_, i) => (i > 0 && i < n - 1 ? deflection(pts, i) : null));
@@ -103,11 +110,15 @@ export function buildPrimitives(a: PiAlignment): BuiltAlignment {
     }
   }
   const primitives: Primitive[] = [];
+  const owners: PrimitiveOwner[] = [];
   let cursor: Vec = pts[0]!;
   for (let i = 1; i < n; i++) {
     const r = used[i];
     if (i === n - 1 || !r) {
-      if (dist(cursor, pts[i]!) > EPS) primitives.push(line(cursor, pts[i]!));
+      if (dist(cursor, pts[i]!) > EPS) {
+        primitives.push(line(cursor, pts[i]!));
+        owners.push({ kind: 'leg', index: i - 1 });
+      }
       cursor = pts[i]!;
       continue;
     }
@@ -115,7 +126,10 @@ export function buildPrimitives(a: PiAlignment): BuiltAlignment {
     const t = tangentLen[i]!;
     const t1 = add(pts[i]!, scale(g.u1, -t));
     const t2 = add(pts[i]!, scale(g.u2, t));
-    if (dist(cursor, t1) > EPS) primitives.push(line(cursor, t1));
+    if (dist(cursor, t1) > EPS) {
+      primitives.push(line(cursor, t1));
+      owners.push({ kind: 'leg', index: i - 1 });
+    }
     const direction = g.turn > 0 ? 'left' : 'right';
     const arc: ArcPrimitive = {
       kind: 'arc',
@@ -126,9 +140,52 @@ export function buildPrimitives(a: PiAlignment): BuiltAlignment {
       center: arcCenter(t1, headingOf(g.u1), r, direction),
     };
     primitives.push(arc);
+    owners.push({ kind: 'vertex', index: i });
     cursor = t2;
   }
-  return { primitives, warnings, usedRadii: used };
+  return { primitives, owners, warnings, usedRadii: used };
+}
+
+/**
+ * Split an alignment at a distance along it into two alignments that together
+ * reproduce the same lines and arcs. On a straight, the split point simply
+ * becomes an end; inside an arc, both halves get a new PI where the tangent at
+ * the split point meets the neighbouring leg, keeping the radius.
+ */
+export function splitAlignment(a: PiAlignment, alongM: number): [PiAlignment, PiAlignment] | null {
+  const built = buildPrimitives(a);
+  let s = alongM;
+  for (let k = 0; k < built.primitives.length; k++) {
+    const prim = built.primitives[k]!;
+    const len = primLength(prim);
+    if (s > len + 1e-9 && k < built.primitives.length - 1) {
+      s -= len;
+      continue;
+    }
+    const { point: p, heading } = pointAtPrim(prim, Math.min(len, Math.max(0, s)));
+    const owner = built.owners[k]!;
+    const pts = a.points;
+    if (owner.kind === 'leg') {
+      const i = owner.index;
+      if (dist(p, pts[0]!) < 1e-6 || dist(p, pts[pts.length - 1]!) < 1e-6) return null;
+      return [
+        { points: [...pts.slice(0, i + 1), p], radii: [...a.radii.slice(0, i + 1), null] },
+        { points: [p, ...pts.slice(i + 1)], radii: [null, ...a.radii.slice(i + 1)] },
+      ];
+    }
+    const i = owner.index;
+    const r = built.usedRadii[i]!;
+    const tan: Vec = [Math.cos(heading), Math.sin(heading)];
+    const inDir = unit(sub(pts[i]!, pts[i - 1]!));
+    const outDir = unit(sub(pts[i + 1]!, pts[i]!));
+    const piA = intersect(pts[i - 1]!, inDir, p, tan) ?? prim.start;
+    const piB = intersect(p, tan, pts[i]!, outDir) ?? prim.end;
+    return [
+      { points: [...pts.slice(0, i), piA, p], radii: [...a.radii.slice(0, i), r, null] },
+      { points: [p, piB, ...pts.slice(i + 1)], radii: [null, r, ...a.radii.slice(i + 1)] },
+    ];
+  }
+  return null;
 }
 
 /** Move one PI; connected geometry follows because the primitives are rebuilt from the PIs. */
@@ -192,8 +249,12 @@ export function parallel(a: PiAlignment, d: number): ParallelResult {
   const points: Vec[] = [];
   const radii: (number | null)[] = [];
   const collapsed: number[] = [];
+  // A closed alignment (ring) keeps its ends together: both are the offset corner.
+  const closed = n > 3 && dist(pts[0]!, pts[n - 1]!) < 1e-6;
+  const corner = closed ? intersect(legs[n - 2]!.p, legs[n - 2]!.u, legs[0]!.p, legs[0]!.u) : null;
   for (let i = 0; i < n; i++) {
-    if (i === 0) points.push(legs[0]!.p);
+    if ((i === 0 || i === n - 1) && corner) points.push(corner);
+    else if (i === 0) points.push(legs[0]!.p);
     else if (i === n - 1) {
       const last = legs[n - 2]!;
       points.push(add(pts[n - 1]!, scale(leftNormal(last.u), d)));

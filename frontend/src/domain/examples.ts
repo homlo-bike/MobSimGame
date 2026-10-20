@@ -1,7 +1,8 @@
 /**
  * Build a project from a real-city network loaded from OpenStreetMap.
  *
- * Track lines become smooth curves through their (simplified) OSM geometry;
+ * Track lines become a double track (two physical tracks) fitted with lines and
+ * circular arcs to their OSM geometry, and a service routed over it;
  * bus lines become street-routed lines whose sections are the OSM route between
  * consecutive stops. Every line is marked as existing infrastructure, so its
  * findings stay informational until the user edits it. Nothing here invents
@@ -13,8 +14,10 @@ import { SCHEMA_VERSION } from './schema';
 import { MODES } from './modes';
 import { emptyScenario, reorderStops } from './network';
 import { legsGeometry } from './alignment';
-import { sampleSpline } from '../geo/spline';
-import { distanceM, pathLengthM, slicePath, snapToPath } from '../geo/geometry';
+import { fitPiAlignment } from '../geo/track/fit';
+import { createTracks, networkFrame, nearestOnTrack } from './tracks';
+import { applyServiceRoute } from './serviceRouting';
+import { distanceM, pathLengthM, positionAtFraction, slicePath, snapToPath } from '../geo/geometry';
 import { initialSegments } from '../geo/segments';
 import { newId, nowIso } from '../util/id';
 
@@ -47,32 +50,6 @@ export interface NetworkData {
   lines: NetworkLineData[];
   stations: NetworkStationData[];
   notes: string[];
-}
-
-/** Control points of a smooth curve: one roughly every this many metres of OSM geometry. */
-const CONTROL_POINT_SPACING_M = 40;
-/** A line whose ends are this close is treated as a ring. */
-const RING_CLOSE_M = 60;
-
-/** Thin a dense path to control points, keeping both ends and every sharp turn. */
-export function controlPoints(path: readonly LngLat[], spacingM = CONTROL_POINT_SPACING_M): LngLat[] {
-  if (path.length <= 2) return [...path];
-  const out: LngLat[] = [path[0]!];
-  let since = 0;
-  for (let i = 1; i < path.length - 1; i++) {
-    since += distanceM(path[i - 1]!, path[i]!);
-    const a = path[i - 1]!;
-    const b = path[i]!;
-    const c = path[i + 1]!;
-    const turn = Math.abs(Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]));
-    const sharp = Math.min(turn, 2 * Math.PI - turn) > Math.PI / 6;
-    if (since >= spacingM || sharp) {
-      out.push(b);
-      since = 0;
-    }
-  }
-  out.push(path[path.length - 1]!);
-  return out;
 }
 
 function baseLine(data: NetworkLineData, mode: TransportMode, index: number): TransportLine {
@@ -117,6 +94,7 @@ function baseLine(data: NetworkLineData, mode: TransportMode, index: number): Tr
     vehicleTypeId: null,
     dwellTimeS: defaults.defaultDwellTimeS,
     maxSpeedKmh: defaults.defaultMaxSpeedKmh,
+    metadata: {},
     notes: data.gaps
       ? `Imported from OpenStreetMap ${data.id}; the mapped route has ${data.gaps} gap(s).`
       : `Imported from OpenStreetMap ${data.id}.`,
@@ -152,6 +130,22 @@ function routedFromOsm(line: TransportLine, path: LngLat[], stopPositions: LngLa
   };
 }
 
+/** A line whose ends are this close is treated as a ring. */
+const RING_CLOSE_M = 60;
+
+/** Resample a path every `stepM` metres (for fitting lines and arcs to uneven OSM vertices). */
+function resample(path: readonly LngLat[], stepM: number): LngLat[] {
+  const total = pathLengthM(path);
+  if (total <= stepM) return [...path];
+  const n = Math.ceil(total / stepM);
+  return Array.from({ length: n + 1 }, (_, i) => positionAtFraction(path, false, i / n));
+}
+
+/** Stations of an imported line are matched to its own tracks within this distance (OSM stop positions). */
+const IMPORT_STATION_TRACK_M = 80;
+/** Fitting tolerance for OSM geometry, metres (an editor setting, not an engineering value). */
+const IMPORT_FIT_TOLERANCE_M = 3;
+
 export function networkToProject(network: NetworkData, provenance: Provenance): Project {
   const scenario = emptyScenario(`${network.cityName}: ${network.label}`);
   const stationByKey = new Map<string, Station>();
@@ -168,11 +162,14 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
       entrances: [],
       accessibility: { stepFree: null, elevators: null, tactilePaving: null },
       catchmentRadiusM: MODES[network.kind === 'bus' ? 'bus' : network.kind].defaultCatchmentRadiusM,
+      trackRefs: [],
+      metadata: {},
       notes: 'From OpenStreetMap.',
       imageUrls: [],
     });
   }
   const lines: TransportLine[] = [];
+  let sc0 = scenario;
   network.lines.forEach((data, i) => {
     if (data.coordinates.length < 2) return;
     const mode: TransportMode = data.mode;
@@ -192,11 +189,45 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
       if (data.returnCoordinates && data.returnCoordinates.length >= 2 && line.alignment.kind === 'routed')
         line = { ...line, alignment: { ...line.alignment, returnCoordinates: data.returnCoordinates } };
     } else {
-      const cps = controlPoints(open);
+      // Physical double track fitted to the mapped route; a ring closes on itself.
+      const pts = resample(ring ? [...open, open[0]!] : open, 10);
+      if (!sc0.trackNetwork.frameOrigin)
+        sc0 = { ...sc0, trackNetwork: { ...sc0.trackNetwork, frameOrigin: network.center } };
+      const frame = networkFrame(sc0.trackNetwork);
+      const fit = fitPiAlignment(
+        pts.map((p) => frame.toMetres(p)),
+        IMPORT_FIT_TOLERANCE_M,
+      );
+      const created = createTracks(sc0, {
+        points: fit.alignment.points.map((v) => frame.toLngLat(v)),
+        radii: fit.alignment.radii,
+        mode,
+        double: true,
+        origin: { source: 'osm', ref: data.id, edited: false },
+      });
+      if (created.error) return;
+      sc0 = created.scenario;
+      for (const st of stops) {
+        if (st.trackRefs.some((r) => created.trackIds.includes(r.trackId))) continue;
+        const refs = created.trackIds
+          .map((id) =>
+            nearestOnTrack(
+              sc0.trackNetwork,
+              sc0.trackNetwork.tracks.find((t) => t.id === id)!,
+              st.position,
+            ),
+          )
+          .filter((h) => h.distanceM <= IMPORT_STATION_TRACK_M)
+          .map((h) => ({ trackId: h.track.id, fraction: h.fraction }));
+        stationByKey.forEach((v, k) => {
+          if (v.id === st.id) stationByKey.set(k, { ...v, trackRefs: [...v.trackRefs, ...refs] });
+        });
+      }
       line = {
         ...line,
-        alignment: { kind: 'spline', controlPoints: cps },
-        coordinates: sampleSpline(cps, ring),
+        alignment: { kind: 'track', path: [], returnPath: null, status: 'unrouted', message: '' },
+        coordinates: open,
+        notes: `${line.notes} Track fitted with lines and arcs (largest deviation ${Math.round(fit.maxDeviationM)} m).`,
       };
     }
     line = { ...line, stops: stops.map((s) => ({ stationId: s.id })) };
@@ -209,7 +240,7 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
       .flatMap((l) => l.stops.map((s) => s.stationId)),
   );
   let sc = {
-    ...scenario,
+    ...sc0,
     description: `Existing ${network.label.toLowerCase()} of ${network.cityName} as mapped in OpenStreetMap.`,
     lines,
     stations: [...stationByKey.values()]
@@ -217,11 +248,13 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
       .map((s): Station => (underground.has(s.id) ? { ...s, construction: 'underground' } : s)),
   };
   for (const l of lines) sc = reorderStops(sc, l.id);
+  sc = { ...sc, lines: sc.lines.map((l) => applyServiceRoute(sc, l)) };
   return {
     schemaVersion: SCHEMA_VERSION,
     id: newId('prj'),
     name: `${network.cityName}: ${network.label}`,
     description: `Real network loaded from OpenStreetMap. ${network.notes.join(' ')}`.trim(),
+    metadata: {},
     fictional: false,
     mapView: { center: network.center, zoom: network.zoom, bearing: 0, pitch: 0 },
     scenarios: [sc],

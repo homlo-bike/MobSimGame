@@ -7,7 +7,7 @@
  * except for geometry edits which are fed back through `commitScenario`.
  */
 import { create } from 'zustand';
-import type { Project, Scenario, TransportMode } from '../domain/schema';
+import type { StructureType, Project, Scenario, TransportMode } from '../domain/schema';
 import { activeScenario, duplicateScenario, emptyScenario, replaceScenario } from '../domain/network';
 import { SCHEMA_VERSION } from '../domain/schema';
 import { newId, nowIso } from '../util/id';
@@ -21,10 +21,26 @@ const log = createLogger('store');
 
 export const HISTORY_LIMIT = 100;
 
-export type Tool = 'select' | 'draw_line' | 'add_station';
+export type Tool = 'select' | 'draw_line' | 'add_station' | 'new_service';
+
+/** Options for drawing track (rail modes). */
+export interface TrackDrawOptions {
+  double: boolean;
+  /** 'default' = the mode's cited radius; null = no curves (kinks); a number = metres. */
+  radius: 'default' | number | null;
+  structure: StructureType | 'default';
+}
+
+/** A track deletion waiting for the user's choice because services use the track. */
+export interface PendingTrackDeletion {
+  trackIds: string[];
+  lineIds: string[];
+}
 
 export type Selection =
   | { kind: 'line'; id: string }
+  | { kind: 'track'; id: string }
+  | { kind: 'node'; id: string }
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
   | { kind: 'signal'; id: string }
@@ -61,6 +77,10 @@ export interface AppState {
   newLineMode: TransportMode;
   /** For add_station: the line stations are added to (null = nearest line). */
   stationTargetLineId: string | null;
+  trackDraw: TrackDrawOptions;
+  /** Stations picked so far with the new_service tool, in order. */
+  serviceDraft: string[];
+  pendingTrackDeletion: PendingTrackDeletion | null;
   basemapId: string;
   layers: LayerToggles;
   view: View;
@@ -101,6 +121,9 @@ export interface AppState {
   setTool: (t: Tool) => void;
   setNewLineMode: (m: TransportMode) => void;
   setStationTargetLine: (id: string | null) => void;
+  setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
+  setServiceDraft: (ids: string[]) => void;
+  setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
   setBasemap: (id: string) => void;
   toggleLayer: (k: keyof LayerToggles) => void;
   setView: (v: View) => void;
@@ -124,6 +147,7 @@ export function blankProject(): Project {
     id: newId('prj'),
     name: 'Untitled project',
     description: '',
+    metadata: {},
     fictional: false,
     mapView: { center: [10, 50], zoom: 4, bearing: 0, pitch: 0 },
     scenarios: [scenario],
@@ -165,6 +189,9 @@ export const useStore = create<AppState>()((set, get) => {
     tool: 'select',
     newLineMode: 'tram',
     stationTargetLineId: null,
+    trackDraw: { double: true, radius: 'default', structure: 'default' },
+    serviceDraft: [],
+    pendingTrackDeletion: null,
     basemapId: DEFAULT_BASEMAP_ID,
     layers: {
       terrain: false,
@@ -247,12 +274,15 @@ export const useStore = create<AppState>()((set, get) => {
     select: (selection) => set({ selection }),
     setTool: (tool) => {
       // Lines belong to a project: ask for one first, then resume drawing.
-      if (tool === 'draw_line' && !get().projectActive) {
-        get().openProjectGate('create', 'draw_line');
+      if ((tool === 'draw_line' || tool === 'new_service') && !get().projectActive) {
+        get().openProjectGate('create', tool);
         return;
       }
-      set({ tool });
+      set({ tool, serviceDraft: tool === 'new_service' ? get().serviceDraft : [] });
     },
+    setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
+    setServiceDraft: (serviceDraft) => set({ serviceDraft }),
+    setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),
     setNewLineMode: (newLineMode) => set({ newLineMode }),
     setStationTargetLine: (stationTargetLineId) => set({ stationTargetLineId }),
     setBasemap: (basemapId) => set({ basemapId }),
