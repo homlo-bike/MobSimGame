@@ -162,7 +162,7 @@ const ARROW_SPACING_PX = 120;
 const ARROW_STATION_CLEARANCE_PX = 14;
 /** Distance of a track's direction arrows from its ends, and size of the junction symbols (px). */
 const TRACK_END_ARROW_PX = 22;
-const JUNCTION_MOVE_PX = 32;
+const JUNCTION_MOVE_PX = 14;
 
 /** Direction arrows for services and tracks, spaced for the current zoom and kept clear of stations. */
 function directionArrows(

@@ -14,7 +14,10 @@ describe('junction and track-end symbols', () => {
     const moves = junctionMovesCollection(s, 10);
     // A merge: straight through and from the branch; the two western ends cannot reach each other.
     expect(node.movements).toHaveLength(2);
-    expect(moves.features).toHaveLength(2);
+    const curves = moves.features.filter((f) => f.properties?.kind === 'movement');
+    expect(curves).toHaveLength(2);
+    // One arm per track end.
+    expect(moves.features.filter((f) => f.properties?.kind === 'arm')).toHaveLength(3);
     expect(moves.features.every((f) => f.properties?.nodeId === node.id)).toBe(true);
   });
 

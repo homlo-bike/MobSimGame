@@ -344,8 +344,8 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       },
     });
   }
-  // Permitted movements through junctions: a short curve from each track that may be
-  // entered to each it may continue on (white casing so it reads on top of the tracks).
+  // Permitted movements through junctions: a small diagram beside the node with a grey arm
+  // per track and a violet curve per permitted way through (white casing for contrast).
   add({
     id: 'msg-junction-moves-casing',
     type: 'line',
@@ -360,7 +360,10 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     source: SRC.junctionMoves,
     minzoom: 15,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#7c3aed', 'line-width': 3 },
+    paint: {
+      'line-color': ['case', ['==', ['get', 'kind'], 'arm'], '#94a3b8', '#7c3aed'],
+      'line-width': ['case', ['==', ['get', 'kind'], 'arm'], 1.5, 3],
+    },
   });
   // Track nodes: junctions are larger with a heavy ring, open ends are hollow (shape, not colour alone).
   add({

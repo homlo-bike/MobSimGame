@@ -128,10 +128,11 @@ export function trackNodesCollection(scenario: Scenario, selectedNodeId: string 
 
 /**
  * Permitted movements through junctions (nodes where three or more track ends meet, or
- * with a turnout), drawn as a small diagram at the node: one arm per track end, pointing
- * to where that track is a few symbol sizes away (so tangential tracks still fan out),
- * and for each permitted movement a curve between the two arms through the node. Ways
- * through the junction without a curve are not allowed.
+ * with a turnout), drawn as a small diagram beside the node, in the widest gap between
+ * its tracks, so the junction point itself stays visible: one arm per track end, pointing
+ * the way that track leaves (measured a few symbol sizes out, so tangential tracks still
+ * fan out), and for each permitted movement a curve between the two arms. Ways through
+ * the junction without a curve are not allowed.
  */
 export function junctionMovesCollection(scenario: Scenario, reachM: number): FeatureCollection {
   const net = scenario.trackNetwork;
@@ -139,36 +140,67 @@ export function junctionMovesCollection(scenario: Scenario, reachM: number): Fea
   const byId = new Map(net.tracks.map((t) => [t.id, t]));
   const features: Feature[] = [];
   for (const n of net.nodes) {
-    if (nodeEnds(net, n.id).length < 3 && !n.turnout) continue;
+    const ends = nodeEnds(net, n.id);
+    if (ends.length < 3 && !n.turnout) continue;
     const c = frame.toMetres(n.position);
-    const arm = (e: TrackEndRef): [number, number] | null => {
+    /** Direction (radians) in which a track end leaves the node. */
+    const dirOf = (e: TrackEndRef): number | null => {
       const t = byId.get(e.trackId);
       if (!t) return null;
       const len = trackGeometry(net, t).lengthM;
       if (len <= 0) return null;
       const s = Math.min(4 * reachM, len / 2);
       const p = pointOnTrack(net, t, e.end === 'start' ? s / len : 1 - s / len).metres;
-      const dx = p[0] - c[0];
-      const dy = p[1] - c[1];
-      const d = Math.hypot(dx, dy);
-      return d > 0 ? [c[0] + (dx / d) * reachM, c[1] + (dy / d) * reachM] : null;
+      return Math.hypot(p[0] - c[0], p[1] - c[1]) > 0 ? Math.atan2(p[1] - c[1], p[0] - c[0]) : null;
     };
+    const dirs = new Map<string, number>();
+    for (const e of ends) {
+      const d = dirOf(e);
+      if (d !== null) dirs.set(`${e.trackId}:${e.end}`, d);
+    }
+    if (!dirs.size) continue;
+    // The diagram sits in the widest gap between the tracks, clear of the node.
+    const sorted = [...dirs.values()].sort((x, y) => x - y);
+    let gapMid = sorted[0]! + Math.PI;
+    let widest = -1;
+    sorted.forEach((d, i) => {
+      const next = i + 1 < sorted.length ? sorted[i + 1]! : sorted[0]! + 2 * Math.PI;
+      if (next - d > widest) {
+        widest = next - d;
+        gapMid = d + (next - d) / 2;
+      }
+    });
+    const o: [number, number] = [c[0] + Math.cos(gapMid) * 2 * reachM, c[1] + Math.sin(gapMid) * 2 * reachM];
+    const arm = (e: TrackEndRef): [number, number] | null => {
+      const d = dirs.get(`${e.trackId}:${e.end}`);
+      return d === undefined ? null : [o[0] + Math.cos(d) * reachM, o[1] + Math.sin(d) * reachM];
+    };
+    // A thin arm for every track end, so ends without a permitted way still show.
+    for (const e of ends) {
+      const p = arm(e);
+      if (p)
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [frame.toLngLat(o), frame.toLngLat(p)] },
+          properties: { nodeId: n.id, kind: 'arm' },
+        });
+    }
     n.movements.forEach((m, i) => {
       const a = arm(m.a);
       const b = arm(m.b);
       if (!a || !b) return;
-      // Quadratic curve with the node as control point.
+      // Quadratic curve with the diagram's centre as control point.
       const pts = Array.from({ length: 9 }, (_, k) => {
         const u = k / 8;
         const w0 = (1 - u) * (1 - u);
         const w1 = 2 * u * (1 - u);
         const w2 = u * u;
-        return frame.toLngLat([w0 * a[0] + w1 * c[0] + w2 * b[0], w0 * a[1] + w1 * c[1] + w2 * b[1]]);
+        return frame.toLngLat([w0 * a[0] + w1 * o[0] + w2 * b[0], w0 * a[1] + w1 * o[1] + w2 * b[1]]);
       });
       features.push({
         type: 'Feature',
         geometry: { type: 'LineString', coordinates: pts },
-        properties: { nodeId: n.id, movement: i },
+        properties: { nodeId: n.id, kind: 'movement', movement: i },
       });
     });
   }
