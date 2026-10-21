@@ -15,7 +15,8 @@ import { loadFromLocalStorage } from './persistence';
 import { stationMode } from '../domain/modeSeparation';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock, simulationStartS } from '../simulation/runtime';
-import { syncFleet } from '../domain/fleetRegistry';
+import { newlySurplus, syncFleet } from '../domain/fleetRegistry';
+import { notify } from './notifications';
 import { lineFleet } from '../analysis/fleet';
 
 /** Vehicles each transit line needs (in service plus spares), and the fleet synced to it. */
@@ -307,7 +308,24 @@ export const useStore = create<AppState>()((set, get) => {
     startCardDismissed: false,
 
     // The fleet follows the lines on every edit (F3): no vehicle appears or vanishes unseen.
-    commitScenario: (scenario, label) => push(replaceScenario(get().project, withFleet(scenario)), label),
+    commitScenario: (scenario, label) => {
+      const before = activeScenario(get().project);
+      const synced = withFleet(scenario);
+      push(replaceScenario(get().project, synced), label);
+      // Vehicles no longer needed go to their depot; the user decides whether to delete them (F7).
+      const extra = newlySurplus(before, synced);
+      if (extra.length)
+        notify({
+          severity: 'warning',
+          kind: 'project',
+          title: `${extra.length} vehicle(s) no longer needed`,
+          message: `${extra
+            .map((v) => v.code)
+            .join(
+              ', ',
+            )} now stand in the depot. Delete them in Dashboard → Vehicles, or keep them: a line that needs vehicles of the same type uses them again.`,
+        });
+    },
     commitProject: (project, label) => push(project, label),
     loadProject: (project) => {
       log.info('project loaded', {

@@ -3,6 +3,8 @@ import { useState } from 'react';
 import type { Scenario } from '../domain/schema';
 import { MODES } from '../domain/modes';
 import { deleteSurplus, updateVehicleRecord } from '../domain/fleetRegistry';
+import { allocateDepots } from '../domain/depots';
+import { depotTracks } from '../domain/stabling';
 import { useStore } from '../store/projectStore';
 import { Button, Section } from './primitives';
 
@@ -15,13 +17,16 @@ export function FleetSection({ scenario }: { scenario: Scenario }) {
   const lineName = (id: string | null) => scenario.lines.find((l) => l.id === id)?.name ?? '–';
   const typeOf = (id: string | null) => scenario.vehicleTypes.find((v) => v.id === id);
   const surplus = scenario.fleet.filter((v) => v.status === 'surplus');
+  const allocation = allocateDepots(scenario);
+  const depotName = (code: string) => scenario.depots.find((d) => d.id === allocation.get(code))?.name;
   const rows = [...scenario.fleet].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   return (
     <Section title={`Vehicles (${scenario.fleet.length})`} id="dash-fleet">
       <p className="mb-1 text-xs text-slate-600">
         Every vehicle of the project. The fleet follows the lines: a line gets the vehicles it needs in
-        service plus spares; vehicles no longer needed become surplus and stay until you delete them. Capacity
-        follows the vehicle profile unless a vehicle has its own value.
+        service plus spares; vehicles no longer needed become surplus, stand in their depot and stay until you
+        delete them (a line that needs vehicles of the same type takes them first). Capacity follows the
+        vehicle profile unless a vehicle has its own value.
       </p>
       <div className="mb-2 flex flex-wrap gap-2">
         <Button onClick={() => commit(scenario, 'Fleet brought up to date with the lines')}>
@@ -99,7 +104,9 @@ export function FleetSection({ scenario }: { scenario: Scenario }) {
                     </td>
                     <td className="pe-2">{lineName(v.lineId)}</td>
                     <td className="pe-2">
-                      {v.status === 'surplus' ? `Surplus since ${date(v.surplusSince)}` : 'Allocated'}
+                      {v.status === 'surplus'
+                        ? `Surplus since ${date(v.surplusSince)}${depotName(v.code) ? `, at ${depotName(v.code)}` : ''}`
+                        : 'Allocated'}
                     </td>
                     <td className="pe-2">{date(v.addedAt)}</td>
                     <td className="pe-2">
@@ -122,7 +129,9 @@ export function FleetSection({ scenario }: { scenario: Scenario }) {
                       />
                     </td>
                     <td>
-                      {v.status === 'allocated' && (
+                      {(v.status === 'allocated' ||
+                        depotName(v.code) ||
+                        depotTracks(scenario, v.mode).length > 0) && (
                         <Button onClick={() => showVehicle(v.code)} aria-label={`Show ${v.code} on the map`}>
                           Show on map
                         </Button>

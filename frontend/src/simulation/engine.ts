@@ -1557,6 +1557,139 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
   return out;
 }
 
+/** Vehicles per track line of a mode that need a depot slot (in service and spares). */
+function railVehicles(
+  scenario: Scenario,
+  byId: ReadonlyMap<string, LineSimulationModel>,
+  mode: string,
+): Map<string, number> {
+  return new Map(
+    scenario.lines
+      .filter((l) => l.mode === mode && (byId.get(l.id)?.fleet ?? 0) > 0)
+      .map((l) => [l.id, Math.max(byId.get(l.id)!.fleet, byId.get(l.id)!.vehicleCodes.length)]),
+  );
+}
+
+/** Colour of vehicles without a line. */
+export const SURPLUS_COLOR = '#64748b';
+
+/**
+ * Surplus vehicles (F7): no line, so they never run. They stand in their depot: street
+ * modes at the depot point they are allocated to (after the line vehicles), rail modes on
+ * the depot track room left after the line vehicles. Without a depot with room they are
+ * not drawn (the fleet table still lists them). Time-independent.
+ */
+export function surplusStates(scenario: Scenario, models: readonly LineSimulationModel[]): VehicleState[] {
+  const surplus = scenario.fleet.filter((v) => v.status === 'surplus');
+  if (!surplus.length) return [];
+  const net = scenario.trackNetwork;
+  const shapeOf = (typeId: string | null) => {
+    const v = scenario.vehicleTypes.find((x) => x.id === typeId);
+    return {
+      unitLengthM: v?.lengthM ?? parameterValue(net, 'unknownVehicleLengthM'),
+      units: Math.max(1, v?.unitsPerConsist ?? 1),
+      sectionsPerUnit: Math.max(
+        1,
+        v?.sectionsPerUnit ??
+          Math.round(
+            (v?.lengthM ?? parameterValue(net, 'unknownVehicleLengthM')) /
+              parameterValue(net, 'vehicleSectionLengthM'),
+          ),
+      ),
+      widthM: v?.widthM ?? parameterValue(net, 'unknownVehicleWidthM'),
+      placeholder: !v || v.widthM == null,
+    } satisfies ConsistShape;
+  };
+  const state = (code: string, path: MeasuredPath, shape: ConsistShape): VehicleState => {
+    const d = path.lengthM / 2;
+    const { position, bearingDeg } = interpolate(path, d);
+    return {
+      id: code,
+      lineId: '',
+      color: SURPLUS_COLOR,
+      chainageM: 0,
+      position,
+      bearingDeg,
+      direction: 1,
+      state: 'parked',
+      footprint: consistFootprint(path, d, 1, shape, false),
+      heightM: 0,
+    };
+  };
+  const out: VehicleState[] = [];
+  // Street modes: the depot point, after every vehicle allocated there before them.
+  const allocation = allocateDepots(scenario);
+  const index = new Map<string, number>();
+  const spotOf = new Map<string, number>();
+  for (const [code, depotId] of allocation) {
+    const n = index.get(depotId) ?? 0;
+    index.set(depotId, n + 1);
+    spotOf.set(code, n);
+  }
+  // Rail modes: room left on the depot tracks.
+  const byId = new Map(models.map((m) => [m.lineId, m]));
+  const railModes = new Set(
+    surplus.filter((v) => !isDepotMode(v.mode) && depotTracksOf(scenario, v.mode)).map((v) => v.mode),
+  );
+  const railSlots = new Map<string, { trackId: string; fraction: number }>();
+  for (const mode of railModes) {
+    const extra = surplus
+      .filter((v) => v.mode === mode)
+      .map((v) => {
+        const sh = shapeOf(v.vehicleTypeId);
+        return { key: v.code, lengthM: sh.unitLengthM * sh.units };
+      });
+    const { slots } = assignStabling(scenario, mode, railVehicles(scenario, byId, mode), extra);
+    for (const e of extra) {
+      const slot = slots.get(e.key);
+      if (slot) railSlots.set(e.key, slot);
+    }
+  }
+  for (const v of surplus) {
+    const shape = shapeOf(v.vehicleTypeId);
+    const lengthM = shape.unitLengthM * shape.units;
+    if (isDepotMode(v.mode)) {
+      const depot = scenario.depots.find((d) => d.id === allocation.get(v.code));
+      if (!depot) continue;
+      const spot = parkingSpot(depot, spotOf.get(v.code) ?? 0, lengthM, shape.widthM);
+      // A short west–east path through the spot, so the vehicle stands like the parked ones.
+      const half = (lengthM / 2) * (180 / (Math.PI * 6371008.8 * Math.cos((spot[1] * Math.PI) / 180)));
+      out.push(
+        state(
+          v.code,
+          measurePath(
+            [
+              [spot[0] - half, spot[1]],
+              [spot[0] + half, spot[1]],
+            ],
+            false,
+          ),
+          shape,
+        ),
+      );
+      continue;
+    }
+    const slot = railSlots.get(v.code);
+    if (!slot) continue;
+    const track = net.tracks.find((t) => t.id === slot.trackId);
+    if (!track) continue;
+    const half = lengthM / 2 / Math.max(trackGeometry(net, track).lengthM, 1e-9);
+    const coords = stepsCoordinates(scenario, [
+      {
+        trackId: slot.trackId,
+        reversed: false,
+        from: Math.max(0, slot.fraction - half),
+        to: Math.min(1, slot.fraction + half),
+      },
+    ]);
+    if (coords.length >= 2) out.push(state(v.code, measurePath(coords, false), shape));
+  }
+  return out;
+}
+
+const depotTracksOf = (scenario: Scenario, mode: string) =>
+  scenario.trackNetwork.tracks.some((t) => t.usage === 'depot' && t.designMode === mode);
+
 export function buildScenarioModels(scenario: Scenario, options?: SimulationOptions): LineSimulationModel[] {
   const context = new SimulationContext();
   // Crossings and shared streets between lines, any modes (owner rule): vehicles never collide.
@@ -1576,12 +1709,7 @@ export function buildScenarioModels(scenario: Scenario, options?: SimulationOpti
     const byId = new Map(models.map((m) => [m.lineId, m]));
     const modes = new Set(scenario.lines.filter((l) => l.alignment.kind === 'track').map((l) => l.mode));
     for (const mode of modes) {
-      const vehicles = new Map(
-        scenario.lines
-          .filter((l) => l.mode === mode && (byId.get(l.id)?.fleet ?? 0) > 0)
-          .map((l) => [l.id, Math.max(byId.get(l.id)!.fleet, byId.get(l.id)!.vehicleCodes.length)]),
-      );
-      const { slots } = assignStabling(scenario, mode, vehicles);
+      const { slots } = assignStabling(scenario, mode, railVehicles(scenario, byId, mode));
       for (const [key, slot] of slots) {
         const [lineId, k] = [key.slice(0, key.lastIndexOf(':')), Number(key.slice(key.lastIndexOf(':') + 1))];
         const m = byId.get(lineId);

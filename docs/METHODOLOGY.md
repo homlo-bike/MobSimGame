@@ -233,6 +233,13 @@ router. Without a routed link a vehicle waits at its line end: it never cuts acr
 Parked vehicles are drawn in rows beside the depot point (a drawing aid; the yard layout
 is not modelled).
 
+**Surplus vehicles (F7)**: a vehicle no line needs any more has no trips, so it stands in
+its depot the whole day: at a street depot in the places after the line vehicles, on rail
+in the depot track room left after the line vehicles (same minimum gap). The model does
+not simulate the run from the line to the depot at the moment of the edit: the edit
+changes the plan, not a running day. The user is notified and decides whether to delete
+them; a line that needs vehicles of the same type and mode takes them first.
+
 **Depot tracks (F6)**: tracks no service uses can be marked as depot (stabling) tracks
 (track inspector → Use); services are routed around them. Each rail mode needs as much
 depot track as all its consists are long, with the minimum gap (`followingMinGapM`)

@@ -69,11 +69,13 @@ export interface StablingSlot {
  * Give every vehicle of the mode's track lines (`vehicles` per line id) the nearest free
  * slot, line by line in project order. Vehicles without room or without a way to a
  * depot track get no slot (they wait at the line end) and are counted in `unplaced`.
+ * `extra` vehicles (surplus ones, keyed by fleet number) go into the room left afterwards.
  */
 export function assignStabling(
   scenario: Scenario,
   mode: TransportMode,
   vehicles: ReadonlyMap<string, number>,
+  extra: readonly { key: string; lengthM: number }[] = [],
 ): { slots: Map<string, StablingSlot>; unplaced: number } {
   const net = scenario.trackNetwork;
   const depots = depotTracks(scenario, mode);
@@ -81,7 +83,7 @@ export function assignStabling(
   let unplaced = 0;
   if (!depots.length) {
     for (const n of vehicles.values()) unplaced += n;
-    return { slots, unplaced };
+    return { slots, unplaced: unplaced + extra.length };
   }
   const gap = parameterValue(net, 'followingMinGapM');
   const used = new Map(depots.map((t) => [t.id, 0]));
@@ -124,6 +126,25 @@ export function assignStabling(
       used.set(best.trackId, used.get(best.trackId)! + consist + gap);
       slots.set(`${line.id}:${k}`, best);
     }
+  }
+  // Vehicles without a line (surplus, F7): the first depot track with room; they do not run.
+  for (const e of extra) {
+    const d = depots.find((t) => used.get(t.id)! + e.lengthM <= lengths.get(t.id)! + 1e-6);
+    if (!d) {
+      unplaced++;
+      continue;
+    }
+    const u = used.get(d.id)!;
+    const len = lengths.get(d.id)!;
+    slots.set(e.key, {
+      trackId: d.id,
+      fraction: (u + e.lengthM / 2) / len,
+      out: [],
+      outM: 0,
+      back: [],
+      backM: 0,
+    });
+    used.set(d.id, u + e.lengthM + gap);
   }
   return { slots, unplaced };
 }

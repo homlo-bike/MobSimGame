@@ -25,8 +25,13 @@ import {
 import { snapToPath } from '../geo/geometry';
 import { basemapOptions } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
-import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
-import { vehicleInfo, type VehicleInfo } from '../simulation/vehicleInfo';
+import {
+  buildScenarioModels,
+  surplusStates,
+  vehicleStates,
+  type LineSimulationModel,
+} from '../simulation/engine';
+import { surplusInfo, vehicleInfo, type VehicleInfo } from '../simulation/vehicleInfo';
 import { addDepot, isDepotMode } from '../domain/depots';
 import { VehiclePanel } from './VehiclePanel';
 import { simulationClock, simulationOptions } from '../simulation/runtime';
@@ -1248,6 +1253,9 @@ export default function MapView() {
     if (!map) return;
     const simOptions = simulationOptions(scenario, closures);
     let models: LineSimulationModel[] = buildScenarioModels(scenario, simOptions);
+    // Surplus vehicles stand in their depots all day (F7).
+    let parked = surplusStates(scenario, models);
+    const allStates = (t: number) => [...models.flatMap((m) => vehicleStates(m, t)), ...parked];
     let frame = 0;
     let lastDraw = 0;
     let lastSignals = 0;
@@ -1270,6 +1278,16 @@ export default function MapView() {
           return;
         }
       }
+      const spare = parked.find((x) => x.id === id);
+      if (spare) {
+        if (centreOnVehicle.current) {
+          centreOnVehicle.current = false;
+          map.easeTo({ center: spare.position, zoom: Math.max(map.getZoom(), 16) });
+        }
+        const p = map.project(spare.position);
+        setVehiclePanel({ info: surplusInfo(scenario, id), x: p.x, y: p.y });
+        return;
+      }
       setVehiclePanel(null);
     };
     refreshPanel.current = () => panel(simulationClock.timeS, true);
@@ -1278,7 +1296,7 @@ export default function MapView() {
       const now = performance.now();
       // Reduced motion: update in discrete steps every 2 s instead of continuous movement.
       if (!reducedMotion || now - lastDraw > 2000) {
-        const states = models.flatMap((m) => vehicleStates(m, t));
+        const states = allStates(t);
         setData(map, SRC.vehicles, vehiclesCollection(states));
         setData(map, SRC.vehicleBodies, vehicleBodiesCollection(states));
         lastDraw = now;
@@ -1297,9 +1315,10 @@ export default function MapView() {
     } else {
       simulationClock.pause();
       models = buildScenarioModels(scenario, simOptions);
+      parked = surplusStates(scenario, models);
       if (map.getSource(SRC.vehicles)) {
         const t = simulationClock.timeS;
-        const states = models.flatMap((m) => vehicleStates(m, t));
+        const states = allStates(t);
         setData(map, SRC.vehicles, states.length ? vehiclesCollection(states) : EMPTY);
         setData(map, SRC.vehicleBodies, states.length ? vehicleBodiesCollection(states) : EMPTY);
         panel(t, true);
