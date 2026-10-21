@@ -178,8 +178,11 @@ set, labelled as such. See the [roadmap](#roadmap).
   share the remaining track. **Single track** used in both directions is occupied by
   one direction at a time (opposing trains wait), and following vehicles keep a
   minimum distance (placeholder values).
-- Schematic map proof of concept (octilinear, interchange and terminal symbols,
-  keyboard corrections, SVG/PNG export, text alternative).
+- Schematic map (octilinear, interchange and terminal symbols, walking links between
+  modes as dashed connectors with walking time, elevator/escalator/ramp symbols):
+  select stations by click or Enter, move them by dragging or with the arrow keys, pan
+  and zoom (wheel, background drag, + − and Fit), SVG/PNG export of the whole map, and a
+  text view listing each line's stations with changes, walks and access.
 - Dashboard: for real places, geometry-based figures and "input required" for
   estimates; for fictional projects, low/central/high range charts marked
   DEMONSTRATION DATA.
