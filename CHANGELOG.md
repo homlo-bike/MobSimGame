@@ -244,6 +244,8 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- **Direction arrows point along the track again** (they all pointed north since the
+  platform-marker change).
 - **Trains waiting at junctions overlapped the train passing**: the simulated position
   is the middle of the train, but junction zones and single-track blocks were measured
   from the head. Zones now reach half a train further, so a waiting train stops short of

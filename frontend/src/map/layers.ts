@@ -568,6 +568,9 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     minzoom: 13,
     layout: {
       'icon-image': ARROW_IMAGE,
+      // The arrowhead points north; turn it to the travel bearing, aligned with the track.
+      'icon-rotate': ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 0.9],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
