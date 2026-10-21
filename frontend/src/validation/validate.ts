@@ -33,6 +33,7 @@ import {
 } from '../domain/compatibility';
 import { wireRailCrossings } from '../domain/overheadWire';
 import { lineFleet } from '../analysis/fleet';
+import { stablingNeed } from '../domain/stabling';
 import { trackGeometry } from '../domain/tracks';
 
 interface CurvatureSample {
@@ -710,10 +711,60 @@ export function gradeSummary(profile: ElevationProfile) {
   return { maxGradePercent: maxAbs, meanGradePercent: meanAbs, cumulativeGainM: gain };
 }
 
+/**
+ * Depot tracks (F6): a service never runs over one; each rail mode needs as much depot
+ * track as all its consists are long, else trains out of service wait at the line ends.
+ */
+export function validateStabling(scenario: Scenario): Finding[] {
+  const out: Finding[] = [];
+  const net = scenario.trackNetwork;
+  const depots = new Map(net.tracks.filter((t) => t.usage === 'depot').map((t) => [t.id, t]));
+  for (const l of scenario.lines) {
+    if (l.alignment.kind !== 'track') continue;
+    const on = [
+      ...new Set([...l.alignment.path, ...(l.alignment.returnPath ?? [])].map((s) => s.trackId)),
+    ].filter((id) => depots.has(id));
+    for (const id of on)
+      out.push({
+        id: `depot-used-${l.id}-${id}`,
+        severity: 'error',
+        category: 'operations',
+        lineId: l.id,
+        trackId: id,
+        message: `"${l.name}" runs over a depot track: reroute the service (it is routed around depot tracks) or make the track a running track.`,
+      });
+  }
+  const modes = new Set(scenario.lines.filter((l) => l.alignment.kind === 'track').map((l) => l.mode));
+  for (const mode of modes) {
+    const need = stablingNeed(scenario, mode, (l) => {
+      const f = lineFleet(l, scenario);
+      return f ? f.inService + f.spares : 0;
+    });
+    if (!need.vehicles) continue;
+    const label = MODES[mode].label;
+    if (!need.depotTrackCount)
+      out.push({
+        id: `depot-none-${mode}`,
+        severity: 'info',
+        category: 'operations',
+        message: `${label}: no depot tracks. Trains out of service wait at the line ends; mark tracks not used by services as depot tracks (about ${Math.ceil(need.neededM)} m for ${need.vehicles} trains).`,
+      });
+    else if (need.availableM < need.neededM)
+      out.push({
+        id: `depot-short-${mode}`,
+        severity: 'warning',
+        category: 'operations',
+        message: `${label}: ${Math.floor(need.availableM)} m of depot track for ${need.vehicles} trains needing ${Math.ceil(need.neededM)} m (consists and gaps). Add depot track; trains without a slot wait at the line ends.`,
+      });
+  }
+  return out;
+}
+
 export function validateScenario(scenario: Scenario, options: ValidationOptions = {}): Finding[] {
   const findings = [
     ...validateTrackNetwork(scenario),
     ...scenario.lines.flatMap((l) => validateLine(l, scenario, options)),
+    ...validateStabling(scenario),
   ];
   for (const st of scenario.stations) {
     const lines = servingLines(scenario, st.id);

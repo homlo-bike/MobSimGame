@@ -498,6 +498,7 @@ export function NetworkLists() {
                 {tr.name || `Track ${i + 1}`}
                 <span className="block text-xs text-slate-600">
                   {formatDistance(trackGeometry(scenario.trackNetwork, tr).lengthM, unitSystem)} ·{' '}
+                  {tr.usage === 'depot' ? 'depot track · ' : ''}
                   {tr.groupId ? 'double track' : 'single track'} ·{' '}
                   {tr.direction === 'both' ? 'both ways' : 'one way'}
                 </span>

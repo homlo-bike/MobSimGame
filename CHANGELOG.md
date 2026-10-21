@@ -14,6 +14,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Depot tracks (F6)**: a track can be a depot (stabling) track; services are routed
+  around it and an error marks a service still running over one. Each rail mode's need
+  (all consists and gaps) is compared with its depot track, with a warning when short.
+  In the service day, trains out of service run to their nearest free slot along the
+  tracks, wait there and come back before their next trip (placeholder speed parameter
+  `depotRunSpeedKmh`). Depot tracks are drawn brown and named in the track list.
 - **Vehicles per line (R16)**: the line inspector calculates the vehicles in service at
   the peak from the simulated round trip and the design headway, which is shortened when
   the expected peak demand (new field, passengers per hour per direction) needs more

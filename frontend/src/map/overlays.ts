@@ -52,6 +52,7 @@ export function tracksCollection(scenario: Scenario, selectedTrackId: string | n
         level: t.level,
         selected: t.id === selectedTrackId,
         double: !!t.groupId,
+        depot: t.usage === 'depot',
         existing: t.origin.source === 'osm' && !t.origin.edited,
         arrow: t.direction === 'both' ? '‹ ›' : '›',
         color: '#334155',

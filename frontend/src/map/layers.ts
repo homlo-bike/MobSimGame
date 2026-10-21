@@ -324,7 +324,8 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       filter: ['==', ['get', 'structure'], s],
       layout: { 'line-cap': 'butt', 'line-join': 'round' },
       paint: {
-        'line-color': ['case', ['get', 'selected'], '#0f766e', '#1e293b'],
+        // Depot (stabling) tracks are brown (and named so in the track list and inspector).
+        'line-color': ['case', ['get', 'selected'], '#0f766e', ['get', 'depot'], '#a16207', '#1e293b'],
         'line-width': [
           'interpolate',
           ['linear'],

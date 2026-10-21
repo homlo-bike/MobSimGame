@@ -203,7 +203,8 @@ export function routeThroughStations(
     };
   // Only tracks whose infrastructure class the service mode may use (domain/compatibility.ts).
   const byTrack = new Map(net.tracks.map((t) => [t.id, t]));
-  const allow = mode ? (t: PhysicalTrack) => serviceCanUse(mode, t) : undefined;
+  // Depot (stabling) tracks are never part of a service (F6).
+  const allow = (t: PhysicalTrack) => t.usage !== 'depot' && (!mode || serviceCanUse(mode, t));
   const usable = (s: Station) =>
     allow
       ? s.trackRefs.filter((r) => {

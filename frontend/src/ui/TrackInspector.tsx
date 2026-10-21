@@ -172,6 +172,25 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
             {INFRASTRUCTURE_CLASS_LABELS[trackClass(track)].toLowerCase()}). The mode is fixed: only{' '}
             {MODES[track.designMode].label} services use it.
           </p>
+          <SelectField
+            label="Use"
+            value={track.usage}
+            onChange={(e) =>
+              patch(
+                { usage: e.target.value as PhysicalTrack['usage'] },
+                e.target.value === 'depot' ? 'Track made a depot track' : 'Track made a running track',
+              )
+            }
+            options={[
+              { value: 'running', label: 'Running track (services may use it)' },
+              { value: 'depot', label: 'Depot track (trains wait here out of service)' },
+            ]}
+            hint={
+              track.usage === 'depot'
+                ? 'Services are routed around it. Trains of this mode not needed in service wait here, in the free slot nearest to their line.'
+                : undefined
+            }
+          />
           <div>
             <SelectField
               label="Electrification"
