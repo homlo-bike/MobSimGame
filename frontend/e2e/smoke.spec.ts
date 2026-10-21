@@ -69,6 +69,17 @@ test('opens a real network as existing infrastructure without synthetic figures'
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await expect(page.getByText(/Input required: no figures are estimated/)).toBeVisible();
   await expect(page.getByText(/DEMONSTRATION DATA/)).toHaveCount(0);
+
+  // The fleet register and the vehicle info window (keyboard path from the fleet table).
+  await page.getByRole('button', { name: 'Update from lines' }).click();
+  const show = page.getByRole('button', { name: /^Show TRM-\d+ on the map$/ }).first();
+  await expect(show).toBeVisible();
+  await show.click();
+  await expect(page.getByTestId('vehicle-panel')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('vehicle-panel')).toContainText(/TRM-\d+/);
+  await expect(page.getByTestId('vehicle-panel')).toContainText('Next stop');
+  await page.getByRole('button', { name: 'Close vehicle information' }).click();
+  await expect(page.getByTestId('vehicle-panel')).toHaveCount(0);
 });
 
 test('place stations, connect them with double track, create a service and edit a curve', async ({

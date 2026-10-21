@@ -116,6 +116,11 @@ set, labelled as such. See the [roadmap](#roadmap).
   plus spares; vehicles no longer needed become surplus and stay until you delete them.
   A vehicle can have its own capacity instead of the profile's. In the animation each
   vehicle carries its fleet number; spares wait in the depot.
+- **Vehicle info window:** click a vehicle on the map (or "Show on map" in Dashboard →
+  Vehicles) to see its fleet number, line, status, next stop and how full it is. The
+  window follows the vehicle and updates while the animation runs. How full is
+  estimated from the peak or off-peak demand you enter for the line; without it the
+  window says what is missing.
 - **Depot tracks:** mark a track no service uses as a depot track (track inspector →
   Use). Trains not needed in service run to the nearest free slot there, wait (also at
   night) and come back before their next trip. A warning appears when a mode's depot

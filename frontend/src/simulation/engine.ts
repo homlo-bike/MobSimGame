@@ -211,6 +211,8 @@ export interface LineSimulationModel {
    * the ones in service are spares and wait in their depot slots.
    */
   vehicleCodes: string[];
+  /** Stops along the line's path (station, chainage), in chainage order. */
+  stops: { stationId: string; chainageM: number }[];
 }
 
 /** A vehicle's empty runs between the start of its line and its depot slot. */
@@ -686,6 +688,9 @@ function buildModelBody(
     rates: options.constantSpeed ? null : lineRates(line, scenario),
     heightProfile: lineHeightProfile(scenario, line),
     physics,
+    stops: [...stopAt]
+      .map(([stationId, chainageM]) => ({ stationId, chainageM }))
+      .sort((a, b) => a.chainageM - b.chainageM),
     fleet: 0,
     timetable: null,
     vehicleOf: new Map(),
@@ -999,6 +1004,7 @@ function emptyModel(
     ready: new Map(),
     stabling: null,
     vehicleCodes: [],
+    stops: [],
   };
 }
 

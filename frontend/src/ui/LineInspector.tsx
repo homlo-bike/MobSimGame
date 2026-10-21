@@ -464,6 +464,21 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 }
                 hint="Your estimate until the ridership estimate is available; it sizes the fleet with the vehicle capacity."
               />
+              <CommitField
+                label="Expected off-peak demand"
+                unit="passengers/hour/direction at the busiest point"
+                type="number"
+                min={0}
+                max={200000}
+                step={1}
+                value={line.offPeakDemandPphpd}
+                onCommit={(v) =>
+                  v === '' || Number(v) >= 0
+                    ? patch({ offPeakDemandPphpd: v === '' ? null : Number(v) }, 'Expected demand changed')
+                    : 'Zero or more'
+                }
+                hint="Used for how full vehicles are outside the peak periods (vehicle info window)."
+              />
             </div>
             {fleet && (
               <div className="text-sm text-slate-800" data-testid="fleet-summary">

@@ -26,6 +26,8 @@ import { snapToPath } from '../geo/geometry';
 import { basemapOptions } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
+import { vehicleInfo, type VehicleInfo } from '../simulation/vehicleInfo';
+import { VehiclePanel } from './VehiclePanel';
 import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
 import {
@@ -206,6 +208,23 @@ const CLICK_TOLERANCE_PX = 4;
 export default function MapView() {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // Vehicle info window (F4): the vehicle shown, and how the animation loop refreshes it.
+  const selectedVehicle = useRef<string | null>(null);
+  const refreshPanel = useRef<(() => void) | null>(null);
+  const [vehiclePanel, setVehiclePanel] = useState<{ info: VehicleInfo; x: number; y: number } | null>(null);
+  const centreOnVehicle = useRef(false);
+  const openVehicle = (id: string) => {
+    selectedVehicle.current = id;
+    refreshPanel.current?.();
+  };
+  // Opened from the fleet table (keyboard path): open the window and centre the map on it.
+  const vehicleToShow = useStore((s) => s.vehicleToShow);
+  useEffect(() => {
+    if (!vehicleToShow) return;
+    centreOnVehicle.current = true;
+    openVehicle(vehicleToShow);
+    useStore.getState().showVehicle(null);
+  }, [vehicleToShow]);
   const drawRef = useRef<Draw | null>(null);
   /** Basemap currently applied to the map, so unchanged selections do not reload the style. */
   const appliedBasemapRef = useRef<string | null>(null);
@@ -571,6 +590,21 @@ export default function MapView() {
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const state = useStore.getState();
       const sc = activeScenario(state.project);
+      // A click on a vehicle opens its info window (F4), whatever the tool.
+      const vehicleLayers = ['msg-vehicle-body', 'msg-vehicles-circle'].filter((l) => map.getLayer(l));
+      const vehicleHit = vehicleLayers.length
+        ? map.queryRenderedFeatures(
+            [
+              [e.point.x - 4, e.point.y - 4],
+              [e.point.x + 4, e.point.y + 4],
+            ],
+            { layers: vehicleLayers },
+          )[0]
+        : undefined;
+      if (vehicleHit?.properties?.id && !drawingStops()) {
+        openVehicle(String(vehicleHit.properties.id));
+        return;
+      }
       if (drawingStops()) {
         // Bus, BRT and trolleybus lines: every click is a stop, served in the clicked order.
         addDraftStop([e.lngLat.lng, e.lngLat.lat]);
@@ -1189,6 +1223,28 @@ export default function MapView() {
     let frame = 0;
     let lastDraw = 0;
     let lastSignals = 0;
+    let lastPanel = 0;
+    /** The open vehicle info window follows its vehicle and refreshes a few times a second. */
+    const panel = (t: number, force = false) => {
+      const id = selectedVehicle.current;
+      const now = performance.now();
+      if (!id || (!force && now - lastPanel < 250)) return;
+      lastPanel = now;
+      for (const m of models) {
+        const v = vehicleStates(m, t).find((x) => x.id === id);
+        if (v) {
+          if (centreOnVehicle.current) {
+            centreOnVehicle.current = false;
+            map.easeTo({ center: v.position, zoom: Math.max(map.getZoom(), 16) });
+          }
+          const p = map.project(v.position);
+          setVehiclePanel({ info: vehicleInfo(scenario, m, v, t), x: p.x, y: p.y });
+          return;
+        }
+      }
+      setVehiclePanel(null);
+    };
+    refreshPanel.current = () => panel(simulationClock.timeS, true);
     const render = () => {
       const t = simulationClock.tick();
       const now = performance.now();
@@ -1199,6 +1255,7 @@ export default function MapView() {
         setData(map, SRC.vehicleBodies, vehicleBodiesCollection(states));
         lastDraw = now;
       }
+      panel(t);
       // Signal states change every few simulated seconds: refresh them a few times per second.
       if (scenario.trafficSignals.length && now - lastSignals > 300) {
         setData(map, SRC.signals, signalsCollection(scenario, t, null));
@@ -1217,9 +1274,16 @@ export default function MapView() {
         const states = models.flatMap((m) => vehicleStates(m, t));
         setData(map, SRC.vehicles, states.length ? vehiclesCollection(states) : EMPTY);
         setData(map, SRC.vehicleBodies, states.length ? vehicleBodiesCollection(states) : EMPTY);
+        panel(t, true);
       }
     }
-    return () => cancelAnimationFrame(frame);
+    // While paused, the window stays on its vehicle when the map moves.
+    const onMove = () => !simulationClock.running && panel(simulationClock.timeS, true);
+    map.on('move', onMove);
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off('move', onMove);
+    };
   }, [running, scenario, reducedMotion, styleVersion, simulationEpoch, closures]);
 
   return (
@@ -1232,6 +1296,15 @@ export default function MapView() {
         data-testid="map"
       />
       {mapRef.current && styleVersion > 0 && <CurveEditor map={mapRef.current} />}
+      {vehiclePanel && (
+        <VehiclePanel
+          {...vehiclePanel}
+          onClose={() => {
+            selectedVehicle.current = null;
+            setVehiclePanel(null);
+          }}
+        />
+      )}
       {error && (
         <div
           role="alert"

@@ -216,6 +216,13 @@ Only the user deletes vehicles. The simulation's vehicle 1, 2, … of a line are
 allocated vehicles in fleet-number order; spares beyond those in service wait in their
 depot slots (F6).
 
+**Vehicle info window (F4)**: next stop = the next stop ahead in the direction of travel
+(a ring continues past its end); load = expected demand (peak inside the peak periods,
+off-peak outside, as entered for the line, passengers/hour/direction at the busiest
+point) × the headway in force / 3600, against the vehicle's own capacity or the
+consist capacity of its profile. Without an entered demand or capacity no figure is
+shown, only what is missing.
+
 **Depot tracks (F6)**: tracks no service uses can be marked as depot (stabling) tracks
 (track inspector → Use); services are routed around them. Each rail mode needs as much
 depot track as all its consists are long, with the minimum gap (`followingMinGapM`)

@@ -564,6 +564,8 @@ export const TransportLineSchema = z.object({
    * ridership estimate (evaluation step E2) provides it.
    */
   peakDemandPphpd: z.number().nonnegative().nullable().default(null),
+  /** Expected demand outside the peak periods (same unit); null = not entered. */
+  offPeakDemandPphpd: z.number().nonnegative().nullable().default(null),
   /** Units coupled per consist on this line; null = the vehicle profile's value. */
   consistUnits: z.number().int().positive().nullable().default(null),
   dwellTimeS: z.number().nonnegative(),

@@ -14,6 +14,11 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Vehicle info window (F4)**: click a vehicle (or Dashboard → Vehicles → Show on map)
+  for its fleet number, line, status, next stop and load; it follows the vehicle and
+  refreshes while the animation runs (Esc closes it). Load is estimated from the
+  expected peak or new off-peak demand of the line (line inspector), else the window
+  names the missing input.
 - **Fleet register (F3)**: every vehicle has a fleet number (TRM-001, BUS-012, …), mode,
   type, line, status and date added (Dashboard → Vehicles). The fleet follows the lines
   after every edit; extra vehicles become surplus and are deleted only by the user (with

@@ -174,6 +174,7 @@ export function createLine(
     vehicleTypeId: vehicle?.id ?? null,
     fleetSize: null,
     peakDemandPphpd: null,
+    offPeakDemandPphpd: null,
     consistUnits: null,
     // New lines follow the project settings of their mode (G1).
     dwellTimeS: scenario.trackNetwork.modeDefaults?.[input.mode]?.dwellTimeS ?? mode.defaultDwellTimeS,
