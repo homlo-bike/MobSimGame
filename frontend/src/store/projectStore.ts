@@ -52,6 +52,8 @@ export type Tool =
   | 'add_station'
   | 'new_service'
   | 'add_signal'
+  /** Place a depot of the current street mode (F5). */
+  | 'add_depot'
   | 'draw_region'
   /** Draw a polygon to cut out of the selected region. */
   | 'region_hole'
@@ -90,6 +92,7 @@ export type Selection =
   | { kind: 'station'; id: string }
   | { kind: 'segment'; lineId: string; id: string }
   | { kind: 'signal'; id: string }
+  | { kind: 'depot'; id: string }
   | null;
 
 export interface LayerToggles {

@@ -19,6 +19,7 @@ import { finishStopDraft } from '../store/stopActions';
 import { isStopLineMode, stopNear } from '../domain/stopLines';
 import { layoutError, MAX_PLATFORMS, STATION_LEVELS, stationLevelLabel } from '../domain/stationLayout';
 import { MODE_TABS, modeCounts, stationsForMode, stationsOfMode } from '../domain/modeSeparation';
+import { isDepotMode } from '../domain/depots';
 import { CommitField } from './CommitField';
 import { SEVERITY_ORDER, SEVERITY_PLURALS, SEVERITY_SYMBOLS, type Severity } from '../validation/validate';
 
@@ -126,6 +127,8 @@ export function ToolPanel() {
       disabled: rail ? false : scenario.lines.length === 0 && !hasTracks,
     },
     { id: 'new_service', label: 'New service', disabled: onTrackStations.length < 2 },
+    // Bus, BRT and trolleybus depots (F5); rail modes use depot tracks.
+    ...(isDepotMode(mode) ? [{ id: 'add_depot' as const, label: 'Add depot' }] : []),
   ];
   const defaultR = defaultRadiusM(mode);
   const spacing = trackSpacingM(scenario.trackNetwork, mode);

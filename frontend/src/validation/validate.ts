@@ -34,6 +34,7 @@ import {
 import { wireRailCrossings } from '../domain/overheadWire';
 import { lineFleet } from '../analysis/fleet';
 import { stablingNeed } from '../domain/stabling';
+import { allocateDepots, DEPOT_MODES, depotCapacity, depotLines } from '../domain/depots';
 import { trackGeometry } from '../domain/tracks';
 
 interface CurvatureSample {
@@ -760,11 +761,59 @@ export function validateStabling(scenario: Scenario): Finding[] {
   return out;
 }
 
+/**
+ * Depots of the street modes (F5): enough places for the mode's vehicles, and street
+ * routes between each depot and its lines (else vehicles wait at the line ends).
+ */
+export function validateDepots(scenario: Scenario): Finding[] {
+  const out: Finding[] = [];
+  for (const mode of DEPOT_MODES) {
+    const vehicles = scenario.fleet.filter((v) => v.mode === mode).length;
+    if (!vehicles) continue;
+    const depots = scenario.depots.filter((d) => d.mode === mode);
+    const label = MODES[mode].label;
+    if (!depots.length) {
+      out.push({
+        id: `bus-depot-none-${mode}`,
+        severity: 'info',
+        category: 'operations',
+        message: `${label}: no depot. Vehicles out of service wait at the line ends; place a depot (Add depot) next to a street.`,
+      });
+      continue;
+    }
+    const places = depots.reduce((n, d) => n + depotCapacity(scenario, d), 0);
+    if (places < vehicles)
+      out.push({
+        id: `bus-depot-short-${mode}`,
+        severity: 'warning',
+        category: 'operations',
+        message: `${label}: ${places} depot places for ${vehicles} vehicles. Raise a depot's capacity or add a depot.`,
+      });
+  }
+  const allocation = allocateDepots(scenario);
+  for (const d of scenario.depots)
+    for (const lineId of depotLines(scenario, d, allocation)) {
+      const link = d.links[lineId];
+      if (link?.toLine.status === 'routed' && link.fromLine.status === 'routed') continue;
+      const line = scenario.lines.find((l) => l.id === lineId);
+      out.push({
+        id: `bus-depot-route-${d.id}-${lineId}`,
+        severity: 'info',
+        category: 'operations',
+        lineId,
+        position: d.position,
+        message: `${d.name}: no street route to and from "${line?.name ?? lineId}" yet. Route it in the depot inspector; until then its vehicles wait at the line end.`,
+      });
+    }
+  return out;
+}
+
 export function validateScenario(scenario: Scenario, options: ValidationOptions = {}): Finding[] {
   const findings = [
     ...validateTrackNetwork(scenario),
     ...scenario.lines.flatMap((l) => validateLine(l, scenario, options)),
     ...validateStabling(scenario),
+    ...validateDepots(scenario),
   ];
   for (const st of scenario.stations) {
     const lines = servingLines(scenario, st.id);

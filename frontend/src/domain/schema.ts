@@ -603,6 +603,35 @@ export const VehicleRecordSchema = z.object({
 });
 export type VehicleRecord = z.infer<typeof VehicleRecordSchema>;
 
+/** A street route between a depot and a line, from the routing server (never a straight line). */
+export const DepotLinkSchema = z.object({
+  status: z.enum(['routed', 'unrouted']),
+  coordinates: z.array(LngLatSchema).default([]),
+  lengthM: z.number().nullable().default(null),
+  durationS: z.number().nullable().default(null),
+  provider: z.string().nullable().default(null),
+  routedAt: z.string().nullable().default(null),
+  message: z.string().default(''),
+});
+export type DepotLink = z.infer<typeof DepotLinkSchema>;
+
+/**
+ * A depot of a street mode (bus, BRT, trolleybus; F5): a point with a capacity where the
+ * mode's vehicles not in service are kept. Vehicles drive there and back on routed streets.
+ */
+export const DepotSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mode: TransportModeSchema.default('bus'),
+  position: LngLatSchema,
+  /** Own capacity (vehicles); null = the mode's vehicles shared out over its depots. */
+  capacityOverride: z.number().int().nonnegative().nullable().default(null),
+  /** Routes to and from each line it serves, by line id. */
+  links: z.record(z.string(), z.object({ toLine: DepotLinkSchema, fromLine: DepotLinkSchema })).default({}),
+  notes: z.string().default(''),
+});
+export type Depot = z.infer<typeof DepotSchema>;
+
 export const StationSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -684,14 +713,6 @@ export const InterchangeSchema = z.object({
   notes: z.string().default(''),
 });
 export type Interchange = z.infer<typeof InterchangeSchema>;
-
-export const DepotSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  position: LngLatSchema,
-  lineIds: z.array(z.string()),
-});
-export type Depot = z.infer<typeof DepotSchema>;
 
 /** Track shared between lines: references ranges of each member line, not copied geometry. */
 export const SharedTrackSchema = z.object({
@@ -900,6 +921,7 @@ export const ScenarioSchema = z.object({
   stations: z.array(StationSchema),
   platforms: z.array(PlatformSchema).default([]),
   interchanges: z.array(InterchangeSchema).default([]),
+  /** Depots of the street modes (F5). */
   depots: z.array(DepotSchema).default([]),
   sharedTracks: z.array(SharedTrackSchema).default([]),
   trafficSignals: z.array(TrafficSignalSchema).default([]),

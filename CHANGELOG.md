@@ -14,6 +14,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Bus, BRT and trolleybus depots (F5)**: "Add depot" in the street-mode tools; depot
+  inspector with name, capacity (shared default or own value), the lines it serves and
+  "Route to and from the lines" (street routes from the routing server, stored per line).
+  Vehicles go to the nearest depot with room, drive there and back only on routed streets
+  and wait at the line end otherwise. Warnings when depot places are fewer than the
+  mode's vehicles; notes for missing depots and routes.
 - **Vehicle info window (F4)**: click a vehicle (or Dashboard → Vehicles → Show on map)
   for its fleet number, line, status, next stop and load; it follows the vehicle and
   refreshes while the animation runs (Esc closes it). Load is estimated from the

@@ -29,6 +29,7 @@ import { StatusIndicator, UpdateBanner } from './ui/StatusIndicator';
 import { startAppStatus } from './runtime/appStatus';
 import { notify } from './store/notifications';
 import { SignalInspector, SignalsPanel } from './ui/SignalsPanel';
+import { DepotInspector } from './ui/DepotInspector';
 import { FindingsList } from './ui/FindingsList';
 import { Button, Checkbox, Section } from './ui/primitives';
 import { validateScenario } from './validation/validate';
@@ -108,6 +109,10 @@ function Inspector() {
   if (selection?.kind === 'node') {
     const node = scenario.trackNetwork.nodes.find((n) => n.id === selection.id);
     if (node) return <NodeInspector key={node.id} node={node} scenario={scenario} />;
+  }
+  if (selection?.kind === 'depot') {
+    const depot = scenario.depots.find((d) => d.id === selection.id);
+    if (depot) return <DepotInspector key={depot.id} depot={depot} scenario={scenario} />;
   }
   if (selection?.kind === 'signal') {
     const signal = scenario.trafficSignals.find((s) => s.id === selection.id);

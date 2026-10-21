@@ -219,7 +219,15 @@ export function buildDemoScenario(): Scenario {
   s = {
     ...s,
     depots: [
-      { id: newId('depot'), name: 'Westend depot (fictional)', position: [-0.004, 0.027], lineIds: [red.id] },
+      {
+        id: newId('depot'),
+        name: 'Westend depot (fictional)',
+        mode: 'bus',
+        position: [-0.004, 0.027],
+        capacityOverride: null,
+        links: {},
+        notes: '',
+      },
     ],
     assumptionSetId: DEMO_ASSUMPTIONS.id,
   };
