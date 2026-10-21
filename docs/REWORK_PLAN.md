@@ -48,6 +48,11 @@ with each one.
 | R15a | Running time from **train physics** (methods of OSRD and NeTrainSim, no code): traction, running resistance, gradient and curves; envelopes with braking curves | merged (#34) |
 | R15b | Energy estimate per run (NeTrainSim method: traction energy, regenerative braking, efficiencies), estimated under the selected assumptions | merged (#35) |
 
+Project evaluation (owner request, 21 October 2026): ridership, construction and
+operating costs, fares, benefits, NPV/ERR, wider and social impacts, from the project's
+location. Plan and checked sources: [EVALUATION_PLAN.md](EVALUATION_PLAN.md) (steps
+E1–E6).
+
 Order (owner, 2026-10-21): R15a, R15b, then R5 turnouts, R14a, R14b, R11, R10, then app
 settings with OIDC, then the desktop apps.
 
