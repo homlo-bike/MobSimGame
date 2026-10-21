@@ -6,7 +6,7 @@ import { buildLineModel, measurePath, vehicleStates } from './engine';
 import { consistFootprint, consistShape } from './footprint';
 import { xy } from '../test/fixtures/tracks';
 
-const shape = { unitLengthM: 30, units: 3, widthM: 2.65, placeholder: false };
+const shape = { unitLengthM: 30, units: 3, sectionsPerUnit: 1, widthM: 2.65, placeholder: false };
 
 function sizeOf(ring: LngLat[]) {
   const ref = ring[0]!;
@@ -42,6 +42,24 @@ describe('vehicles drawn to scale', () => {
     expect(consistFootprint(ring, 10, 1, shape, true)).toHaveLength(3);
   });
 
+  it('draws every car or articulated section of a unit', () => {
+    const path = measurePath([xy(0, 0), xy(1000, 0)], false);
+    const parts = consistFootprint(path, 500, 1, { ...shape, sectionsPerUnit: 3 }, false);
+    expect(parts).toHaveLength(9);
+    for (const u of parts) expect(sizeOf(u).length).toBeCloseTo(10, 0);
+  });
+
+  it('keeps the whole train at a terminal (the path continues straight beyond its end)', () => {
+    const path = measurePath([xy(0, 0), xy(1000, 0)], false);
+    const atEnd = consistFootprint(path, 1000, 1, shape, false);
+    expect(atEnd).toHaveLength(3);
+    for (const u of atEnd) expect(sizeOf(u).length).toBeCloseTo(30, 0);
+    expect(toLocalMetres(atEnd[0]![1]!, xy(0, 0))[0]).toBeCloseTo(1045, 0);
+    const atStart = consistFootprint(path, 0, -1, shape, false);
+    expect(atStart).toHaveLength(3);
+    expect(toLocalMetres(atStart[0]![1]!, xy(0, 0))[0]).toBeCloseTo(-45, 0);
+  });
+
   it('uses the vehicle profile, with placeholders where it gives no width', () => {
     let s = emptyScenario();
     const c = createLine(s, { coordinates: [xy(0, 0), xy(2000, 0)], mode: 'bus' });
@@ -50,6 +68,8 @@ describe('vehicles drawn to scale', () => {
     const sh = consistShape(c.line, s);
     expect(sh.unitLengthM).toBe(v.lengthM);
     expect(sh.placeholder).toBe(v.widthM == null);
+    // No section count in the profile: unit length / section-length parameter (12 m / 20 m → 1).
+    expect(sh.sectionsPerUnit).toBe(1);
     s = updateLine(s, c.line.id, { consistUnits: 2 });
     expect(consistShape(s.lines[0]!, s).units).toBe(2);
     const model = buildLineModel(s.lines[0]!, s)!;

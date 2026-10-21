@@ -127,6 +127,7 @@ export function vehicleProfile(v: Required_ & Partial<VehicleType>): VehicleType
     seatedCapacity: null,
     widthM: null,
     unitsPerConsist: 1,
+    sectionsPerUnit: null,
     gaugeMm: null,
     accelerationMs2: null,
     serviceBrakingMs2: null,

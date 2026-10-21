@@ -227,6 +227,18 @@ export const TRACK_PARAMETERS = {
     source: PLACEHOLDER,
     notes: 'Enter the width in the vehicle profile for a true-to-scale drawing.',
   },
+  vehicleSectionLengthM: {
+    id: 'vehicleSectionLengthM',
+    label: 'Length of a car or articulated section when the vehicle type gives no section count (drawing)',
+    unit: 'm',
+    defaultValue: 20,
+    min: 5,
+    max: 40,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+    notes:
+      'Only for drawing: each unit is drawn as round(unit length / this) sections that bend through curves. Enter the number of sections in the vehicle profile instead.',
+  },
   stopMergeRadiusM: {
     id: 'stopMergeRadiusM',
     label: 'Distance within which a new stop or station reuses an existing one',

@@ -18,7 +18,7 @@ import { platformLabel } from '../domain/serviceRouting';
 import { finishStopDraft } from '../store/stopActions';
 import { isStopLineMode, stopNear } from '../domain/stopLines';
 import { layoutError, MAX_PLATFORMS, STATION_LEVELS, stationLevelLabel } from '../domain/stationLayout';
-import { MODE_TABS, modeCounts, stationsForMode } from '../domain/modeSeparation';
+import { MODE_TABS, modeCounts, stationsForMode, stationsOfMode } from '../domain/modeSeparation';
 import { CommitField } from './CommitField';
 import { SEVERITY_ORDER, SEVERITY_PLURALS, SEVERITY_SYMBOLS, type Severity } from '../validation/validate';
 
@@ -429,6 +429,9 @@ export function NetworkLists() {
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
   const unitSystem = useStore((s) => s.unitSystem);
+  const mode = useStore((s) => s.newLineMode);
+  // Only the stations of the selected mode tab.
+  const stations = stationsOfMode(scenario, mode);
   return (
     <>
       <Section title={`${t('lines')} (${scenario.lines.length})`} id="lines">
@@ -498,9 +501,9 @@ export function NetworkLists() {
           ))}
         </ul>
       </Section>
-      <Section title={`${t('stations')} (${scenario.stations.length})`} id="stations">
+      <Section title={`${t('stations')} · ${MODES[mode].label} (${stations.length})`} id="stations">
         <ul className="max-h-60 space-y-0.5 overflow-auto" aria-label="Stations">
-          {scenario.stations.map((s) => (
+          {stations.map((s) => (
             <li key={s.id}>
               <button
                 type="button"

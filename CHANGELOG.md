@@ -123,6 +123,16 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Persistent vehicles**: rings and two-direction lines run a fixed fleet
+  (⌈cycle / headway⌉ vehicles) that circulate; between trips a vehicle waits at the
+  start for its next departure instead of vanishing, and leaves late when it came back
+  late.
+- **Trains drawn car by car**: each car or articulated section is drawn and bends
+  through curves (new vehicle field "Cars or articulated sections per unit"; without it
+  the drawing placeholder parameter `vehicleSectionLengthM`, 20 m). Trains keep their
+  full length at terminals instead of shrinking at the end of the line.
+- The Stations list in the left panel shows the stations of the selected mode tab.
+
 - **Service routing errors say why**: when no permitted path exists between two
   stops, the message names the one-way track(s) the only path would run against
   (each track of a double track runs one way) and suggests making it two-way or
@@ -221,6 +231,13 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- **Trains waiting at junctions overlapped the train passing**: the simulated position
+  is the middle of the train, but junction zones and single-track blocks were measured
+  from the head. Zones now reach half a train further, so a waiting train stops short of
+  the node.
+- **Two trains on one platform**: a platform track now holds one train at a time (any
+  line or direction) through its dwell and terminal layover; stops at the start of a
+  section are inside it.
 - **Track drawing:**
   - new track joins existing track tangentially, so there is no kink at an open
     end or at a junction in the middle of a track;

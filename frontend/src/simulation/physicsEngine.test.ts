@@ -61,7 +61,7 @@ describe('simulation with train physics', () => {
     const m = buildLineModel(strong.lines[0]!, strong)!;
     let last = -1;
     for (let t = 0; t < 60; t += 2) {
-      const v = vehicleStates(m, t).find((x) => x.id.endsWith('t0'))!;
+      const v = vehicleStates(m, t).find((x) => x.id.endsWith('-v1'))!;
       expect(v.chainageM).toBeGreaterThanOrEqual(last - 1e-6);
       last = v.chainageM;
     }

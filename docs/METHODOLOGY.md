@@ -192,11 +192,24 @@ constant braking before every stop (see "Acceleration and braking" below), fixed
 2-minute layover at terminals, one trip departing per peak headway, positions a
 pure function of simulated time (each trip is built in time order from its
 departure time). Rings circulate; one-way lines return out of service;
-bidirectional lines reverse at terminals. Vehicles are drawn to scale from zoom
-15.5: each unit of the consist (`units per consist` of the line, else of the vehicle
-profile) is a rectangle of the profile's length and width from its front to its rear
-point on the path, centred on the simulated position (so a stopped train stands
-centred on the platform). Without a vehicle type the length is the placeholder
+bidirectional lines reverse at terminals.
+
+**Vehicles in service** (rings and two-direction lines): the line runs a fixed fleet,
+N = ⌈cycle / headway⌉ (the cycle is one undisturbed round trip; R16). Vehicle k runs
+every N-th trip; between trips it waits at the start of the service until its next
+departure, so the same N vehicles circulate and never vanish. A vehicle that comes back
+late (occupancy waits) leaves late on its next trip. Vehicles set by the user beyond N
+stay out of service (fewer than N lengthen the headway, R16). One-way lines without a
+ring still end their trips out of service.
+
+**Drawing**: vehicles are drawn to scale from zoom 15.5. Each car or articulated section
+of each unit of the consist (`units per consist` of the line, else of the vehicle
+profile; sections per unit from the profile, else round(unit length /
+`vehicleSectionLengthM`), a 20 m drawing placeholder) is a rectangle of the profile's
+width from its front to its rear point on the path, so the train bends through curves
+section by section. The position is the middle of the train (a stopped train stands
+centred on the platform); beyond the ends of a line the path continues straight, so a
+train at a terminal keeps its full length. Without a vehicle type the length is the placeholder
 `unknownVehicleLengthM` (20 m); without a width, the placeholder
 `unknownVehicleWidthM` (2.5 m), both editable in Project properties → Parameters. Services on double track return on the
 other track.
@@ -254,8 +267,13 @@ other track.
   osrd.fr/en/docs/reference/design-docs/conflict-detection/, read 21 October 2026): two
   trains on different routes through the node never hold it together; trains on the
   same route (same entry and exit track end) only keep their following separation.
-  A train holds the zone from the crossing clearance before the node until its tail is
-  the crossing clearance past it. The time to reset a turnout between routes is not
+  A train holds the zone from its head reaching the crossing clearance before the node
+  until its tail is the crossing clearance past it; as the simulated position is the
+  middle of the train, a waiting train stops half its length plus the clearance short
+  of the node. Single-track blocks likewise reach half a train beyond their ends.
+- **Platform tracks**: a platform track of a station holds one train at a time, of any
+  line and direction, through its dwell and, at a terminal, its layover; the next
+  train waits with its head behind the tail of the standing one. The time to reset a turnout between routes is not
   modelled (no cited value).
 - **Operations report** (Dashboard): one hour of service at the peak headways is
   scheduled in the same order as the animation; the waits for occupied track are summed

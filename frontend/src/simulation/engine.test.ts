@@ -72,11 +72,28 @@ describe('simulation engine', () => {
     }
   });
 
+  it('runs a fixed fleet: the same vehicles all the time, none vanishing at the ends', () => {
+    for (const ring of [false, true]) {
+      const { s, line } = scenarioWith('bidirectional', ring);
+      const m = buildLineModel(line, s)!;
+      expect(m.fleet).toBe(Math.ceil(roundTripS(m) / m.headwayS - 1e-6));
+      const ids = new Set<string>();
+      for (let t = 0; t < 4 * 3600; t += 15) {
+        const vs = vehicleStates(m, t);
+        expect(vs, `t = ${t}`).toHaveLength(m.fleet);
+        for (const v of vs) ids.add(v.id);
+      }
+      expect(ids.size).toBe(m.fleet);
+    }
+  });
+
   it('circular lines wrap around without reversing', () => {
     const { s, line } = scenarioWith('bidirectional', true);
     const m = buildLineModel(line, s)!;
     expect(phasesOf(m).every((p) => p.direction === 1)).toBe(true);
-    expect(phasesOf(m).some((p) => p.kind === 'layover')).toBe(false);
+    // The only layover is back at the start, waiting for the vehicle's next departure.
+    const layovers = phasesOf(m).filter((p) => p.kind === 'layover');
+    expect(layovers.every((p) => p.kind === 'layover' && p.chainageM === m.services[0]!.endM)).toBe(true);
   });
 
   it('dwells at stations', () => {

@@ -173,8 +173,11 @@ set, labelled as such. See the [roadmap](#roadmap).
   [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
-  profile, one outline per unit of the consist, bending through curves; a waiting or
-  dwelling vehicle has a thick dashed outline. Trams
+  profile, one outline per car or articulated section, bending through curves and
+  keeping its full length at terminals; a waiting or dwelling vehicle has a thick dashed
+  outline. Rail and bus lines run a fixed number of vehicles that circulate (they wait
+  at the start for their next departure instead of vanishing); trains wait short of
+  junctions and occupied platforms. Trams
   and buses stop at red **traffic signals**, found in OpenStreetMap or placed by hand
   (with type, controlled users, priority, delay and attachment), with simulated cycles
   (assumed, editable timings) and optional per-line **transit signal priority**.
