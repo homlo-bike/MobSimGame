@@ -59,7 +59,10 @@ export function operationsReport(
   options: SimulationOptions = {},
   periodS = 3600,
 ): OperationsReport {
-  const models = buildScenarioModels(scenario, options);
+  // A steady peak hour: every peak headway, not the service day's timetable.
+  const steady: SimulationOptions = { ...options };
+  delete steady.timetable;
+  const models = buildScenarioModels(scenario, steady);
   const lines: LineWaits[] = [];
   for (const m of models) {
     const places = new Map<string, WaitPlace>();

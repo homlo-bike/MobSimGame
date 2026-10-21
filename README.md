@@ -174,7 +174,10 @@ set, labelled as such. See the [roadmap](#roadmap).
   the wheel, and the energy from the supply when the vehicle gives its efficiencies
   (estimated under the selected assumptions). Methods of OSRD and NeTrainSim, cited in
   [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
-- Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
+- Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode) over the
+  service day: a clock with day and time, jumps to peak, midday or night, peak and
+  off-peak headways from each line's service hours and the project's peak periods, and
+  no service at night. Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
   profile, one outline per car or articulated section, bending through curves and
   keeping its full length at terminals; a waiting or dwelling vehicle has a thick dashed
