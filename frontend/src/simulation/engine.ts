@@ -45,6 +45,7 @@ import { envelopeDistance, equivalentGradientPerMille, linePhysics, runEnvelope 
 import type { Envelope, TrainPhysics } from './trainPhysics';
 import { lineCurveProfile, radiusAtFraction } from '../domain/lineCurvature';
 import { physicsSpeedKmh } from './speeds';
+import { divergingRestrictions } from '../domain/turnouts';
 
 const R = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -528,8 +529,16 @@ export function physicsModel(
   const heights = lineHeightProfile(scenario, line);
   const curves = lineCurveProfile(scenario, line);
   const L = Math.max(lengthM, 1e-9);
+  // Diverging routes of turnouts with a known speed (R5).
+  const turnouts =
+    line.alignment.kind === 'track' ? divergingRestrictions(scenario.trackNetwork, line.alignment.path) : [];
   const limitAt = (m: number) => {
     const f = Math.min(1, Math.max(0, m / L));
+    const t = turnouts.find((r) => f >= r.fromFraction && f <= r.toFraction);
+    if (t) return Math.min(baseLimit(f), t.speedKmh / 3.6);
+    return baseLimit(f);
+  };
+  const baseLimit = (f: number) => {
     const seg = segs.find((x) => f >= x.fromFraction && f <= x.toFraction) ?? segs[segs.length - 1];
     const kmh = seg
       ? physicsSpeedKmh(line, seg, vehicle?.maxSpeedKmh)

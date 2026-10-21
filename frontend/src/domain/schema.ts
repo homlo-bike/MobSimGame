@@ -305,9 +305,27 @@ export const TrackNodeSchema = z.object({
   position: LngLatSchema,
   level: LevelSchema.default(0),
   kind: z.enum(['connection', 'buffer_stop']).default('connection'),
-  /** auto: movements follow the geometry (no reversing); manual: as listed. */
-  movementMode: z.enum(['auto', 'manual']).default('auto'),
+  /**
+   * auto: movements follow the geometry (no reversing); manual: as listed; turnout: from
+   * the turnout or crossing below (R5).
+   */
+  movementMode: z.enum(['auto', 'manual', 'turnout']).default('auto'),
   movements: z.array(MovementSchema).default([]),
+  /** Turnout or crossing at this node (R5); null = none specified. */
+  turnout: z
+    .object({
+      kind: z.enum(['simple', 'diamond', 'single_slip', 'double_slip']),
+      /** Standard design from the catalogue (domain/turnouts.ts); null = not chosen. */
+      designId: z.string().nullable().default(null),
+      /** Single slip: the diverging movement the slip provides. */
+      slip: MovementSchema.nullable().default(null),
+      /** Without a catalogue design: radius of the diverging route (m), user input. */
+      radiusM: z.number().positive().nullable().default(null),
+      /** Without a catalogue design: speed on the diverging route (km/h), user input. */
+      divergingSpeedKmh: z.number().positive().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
   metadata: MetadataSchema.default({}),
 });
 export type TrackNode = z.infer<typeof TrackNodeSchema>;

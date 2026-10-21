@@ -31,6 +31,7 @@ import {
   movementHas,
 } from '../domain/tracks';
 import { afterTrackEdit } from '../domain/serviceRouting';
+import { TurnoutSection } from './TurnoutSection';
 import { setNodeLevel, trackRamp } from '../domain/ramps';
 import { ELECTRIFICATION_LABELS, INFRASTRUCTURE_CLASS_LABELS, trackClass } from '../domain/compatibility';
 import { parameter, TRACK_PARAMETERS, type TrackParameterId } from '../domain/trackParameters';
@@ -322,8 +323,8 @@ export function NodeInspector({ node, scenario }: { node: TrackNode; scenario: S
     <div>
       <Section title="Track node" id="node-inspector">
         <p className="mb-2 text-sm">
-          {ends.length} track end(s) meet here.{' '}
-          {ends.length >= 3 && 'The turnout or crossing type is not specified yet (next phase).'}
+          {ends.length} track end(s) meet here.
+          {ends.length >= 3 && !node.turnout && ' Choose the turnout or crossing type below.'}
         </p>
         <ul className="mb-2 text-sm">
           {ends.map((e) => (
@@ -353,12 +354,15 @@ export function NodeInspector({ node, scenario }: { node: TrackNode; scenario: S
           ]}
         />
       </Section>
+      <TurnoutSection node={node} scenario={scenario} label={(e) => label(e.trackId, e.end)} />
       {pairs.length > 0 && (
         <Section title="Permitted movements" id="node-movements">
           <p className="mb-1 text-xs text-slate-600">
             {node.movementMode === 'auto'
               ? 'Automatic: trains may pass where they do not have to reverse. Changing a box switches to manual.'
-              : 'Manual: only the ticked movements are permitted.'}
+              : node.movementMode === 'turnout'
+                ? 'From the turnout or crossing above. Changing a box switches to manual.'
+                : 'Manual: only the ticked movements are permitted.'}
           </p>
           <ul className="space-y-1">
             {pairs.map(([a, b]) => {
@@ -403,14 +407,14 @@ export function NodeInspector({ node, scenario }: { node: TrackNode; scenario: S
               onClick={() =>
                 commit(
                   afterTrackEdit(
-                    updateNode(scenario, node.id, { movementMode: 'auto' }),
+                    updateNode(scenario, node.id, { movementMode: node.turnout ? 'turnout' : 'auto' }),
                     ends.map((e) => e.trackId),
                   ),
-                  'Movements follow the geometry again',
+                  node.turnout ? 'Movements follow the turnout again' : 'Movements follow the geometry again',
                 )
               }
             >
-              Back to automatic
+              {node.turnout ? 'Back to the turnout’s movements' : 'Back to automatic'}
             </Button>
           )}
         </Section>

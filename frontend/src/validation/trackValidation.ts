@@ -4,6 +4,13 @@
  * ends, crossings without a connection) use geometric tolerances only, never
  * an invented engineering limit. Imported, unedited tracks report information.
  */
+import {
+  divergingRadiusM,
+  TURNOUT_ENDS,
+  TURNOUT_KIND_LABELS,
+  turnoutGeometry,
+  turnoutRoles,
+} from '../domain/turnouts';
 import type { LngLat, PhysicalTrack, Scenario } from '../domain/schema';
 import { MODE_PROFILES, type CurveRadiusRule } from '../domain/modeProfiles';
 import { angleBetween, networkFrame, nodeEnds, outwardHeading, trackGeometry } from '../domain/tracks';
@@ -160,17 +167,76 @@ export function validateTrackNetwork(scenario: Scenario): Finding[] {
           byId.get(m.a.trackId),
         );
     }
-    if (ends.length >= 3)
+    if (ends.length >= 3 && !node.turnout)
       add(
         {
           severity: 'info',
           category: 'connectivity',
           nodeId: node.id,
           position: node.position,
-          message: `${ends.length} track ends meet here; the turnout or crossing type is not specified yet (permitted movements: ${node.movements.length}).`,
+          message: `${ends.length} track ends meet here; choose the turnout or crossing type in the node inspector (permitted movements now: ${node.movements.length}).`,
         },
         first,
       );
+    if (node.turnout) {
+      const tk = node.turnout;
+      const need = TURNOUT_ENDS[tk.kind];
+      const label = TURNOUT_KIND_LABELS[tk.kind];
+      if (ends.length !== need)
+        add(
+          {
+            severity: 'error',
+            category: 'connectivity',
+            nodeId: node.id,
+            position: node.position,
+            message: `${label} connects ${need} track ends, but ${ends.length} meet here.`,
+          },
+          first,
+        );
+      else if (!node.movements.length)
+        add(
+          {
+            severity: 'error',
+            category: 'connectivity',
+            nodeId: node.id,
+            position: node.position,
+            message:
+              tk.kind === 'simple'
+                ? 'The tracks do not form a turnout: no track end leads to both others without reversing.'
+                : 'The tracks do not form a crossing: they cannot be paired into two straight routes.',
+          },
+          first,
+        );
+      if (tk.kind === 'simple' && ends.length === 3) {
+        const geo = turnoutGeometry(tk);
+        const roles = turnoutRoles(net, node.id);
+        if (geo.radiusM === null || geo.divergingSpeedKmh === null)
+          add(
+            {
+              severity: 'info',
+              category: 'geometry',
+              nodeId: node.id,
+              position: node.position,
+              message:
+                'Turnout without a design: choose a standard design or enter the radius and speed of the diverging route.',
+            },
+            first,
+          );
+        const r = roles ? divergingRadiusM(net, roles) : null;
+        if (roles && geo.radiusM !== null && r !== null && r < geo.radiusM - 0.5)
+          add(
+            {
+              severity: 'warning',
+              category: 'geometry',
+              nodeId: node.id,
+              trackId: roles.diverging.trackId,
+              position: node.position,
+              message: `The diverging track curves with ${Math.round(r)} m, tighter than the turnout's ${geo.radiusM} m: a smooth junction needs at least the turnout radius.`,
+            },
+            byId.get(roles.diverging.trackId),
+          );
+      }
+    }
     if (ends.length >= 2 && !node.movements.length)
       add(
         {
