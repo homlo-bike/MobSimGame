@@ -326,6 +326,8 @@ code of either project is used.
   on steep upgrades); the lowest curve applies. Time over each step assumes constant
   acceleration within it: `Δt = 2·Δx / (v_i + v_{i+1})`.
 - The vehicle profile's acceleration, if given, caps the acceleration (comfort limit).
+- Where a train takes the diverging route of a turnout with a known speed, that speed
+  limits it over the first element of the diverging track (docs/TURNOUTS_AND_CROSSINGS.md).
 - On dedicated track the speed limit applies as it is; on streets (mixed traffic or a
   dedicated lane) the right-of-way factor still stands in for traffic.
 - A train that cannot hold its speed on an upgrade crawls at 0.5 m/s and the

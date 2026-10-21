@@ -8,6 +8,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Turnouts and crossings (R5)**: a node where three or four track ends meet can be a
+  turnout, a diamond crossing or a single or double slip. The switch toe, main and
+  diverging routes are found from the geometry and the permitted movements follow the
+  type. Turnouts take a Deutsche Bahn standard design (radius, inclination, diverging
+  speed; cited) or own values; a diverging track tighter than the turnout radius is
+  reported, and with train physics trains keep to the diverging speed.
 - **Energy per round trip** from train physics (line inspector and full export): traction
   and braking energy at the wheel, and, when the vehicle profile gives the efficiency
   from supply to wheel, the share of braking energy fed back and the auxiliary power,

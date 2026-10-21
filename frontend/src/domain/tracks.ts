@@ -7,6 +7,7 @@
  * `frameOrigin`. Tracks connect only through nodes, and only along permitted
  * movements (`node.movements`), so a geometric crossing is never a connection.
  */
+import { turnoutMovements } from './turnouts';
 import type {
   Electrification,
   LngLat,
@@ -251,6 +252,7 @@ export function refreshNodes(net: TrackNetwork, nodeIds?: Iterable<string>): Tra
     nodes: net.nodes.map((n) => {
       if (only && !only.has(n.id)) return n;
       if (n.movementMode === 'auto') return { ...n, movements: autoMovements(net, n.id) };
+      if (n.movementMode === 'turnout') return { ...n, movements: turnoutMovements(net, n) };
       const ends = nodeEnds(net, n.id);
       const has = (r: TrackEndRef) => ends.some((e) => sameEnd(e, r));
       return { ...n, movements: n.movements.filter((m) => has(m.a) && has(m.b)) };
@@ -381,6 +383,7 @@ function attachEnd(
     kind: 'connection',
     movementMode: 'auto',
     movements: [],
+    turnout: null,
     metadata: {},
   };
   return {
@@ -674,6 +677,7 @@ export function addDetachedTrack(
     kind: 'connection',
     movementMode: 'auto',
     movements: [],
+    turnout: null,
     metadata: {},
   });
   const a = node(points[0]!);
@@ -887,6 +891,7 @@ export function splitTrack(scenario: Scenario, trackId: string, fraction: number
     kind: 'connection',
     movementMode: 'auto',
     movements: [],
+    turnout: null,
     metadata: {},
   };
   const interior = (a: PiAlignment) => ({

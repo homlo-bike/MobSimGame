@@ -43,6 +43,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   - **Connections:** track connects only at nodes, along permitted movements
     (automatic, or set per node). Tracks that only cross on the map, such as a
     bridge or tunnel, are not connected.
+  - **Turnouts and crossings:** a node where three or four tracks meet can be a
+    turnout, a diamond crossing or a single or double slip; the switch toe, main and
+    diverging routes come from the geometry and the permitted movements follow. A
+    turnout takes a Deutsche Bahn standard design (radius, diverging speed; cited) or
+    own values; a diverging track tighter than the turnout is reported
+    ([docs/TURNOUTS_AND_CROSSINGS.md](docs/TURNOUTS_AND_CROSSINGS.md)).
   - **Joining:** ending a new track on another track creates a junction. A drawn
     loop closes tangentially.
   - **Editing:** drag a track end and every connected track follows. Split a track
@@ -176,8 +182,8 @@ set, labelled as such. See the [roadmap](#roadmap).
 
 ### Planned (not available yet)
 
-Turnout and crossing objects (single, crossover, scissors, diamond, slips) with
-ports ([docs/TURNOUTS_AND_CROSSINGS.md](docs/TURNOUTS_AND_CROSSINGS.md)), moving a
+Crossover and scissors-crossover objects and turnout geometry generated from a design
+([docs/TURNOUTS_AND_CROSSINGS.md](docs/TURNOUTS_AND_CROSSINGS.md)), moving a
 double track as a pair, routing preferences, a pluggable bus routing provider, real
 population/traffic/elevation providers, editable assumption sets for real places,
 calibrated demand, cost/emissions/fare modules, timetables, user accounts beyond
@@ -384,7 +390,7 @@ their own licences. Background: [docs/LICENSING_OPTIONS.md](docs/LICENSING_OPTIO
    with lines and arcs, double track as two tracks, stations and services on tracks,
    single-track occupancy, crossovers and disruptions, traffic signals, real-city
    networks, minimal UI, geospatial validation ([plan](docs/PHASE_2_PLAN.md),
-   [track network](docs/IMPLEMENTATION_PLAN.md)); next: turnouts and crossings,
+   [track network](docs/IMPLEMENTATION_PLAN.md)); next: crossover objects,
    connected double-track editing, routing preferences
 3. Phase 3 — data-provider integrations (population, transit, traffic, OSM extracts)
 4. Phase 4 — analysis and estimates (editable assumptions, costs, emissions, fares)
