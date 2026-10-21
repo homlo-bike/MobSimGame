@@ -3,6 +3,7 @@
  * the track parameter table. All edits are domain operations committed through
  * the store (undo/redo); every value is also editable without the map.
  */
+import { setTrackInherits } from '../domain/inheritance';
 import { useEffect, useRef } from 'react';
 import { bbox, lineString } from '@turf/turf';
 import type {
@@ -29,6 +30,7 @@ import {
   updateNode,
   updateTrack,
   movementHas,
+  newTrackDefaults,
 } from '../domain/tracks';
 import { afterTrackEdit } from '../domain/serviceRouting';
 import { TurnoutSection } from './TurnoutSection';
@@ -44,7 +46,7 @@ import { validateTrackNetwork } from '../validation/trackValidation';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { MetadataEditor } from './MetadataEditor';
-import { Badge, Button, SelectField, Section } from './primitives';
+import { Badge, Button, Checkbox, SelectField, Section } from './primitives';
 
 const DIRECTION_LABELS: Record<TrackDirection, string> = {
   both: 'Both directions (single track)',
@@ -170,25 +172,54 @@ export function TrackInspector({ track, scenario }: { track: PhysicalTrack; scen
             {INFRASTRUCTURE_CLASS_LABELS[trackClass(track)].toLowerCase()}). The mode is fixed: only{' '}
             {MODES[track.designMode].label} services use it.
           </p>
-          <SelectField
-            label="Electrification"
-            value={track.electrification}
-            onChange={(e) => patch({ electrification: e.target.value as Electrification })}
-            options={Object.entries(ELECTRIFICATION_LABELS).map(([value, label]) => ({ value, label }))}
-          />
-          <CommitField
-            label="Track gauge"
-            unit="mm, empty = not specified"
-            type="number"
-            min={300}
-            max={2000}
-            value={track.gaugeMm}
-            onCommit={(v) => {
-              if (v === '') return patch({ gaugeMm: null });
-              const n = Number(v);
-              return Number.isInteger(n) && n > 0 ? patch({ gaugeMm: n }) : 'Whole millimetres only';
-            }}
-          />
+          <div>
+            <SelectField
+              label="Electrification"
+              value={track.electrification}
+              onChange={(e) =>
+                patch({
+                  electrification: e.target.value as Electrification,
+                  inherits: track.inherits.filter((k) => k !== 'electrification'),
+                })
+              }
+              options={Object.entries(ELECTRIFICATION_LABELS).map(([value, label]) => ({ value, label }))}
+            />
+            <Checkbox
+              label={`Project setting (${ELECTRIFICATION_LABELS[newTrackDefaults(scenario.trackNetwork, track.designMode).electrification].toLowerCase()})`}
+              checked={track.inherits.includes('electrification')}
+              onChange={(v) =>
+                commit(
+                  setTrackInherits(scenario, track.id, 'electrification', v),
+                  'Track electrification setting',
+                )
+              }
+            />
+          </div>
+          <div>
+            <CommitField
+              label="Track gauge"
+              unit="mm, empty = not specified"
+              type="number"
+              min={300}
+              max={2000}
+              value={track.gaugeMm}
+              onCommit={(v) => {
+                const own = track.inherits.filter((k) => k !== 'gaugeMm');
+                if (v === '') return patch({ gaugeMm: null, inherits: own });
+                const n = Number(v);
+                return Number.isInteger(n) && n > 0
+                  ? patch({ gaugeMm: n, inherits: own })
+                  : 'Whole millimetres only';
+              }}
+            />
+            <Checkbox
+              label={`Project setting (${newTrackDefaults(scenario.trackNetwork, track.designMode).gaugeMm ?? 'not set'}${newTrackDefaults(scenario.trackNetwork, track.designMode).gaugeMm ? ' mm' : ''})`}
+              checked={track.inherits.includes('gaugeMm')}
+              onChange={(v) =>
+                commit(setTrackInherits(scenario, track.id, 'gaugeMm', v), 'Track gauge setting')
+              }
+            />
+          </div>
           <CommitField
             label="Speed limit"
             unit="km/h, empty = none"

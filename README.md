@@ -109,6 +109,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   editable per project; per-mode defaults (cited curve radii, speed, dwell, catchment,
   platform length, and the gauge and electrification new track gets); vehicle profiles;
   crossing priority. Uncited values are marked placeholder.
+- **Project settings are the global values.** A line's maximum speed and dwell time, and
+  a track's gauge and electrification, follow the project setting of their mode
+  (Project properties → Modes) unless you give them their own value: each such field
+  has a "Project setting" box in the inspector. Changing a project setting updates
+  everything that follows it; a station's platform length left empty follows the
+  project's platform length.
 - **Custom fields** (key/value) on lines, stations, tracks and nodes.
 - **Crossovers** before or after each station (map and schematic).
 - Stations snapped to lines (click or chainage); shared stations become

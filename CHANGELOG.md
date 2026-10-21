@@ -123,6 +123,11 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Project settings are global values (G1)**: maximum speed and dwell time per mode are
+  editable in Project properties → Modes; lines follow them, and tracks follow the
+  project gauge and electrification, unless they set their own value ("Project setting"
+  box in the line and track inspectors). Changing a project setting updates everything
+  that follows it. Lines and tracks from earlier projects keep their values as their own.
 - **Junction symbols**: zoomed in (from zoom 15), every junction shows a small curve for
   each permitted way through it (a small violet diagram at the node). Track direction
   arrows appear only near the two ends

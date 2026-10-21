@@ -10,6 +10,7 @@ import { ELECTRIFICATION_LABELS } from '../domain/compatibility';
 import { RIGHT_OF_WAY_LABELS, STRUCTURE_LABELS } from '../domain/modes';
 import type { RightOfWay, ServicePeriod, StructureType } from '../domain/schema';
 import { newId } from '../util/id';
+import { setModeSetting } from '../domain/inheritance';
 import { TrackParametersPanel } from './TrackInspector';
 import { PriorityPanel } from './PriorityPanel';
 import { VehicleProfilesPanel } from './VehicleProfiles';
@@ -193,8 +194,9 @@ function ModeDefaults() {
     <div className="overflow-x-auto px-3">
       <table className="w-full text-start text-sm">
         <caption className="mb-1 text-start text-xs text-slate-600">
-          Editor defaults per mode. Curve radii are cited; speeds, dwell times and catchments are placeholders
-          unless noted, and each line can override them. Platform length and following distance are set under
+          Project settings per mode: the global values. Lines and tracks follow them unless they set their own
+          value (the “Project setting” box in their inspector). Curve radii are cited; speeds, dwell times and
+          catchments are placeholders unless noted. Platform length and following distance are set under
           Parameters.
         </caption>
         <thead>
@@ -248,8 +250,33 @@ function ModeDefaults() {
                   <span className="text-slate-500">Not checked (street-routed)</span>
                 )}
               </td>
-              <td className="pe-2">{r.maxSpeedKmh} km/h</td>
-              <td className="pe-2">{r.dwellTimeS} s</td>
+              {(
+                [
+                  ['maxSpeedKmh', 'km/h', 1, 400],
+                  ['dwellTimeS', 's', 0, 600],
+                ] as const
+              ).map(([key, unit, min, max]) => (
+                <td className="pe-2" key={key}>
+                  <input
+                    type="number"
+                    min={min}
+                    max={max}
+                    className="w-16 rounded border border-slate-500 px-1"
+                    aria-label={`${r.label}: ${key === 'maxSpeedKmh' ? 'maximum speed' : 'dwell time'}, ${unit}`}
+                    key={`${r.mode}-${key}-${r[key]}`}
+                    defaultValue={r[key]}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (e.target.value === '' || v === r[key] || !(v >= min && v <= max)) return;
+                      commit(
+                        setModeSetting(scenario, r.mode, { [key]: v }),
+                        `${r.label}: ${key === 'maxSpeedKmh' ? 'maximum speed' : 'dwell time'} changed for lines that follow the project`,
+                      );
+                    }}
+                  />{' '}
+                  {unit}
+                </td>
+              ))}
               <td className="pe-2">{r.catchmentRadiusM} m</td>
               <td className="pe-2">
                 {STRUCTURE_LABELS[r.structure as StructureType]},{' '}
