@@ -236,9 +236,14 @@ is not modelled).
 **Surplus vehicles (F7)**: a vehicle no line needs any more has no trips, so it stands in
 its depot the whole day: at a street depot in the places after the line vehicles, on rail
 in the depot track room left after the line vehicles (same minimum gap). The model does
-not simulate the run from the line to the depot at the moment of the edit: the edit
-changes the plan, not a running day. The user is notified and decides whether to delete
-them.
+A vehicle the edit makes surplus while it is on a trip first finishes that trip: at the
+edit its positions until the trip's end are taken from the plan before the edit (every
+5 s, at the current simulated time) and stored with the vehicle, so the animation stays
+a pure function of time. It then drives to its depot place out of service: street modes
+back along the line (its return geometry where it has one) to the line start and on the
+routed street link; rail over the mode's tracks to its depot-track slot (at the depot-run
+speed). Without such a way it stays at the end of its trip and an error is raised. The
+user is notified and decides whether to delete them.
 
 **Vehicle types and reassignment (F8)**: a line has a main vehicle type, which sets how
 many vehicles it needs (headway, cycle time, demand), and may accept other types of its

@@ -27,7 +27,7 @@ import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates, stepsCoordinates } from '../domain/serviceRouting';
 import { assignStabling } from '../domain/stabling';
-import { surplusPlaces } from '../domain/reassign';
+import { releaseRun, surplusPlaces } from '../domain/reassign';
 import { lineVehicles } from '../domain/fleetRegistry';
 import { allocateDepots, isDepotMode, parkingSpot } from '../domain/depots';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
@@ -1586,33 +1586,34 @@ function railVehicles(
 /** Colour of vehicles without a line. */
 export const SURPLUS_COLOR = '#64748b';
 
-/**
- * Surplus vehicles (F7): no line, so they never run. They stand in their depot: street
- * modes at the depot point they are allocated to (after the line vehicles), rail modes on
- * the depot track room left after the line vehicles. Without a depot with room they are
- * not drawn (the fleet table still lists them). Time-independent.
- */
-export function surplusStates(scenario: Scenario, models: readonly LineSimulationModel[]): VehicleState[] {
-  const surplus = scenario.fleet.filter((v) => v.status === 'surplus');
-  if (!surplus.length) return [];
+/** Shape of a vehicle of a type, one consist of the type's units. */
+function recordShape(scenario: Scenario, typeId: string | null): ConsistShape {
   const net = scenario.trackNetwork;
-  const shapeOf = (typeId: string | null) => {
-    const v = scenario.vehicleTypes.find((x) => x.id === typeId);
-    return {
-      unitLengthM: v?.lengthM ?? parameterValue(net, 'unknownVehicleLengthM'),
-      units: Math.max(1, v?.unitsPerConsist ?? 1),
-      sectionsPerUnit: Math.max(
-        1,
-        v?.sectionsPerUnit ??
-          Math.round(
-            (v?.lengthM ?? parameterValue(net, 'unknownVehicleLengthM')) /
-              parameterValue(net, 'vehicleSectionLengthM'),
-          ),
-      ),
-      widthM: v?.widthM ?? parameterValue(net, 'unknownVehicleWidthM'),
-      placeholder: !v || v.widthM == null,
-    } satisfies ConsistShape;
+  const v = scenario.vehicleTypes.find((x) => x.id === typeId);
+  const unitLengthM = v?.lengthM ?? parameterValue(net, 'unknownVehicleLengthM');
+  return {
+    unitLengthM,
+    units: Math.max(1, v?.unitsPerConsist ?? 1),
+    sectionsPerUnit: Math.max(
+      1,
+      v?.sectionsPerUnit ?? Math.round(unitLengthM / parameterValue(net, 'vehicleSectionLengthM')),
+    ),
+    widthM: v?.widthM ?? parameterValue(net, 'unknownVehicleWidthM'),
+    placeholder: !v || v.widthM == null,
   };
+}
+
+/**
+ * Where each surplus vehicle stands once it is out of service (F7/F8): in its depot (street
+ * modes at the depot point after the line vehicles, rail modes on the depot-track room the
+ * line vehicles leave), else before the start of the line it last served, else where its
+ * deleted line began. A vehicle is only missing when nothing at all is known of its place.
+ */
+function surplusRest(scenario: Scenario, models: readonly LineSimulationModel[]): Map<string, VehicleState> {
+  const surplus = scenario.fleet.filter((v) => v.status === 'surplus');
+  const rest = new Map<string, VehicleState>();
+  if (!surplus.length) return rest;
+  const net = scenario.trackNetwork;
   const state = (code: string, path: MeasuredPath, shape: ConsistShape): VehicleState => {
     const d = path.lengthM / 2;
     const { position, bearingDeg } = interpolate(path, d);
@@ -1629,7 +1630,6 @@ export function surplusStates(scenario: Scenario, models: readonly LineSimulatio
       heightM: 0,
     };
   };
-  const out: VehicleState[] = [];
   const places = surplusPlaces(scenario);
   const byId = new Map(models.map((m) => [m.lineId, m]));
   const waiting = new Map<string, number>();
@@ -1644,12 +1644,13 @@ export function surplusStates(scenario: Scenario, models: readonly LineSimulatio
     );
   };
   for (const v of surplus) {
-    const shape = shapeOf(v.vehicleTypeId);
+    const shape = recordShape(scenario, v.vehicleTypeId);
     const lengthM = shape.unitLengthM * shape.units;
     const place = places.get(v.code) ?? null;
     if (place?.kind === 'street') {
       const depot = scenario.depots.find((d) => d.id === place.depotId)!;
-      out.push(
+      rest.set(
+        v.code,
         state(v.code, eastWest(parkingSpot(depot, place.index, lengthM, shape.widthM), lengthM), shape),
       );
       continue;
@@ -1666,7 +1667,7 @@ export function surplusStates(scenario: Scenario, models: readonly LineSimulatio
         },
       ]);
       if (coords.length >= 2) {
-        out.push(state(v.code, measurePath(coords, false), shape));
+        rest.set(v.code, state(v.code, measurePath(coords, false), shape));
         continue;
       }
     }
@@ -1676,10 +1677,140 @@ export function surplusStates(scenario: Scenario, models: readonly LineSimulatio
     if (m) {
       const n = waiting.get(m.lineId) ?? Math.max(0, m.vehicleCodes.length - m.fleet);
       waiting.set(m.lineId, n + 1);
-      out.push({ ...waitingBehindStart(m, v.code, n, shape), color: SURPLUS_COLOR, lineId: '' });
-    } else if (v.lastPosition) out.push(state(v.code, eastWest(v.lastPosition, lengthM), shape));
+      rest.set(v.code, { ...waitingBehindStart(m, v.code, n, shape), color: SURPLUS_COLOR, lineId: '' });
+    } else if (v.lastPosition) rest.set(v.code, state(v.code, eastWest(v.lastPosition, lengthM), shape));
   }
+  return rest;
+}
+
+/** Cumulative distance (m) along a list of points; repeated points add nothing. */
+function cumulativeM(points: readonly LngLat[]): number[] {
+  const out = [0];
+  for (let i = 1; i < points.length; i++) out.push(out[i - 1]! + haversineM(points[i - 1]!, points[i]!));
   return out;
+}
+
+/**
+ * Surplus vehicles over time (F7/F8). A vehicle an edit made surplus first finishes the
+ * trip it was on (the positions stored with it from the plan before the edit), then drives
+ * to its depot place along paths of movement only (domain/reassign.ts `releaseRun`), and
+ * stands there. Without such a way it stays where its trip ended (an error says why).
+ * Before the edit's time it is shown where it was at the edit. Pure function of time.
+ */
+export function surplusPlan(
+  scenario: Scenario,
+  models: readonly LineSimulationModel[],
+): (tS: number) => VehicleState[] {
+  const rest = surplusRest(scenario, models);
+  const speedRail = parameterValue(scenario.trackNetwork, 'depotRunSpeedKmh') / 3.6;
+  type Plan = {
+    code: string;
+    shape: ConsistShape;
+    trip: { path: MeasuredPath; ts: number[]; cs: number[] };
+    run: { path: MeasuredPath; startS: number; durationS: number } | null;
+    end: VehicleState;
+  };
+  const plans: Plan[] = [];
+  for (const v of scenario.fleet) {
+    if (v.status !== 'surplus' || !v.release?.samples.length) continue;
+    const pts = v.release.samples.map((x) => [x[1], x[2]] as LngLat);
+    const ts = v.release.samples.map((x) => x[0]);
+    const shape = recordShape(scenario, v.vehicleTypeId);
+    // A trip with no movement left still needs a path to draw along: the line's own start.
+    const unique = pts.filter((p, i) => i === 0 || haversineM(p, pts[i - 1]!) > 0.01);
+    const line = scenario.lines.find((l) => l.id === v.lastLineId);
+    const tripCoords =
+      unique.length >= 2 ? unique : line && line.coordinates.length >= 2 ? [...line.coordinates] : null;
+    if (!tripCoords) continue;
+    const path = measurePath(tripCoords, false);
+    const cs =
+      unique.length >= 2
+        ? cumulativeM(pts)
+        : pts.map(() => snapToPath(path.coords, false, pts[0]!)?.chainageM ?? 0);
+    const endAt = pts[pts.length - 1]!;
+    const endS = ts[ts.length - 1]!;
+    const way = releaseRun(scenario, v, endAt);
+    let run: Plan['run'] = null;
+    if (way && way.coords.length >= 2) {
+      const wayPath = measurePath([endAt, ...way.coords], false);
+      const speed = isDepotMode(v.mode) ? Math.max(1, (line?.maxSpeedKmh ?? 30) / 3.6) : speedRail;
+      run = { path: wayPath, startS: endS, durationS: way.durationS ?? wayPath.lengthM / speed };
+    }
+    const endC = cs[cs.length - 1]!;
+    const atEnd = interpolate(path, endC);
+    const end: VehicleState = {
+      id: v.code,
+      lineId: '',
+      color: SURPLUS_COLOR,
+      chainageM: 0,
+      position: atEnd.position,
+      bearingDeg: atEnd.bearingDeg,
+      direction: 1,
+      state: 'parked',
+      footprint: consistFootprint(path, endC, 1, shape, false),
+      heightM: 0,
+    };
+    plans.push({ code: v.code, shape, trip: { path, ts, cs }, run, end });
+  }
+  const planned = new Set(plans.map((p) => p.code));
+  const fixed = [...rest.values()].filter((s) => !planned.has(s.id));
+  return (tS: number) => {
+    const out = [...fixed];
+    for (const p of plans) {
+      const { ts, cs, path } = p.trip;
+      const lastS = ts[ts.length - 1]!;
+      const base = {
+        id: p.code,
+        lineId: '',
+        color: SURPLUS_COLOR,
+        chainageM: 0,
+        direction: 1 as const,
+        heightM: 0,
+      };
+      if (tS <= lastS) {
+        // Finishing its last trip (before the edit: where it was at the edit).
+        let i = 0;
+        while (i < ts.length - 2 && ts[i + 1]! <= tS) i++;
+        const span = ts[i + 1] !== undefined ? ts[i + 1]! - ts[i]! : 0;
+        const f = span > 0 ? Math.min(1, Math.max(0, (tS - ts[i]!) / span)) : 0;
+        const c = cs[i]! + f * ((cs[i + 1] ?? cs[i]!) - cs[i]!);
+        const moving = (cs[i + 1] ?? cs[i]!) > cs[i]! && tS >= ts[0]!;
+        const at = interpolate(path, c);
+        out.push({
+          ...base,
+          position: at.position,
+          bearingDeg: at.bearingDeg,
+          state: moving ? 'running' : 'dwelling',
+          footprint: consistFootprint(path, c, 1, p.shape, false),
+        });
+        continue;
+      }
+      if (p.run && tS < p.run.startS + p.run.durationS) {
+        const d = ((tS - p.run.startS) / Math.max(p.run.durationS, 1e-9)) * p.run.path.lengthM;
+        const at = interpolate(p.run.path, d);
+        out.push({
+          ...base,
+          position: at.position,
+          bearingDeg: at.bearingDeg,
+          state: 'deadhead',
+          footprint: consistFootprint(p.run.path, d, 1, p.shape, false),
+        });
+        continue;
+      }
+      // In its depot place, or (no way there) still at the end of its trip.
+      out.push(p.run ? (rest.get(p.code) ?? p.end) : p.end);
+    }
+    return out;
+  };
+}
+
+/** Surplus vehicles at a time (default: long after any edit, all in their places). */
+export function surplusStates(
+  scenario: Scenario,
+  models: readonly LineSimulationModel[],
+  tS = Infinity,
+): VehicleState[] {
+  return surplusPlan(scenario, models)(tS);
 }
 
 /**

@@ -14,6 +14,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Surplus vehicles finish their trip (F8)**: a vehicle an edit makes surplus while it is
+  out on the line first completes the trip it is on (taken from the plan before the edit,
+  at the current simulated time), then drives to its depot out of service along paths of
+  movement only (back along the line and the routed street link, or over the tracks to
+  the depot track), and parks there. Without such a way it stays at the line end and an
+  error says why.
 - **Vehicle lifecycle rules (F8)**:
   - A line has a main vehicle type plus optional *accepted* types of the same mode (line
     inspector → "Also accepts"). The main type sets how many vehicles the line needs; a

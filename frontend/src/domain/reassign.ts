@@ -6,8 +6,9 @@
  * from a depot track to the start of the line and back. The distance ranks depots when a
  * surplus vehicle is reassigned: reachable first, then the nearest.
  */
-import type { Scenario, TransportLine, VehicleRecord } from './schema';
-import { allocateDepots, isDepotMode } from './depots';
+import type { LngLat, Scenario, TransportLine, VehicleRecord } from './schema';
+import { returnCoordinates, stepsCoordinates } from './serviceRouting';
+import { allocateDepots, isDepotMode, parkingSpot } from './depots';
 import { assignStabling, depotTracks } from './stabling';
 import { lineVehicles } from './fleetRegistry';
 import { parameterValue } from './trackParameters';
@@ -108,4 +109,49 @@ export function surplusPlaces(scenario: Scenario): Map<string, SurplusPlace> {
     }
   }
   return out;
+}
+
+/** A surplus vehicle's way from the end of its last trip to its depot place (F8). */
+export interface ReleaseRun {
+  coords: LngLat[];
+  /** From the routing server for street links; null = from the length and a speed. */
+  durationS: number | null;
+}
+
+/**
+ * How a released vehicle gets from where its trip ended (`at`) to its depot place, along
+ * paths of movement only. Street modes: back along the line to its start if the trip ended
+ * at the far end (the line's return geometry where it has one), then the routed street
+ * link to the depot. Rail: a path over the mode's tracks from the line end it stands at to
+ * the depot-track slot. null = no such way (the vehicle stays at the line end; error).
+ */
+export function releaseRun(scenario: Scenario, v: VehicleRecord, at: LngLat): ReleaseRun | null {
+  const line = scenario.lines.find((l) => l.id === v.lastLineId);
+  const place = surplusPlaces(scenario).get(v.code) ?? null;
+  if (!line || !place || line.coordinates.length < 2) return null;
+  const first = line.coordinates[0]!;
+  const last = line.coordinates[line.coordinates.length - 1]!;
+  const atEnd = distanceM(at, last) < distanceM(at, first);
+  if (place.kind === 'street') {
+    const depot = scenario.depots.find((d) => d.id === place.depotId);
+    const link = depot?.links[line.id]?.fromLine;
+    if (!depot || link?.status !== 'routed' || link.coordinates.length < 2) return null;
+    const back = atEnd ? (returnCoordinates(scenario, line) ?? [...line.coordinates].reverse()) : [];
+    const lengthM = recordLengthM(scenario, v);
+    const t = scenario.vehicleTypes.find((x) => x.id === v.vehicleTypeId);
+    const widthM = t?.widthM ?? parameterValue(scenario.trackNetwork, 'unknownVehicleWidthM');
+    return {
+      coords: [...back, ...link.coordinates, parkingSpot(depot, place.index, lengthM, widthM)],
+      durationS: atEnd ? null : link.durationS,
+    };
+  }
+  if (line.alignment.kind !== 'track' || !line.alignment.path.length) return null;
+  const steps = line.alignment.path;
+  const from: TrackPosition = atEnd
+    ? { trackId: steps[steps.length - 1]!.trackId, fraction: steps[steps.length - 1]!.to }
+    : { trackId: steps[0]!.trackId, fraction: steps[0]!.from };
+  const sameMode = (t: { designMode: string }) => t.designMode === v.mode;
+  const path = shortestPath(scenario.trackNetwork, from, place, undefined, sameMode);
+  if (!path) return null;
+  return { coords: stepsCoordinates(scenario, path.steps), durationS: null };
 }

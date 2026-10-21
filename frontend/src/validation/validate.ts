@@ -34,7 +34,7 @@ import {
 import { wireRailCrossings } from '../domain/overheadWire';
 import { lineFleet } from '../analysis/fleet';
 import { stablingNeed } from '../domain/stabling';
-import { railDepotReach, surplusPlaces } from '../domain/reassign';
+import { railDepotReach, releaseRun, surplusPlaces } from '../domain/reassign';
 import { lineVehicles } from '../domain/fleetRegistry';
 import { allocateDepots, DEPOT_MODES, depotCapacity, depotLines } from '../domain/depots';
 import { trackGeometry } from '../domain/tracks';
@@ -827,8 +827,20 @@ export function validateDepots(scenario: Scenario): Finding[] {
 export function validateSurplus(scenario: Scenario): Finding[] {
   const out: Finding[] = [];
   for (const [code, place] of surplusPlaces(scenario)) {
-    if (place) continue;
     const v = scenario.fleet.find((x) => x.code === code)!;
+    if (place) {
+      // It was on a trip when it became surplus: after the trip it must drive to its depot.
+      const end = v.release?.samples[v.release.samples.length - 1];
+      if (end && !releaseRun(scenario, v, [end[1], end[2]]))
+        out.push({
+          id: `surplus-no-way-${code}`,
+          severity: 'error',
+          category: 'operations',
+          position: [end[1], end[2]],
+          message: `${code} cannot drive from the end of its last trip to its depot: no street route from the line to the depot, or no track path to the depot track. It stays at the line end; route the depot link or connect the depot track.`,
+        });
+      continue;
+    }
     const line = scenario.lines.find((l) => l.id === v.lastLineId);
     out.push({
       id: `surplus-no-depot-${code}`,
