@@ -128,9 +128,10 @@ export function trackNodesCollection(scenario: Scenario, selectedNodeId: string 
 
 /**
  * Permitted movements through junctions (nodes where three or more track ends meet, or
- * with a turnout): for each movement a short curve from a point `reachM` into the one
- * track, past the node, to a point `reachM` into the other, so the map shows which ways
- * through the junction are allowed. Forbidden ways have no curve.
+ * with a turnout), drawn as a small diagram at the node: one arm per track end, pointing
+ * to where that track is a few symbol sizes away (so tangential tracks still fan out),
+ * and for each permitted movement a curve between the two arms through the node. Ways
+ * through the junction without a curve are not allowed.
  */
 export function junctionMovesCollection(scenario: Scenario, reachM: number): FeatureCollection {
   const net = scenario.trackNetwork;
@@ -140,19 +141,23 @@ export function junctionMovesCollection(scenario: Scenario, reachM: number): Fea
   for (const n of net.nodes) {
     if (nodeEnds(net, n.id).length < 3 && !n.turnout) continue;
     const c = frame.toMetres(n.position);
-    const into = (e: TrackEndRef) => {
+    const arm = (e: TrackEndRef): [number, number] | null => {
       const t = byId.get(e.trackId);
       if (!t) return null;
       const len = trackGeometry(net, t).lengthM;
       if (len <= 0) return null;
-      const s = Math.min(reachM, len / 3);
-      return pointOnTrack(net, t, e.end === 'start' ? s / len : 1 - s / len).metres;
+      const s = Math.min(4 * reachM, len / 2);
+      const p = pointOnTrack(net, t, e.end === 'start' ? s / len : 1 - s / len).metres;
+      const dx = p[0] - c[0];
+      const dy = p[1] - c[1];
+      const d = Math.hypot(dx, dy);
+      return d > 0 ? [c[0] + (dx / d) * reachM, c[1] + (dy / d) * reachM] : null;
     };
     n.movements.forEach((m, i) => {
-      const a = into(m.a);
-      const b = into(m.b);
+      const a = arm(m.a);
+      const b = arm(m.b);
       if (!a || !b) return;
-      // Quadratic curve with the node as control point: it stays on the tracks' side.
+      // Quadratic curve with the node as control point.
       const pts = Array.from({ length: 9 }, (_, k) => {
         const u = k / 8;
         const w0 = (1 - u) * (1 - u);

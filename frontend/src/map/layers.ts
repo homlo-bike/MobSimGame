@@ -352,7 +352,7 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     source: SRC.junctionMoves,
     minzoom: 15,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#ffffff', 'line-width': 5 },
+    paint: { 'line-color': '#ffffff', 'line-width': 6 },
   });
   add({
     id: 'msg-junction-moves',
@@ -360,7 +360,7 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     source: SRC.junctionMoves,
     minzoom: 15,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#0f766e', 'line-width': 2.5 },
+    paint: { 'line-color': '#7c3aed', 'line-width': 3 },
   });
   // Track nodes: junctions are larger with a heavy ring, open ends are hollow (shape, not colour alone).
   add({
