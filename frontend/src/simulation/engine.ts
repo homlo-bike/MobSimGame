@@ -28,6 +28,7 @@ import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates, stepsCoordinates } from '../domain/serviceRouting';
 import { assignStabling } from '../domain/stabling';
 import { lineVehicles } from '../domain/fleetRegistry';
+import { allocateDepots, isDepotMode, parkingSpot } from '../domain/depots';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
 import { following, parameterValue, signalOverlapM, type Following } from '../domain/trackParameters';
 import { clearanceDistanceM } from '../domain/clearancePoints';
@@ -1592,6 +1593,39 @@ export function buildScenarioModels(scenario: Scenario, options?: SimulationOpti
         m.stabling ??= new Map();
         m.stabling.set(k, { out, back, outS: out.lengthM / speedMs, backS: back.lengthM / speedMs });
       }
+    }
+    // Street modes (F5): vehicles drive to their depot and back on the stored street routes
+    // only; a line without a routed link keeps its vehicles at the line end.
+    const allocation = allocateDepots(scenario);
+    const parkedAt = new Map<string, number>();
+    for (const m of models) {
+      const line = scenario.lines.find((l) => l.id === m.lineId);
+      if (!line || !isDepotMode(line.mode) || m.fleet <= 0) continue;
+      const shape = m.consist;
+      m.vehicleCodes.forEach((code, k) => {
+        const depot = scenario.depots.find((d) => d.id === allocation.get(code));
+        const link = depot?.links[line.id];
+        if (!depot || !link || link.toLine.status !== 'routed' || link.fromLine.status !== 'routed') return;
+        const n = parkedAt.get(depot.id) ?? 0;
+        parkedAt.set(depot.id, n + 1);
+        const net = scenario.trackNetwork;
+        const spot = parkingSpot(
+          depot,
+          n,
+          shape ? shape.unitLengthM * shape.units : parameterValue(net, 'unknownVehicleLengthM'),
+          shape ? shape.widthM : parameterValue(net, 'unknownVehicleWidthM'),
+        );
+        const out = measurePath([...link.fromLine.coordinates, spot], false);
+        const back = measurePath([spot, ...link.toLine.coordinates], false);
+        const speed = Math.max(1, line.maxSpeedKmh / 3.6);
+        m.stabling ??= new Map();
+        m.stabling.set(k, {
+          out,
+          back,
+          outS: link.fromLine.durationS ?? out.lengthM / speed,
+          backS: link.toLine.durationS ?? back.lengthM / speed,
+        });
+      });
     }
   }
   return models;

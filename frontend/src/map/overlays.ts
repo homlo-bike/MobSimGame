@@ -3,6 +3,8 @@ import { accessFacilities, accessIconId } from '../domain/stationAccess';
 import type { FeatureCollection, Feature } from 'geojson';
 import { circle } from '@turf/turf';
 import type { LngLat, Scenario, TrackEndRef, TransportMode } from '../domain/schema';
+import { depotCapacity } from '../domain/depots';
+import { MODES } from '../domain/modes';
 import {
   isInterchange,
   isRing,
@@ -62,6 +64,23 @@ export function tracksCollection(scenario: Scenario, selectedTrackId: string | n
     };
   });
   return { type: 'FeatureCollection', features };
+}
+
+/** Depots of the street modes (F5), in their mode's colour, labelled with name and capacity. */
+export function depotsCollection(scenario: Scenario, selectedId: string | null): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: scenario.depots.map((d) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: d.position },
+      properties: {
+        depotId: d.id,
+        color: MODES[d.mode].color,
+        selected: d.id === selectedId,
+        label: `${d.name} · ${depotCapacity(scenario, d)} places`,
+      },
+    })),
+  };
 }
 
 /** Visible regions with their style, for the fill, outline and label layers. */

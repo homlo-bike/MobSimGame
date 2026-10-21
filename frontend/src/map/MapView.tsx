@@ -27,6 +27,7 @@ import { basemapOptions } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
 import { buildScenarioModels, vehicleStates, type LineSimulationModel } from '../simulation/engine';
 import { vehicleInfo, type VehicleInfo } from '../simulation/vehicleInfo';
+import { addDepot, isDepotMode } from '../domain/depots';
 import { VehiclePanel } from './VehiclePanel';
 import { simulationClock, simulationOptions } from '../simulation/runtime';
 import { featureLineCoords, reconcileDraw, REMOTE } from './drawSync';
@@ -58,6 +59,7 @@ import {
   setData,
   setVisible,
   SIGNAL_LAYER,
+  DEPOT_LAYER,
   SRC,
   STATION_LAYER,
   PLATFORM_PICK_LAYER,
@@ -73,6 +75,7 @@ import {
 } from './layers';
 import {
   arrowsCollection,
+  depotsCollection,
   junctionMovesCollection,
   metresPerPixel,
   catchmentsCollection,
@@ -663,6 +666,17 @@ export default function MapView() {
         state.select({ kind: 'station', id: res.station.id });
         return;
       }
+      if (state.tool === 'add_depot') {
+        if (!isDepotMode(state.newLineMode)) {
+          state.announce('Depots are for bus, BRT and trolleybus; rail vehicles use depot tracks.');
+          return;
+        }
+        const res = addDepot(sc, state.newLineMode, [e.lngLat.lng, e.lngLat.lat]);
+        state.commitScenario(res.scenario, `${res.depot.name} placed`);
+        state.select({ kind: 'depot', id: res.depot.id });
+        state.setTool('select');
+        return;
+      }
       if (state.tool === 'add_signal') {
         const res = addManualSignal(sc, [e.lngLat.lng, e.lngLat.lat]);
         state.commitScenario(res.scenario, 'Traffic signal placed');
@@ -817,11 +831,18 @@ export default function MapView() {
         .map((l) => l.id)
         .filter((id) => id.startsWith(TRACK_LAYER_PREFIX) && map.getLayer(id));
       const hit = map.queryRenderedFeatures(e.point, {
-        layers: [STATION_LAYER, STATION_HANDLE_LAYER, SIGNAL_LAYER, TRACK_NODE_LAYER, PLATFORM_LAYER].filter(
-          (id) => map.getLayer(id),
-        ),
+        layers: [
+          DEPOT_LAYER,
+          STATION_LAYER,
+          STATION_HANDLE_LAYER,
+          SIGNAL_LAYER,
+          TRACK_NODE_LAYER,
+          PLATFORM_LAYER,
+        ].filter((id) => map.getLayer(id)),
       })[0];
-      if (hit?.properties?.stationId) state.select({ kind: 'station', id: String(hit.properties.stationId) });
+      if (hit?.properties?.depotId) state.select({ kind: 'depot', id: String(hit.properties.depotId) });
+      else if (hit?.properties?.stationId)
+        state.select({ kind: 'station', id: String(hit.properties.stationId) });
       else if (hit?.properties?.signalId)
         state.select({ kind: 'signal', id: String(hit.properties.signalId) });
       else if (hit?.properties?.nodeId) state.select({ kind: 'node', id: String(hit.properties.nodeId) });
@@ -1037,7 +1058,12 @@ export default function MapView() {
       if (draw.drawing.isDrawing()) draw.drawing.cancel();
       draw.setMode('select');
     }
-    const placing = stops || tool === 'add_station' || tool === 'new_service' || tool === 'add_signal';
+    const placing =
+      stops ||
+      tool === 'add_station' ||
+      tool === 'new_service' ||
+      tool === 'add_signal' ||
+      tool === 'add_depot';
     draw.setInteractionLocked(placing);
     map.getCanvas().style.cursor = placing ? 'crosshair' : '';
   }, [tool, newLineMode]);
@@ -1123,6 +1149,7 @@ export default function MapView() {
       ),
     );
     setData(map, SRC.crossovers, crossoversCollection(scenario));
+    setData(map, SRC.depots, depotsCollection(scenario, selection?.kind === 'depot' ? selection.id : null));
     setData(map, SRC.conflicts, conflictsCollection(scenario, conflicts));
     setData(map, SRC.walkingLinks, walkingLinksCollection(scenario));
     setData(map, SRC.routeStatus, routeStatusCollection(scenario));
@@ -1155,6 +1182,7 @@ export default function MapView() {
     selectedRegionId,
     selectedStationId,
     selectedSignalId,
+    selection,
     styleVersion,
     layers.catchments,
     closures,
@@ -1342,6 +1370,11 @@ export default function MapView() {
       {tool === 'region_split' && (
         <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
           Draw a line all the way across the selected region · Enter to finish · Esc to cancel
+        </p>
+      )}
+      {tool === 'add_depot' && (
+        <p className="pointer-events-none absolute start-1/2 top-2 -translate-x-1/2 rounded bg-slate-900/85 px-3 py-1 text-sm text-white">
+          Click next to a street to place a depot · Esc to cancel
         </p>
       )}
       {tool === 'add_signal' && (

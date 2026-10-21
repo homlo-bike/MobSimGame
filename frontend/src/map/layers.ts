@@ -24,6 +24,7 @@ export const SRC = {
   walkingLinks: 'msg-walking-links',
   closures: 'msg-closures',
   signals: 'msg-signals',
+  depots: 'msg-depots',
   routeStatus: 'msg-route-status',
   guides: 'msg-guides',
   ramps: 'msg-ramps',
@@ -66,6 +67,7 @@ export const CONFLICT_LAYER = 'msg-conflict';
 export const PLATFORM_LAYER = 'msg-platform-fill';
 export const CROSSOVER_LAYER = 'msg-crossovers-circle';
 export const SIGNAL_LAYER = 'msg-signals-circle';
+export const DEPOT_LAYER = 'msg-depots-icon';
 export const TRACK_NODE_LAYER = 'msg-track-nodes-circle';
 export const TRACK_LAYER_PREFIX = 'msg-track-';
 export const FINDING_LAYER = 'msg-findings-symbol';
@@ -600,6 +602,48 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-stroke-width': 2,
     },
   });
+  // Depots of bus, BRT and trolleybus (F5): a rounded square in the mode's colour with a
+  // "D", labelled with name and capacity (the shape and letter, not colour alone).
+  if (!map.hasImage(DEPOT_IMAGE)) map.addImage(DEPOT_IMAGE, depotImage(), { pixelRatio: 2, sdf: true });
+  add({
+    id: DEPOT_LAYER,
+    type: 'symbol',
+    source: SRC.depots,
+    layout: {
+      'icon-image': DEPOT_IMAGE,
+      'icon-size': ['case', ['get', 'selected'], 1.25, 1],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      ...(opts.labels
+        ? {
+            'text-field': 'D',
+            'text-size': 12,
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          }
+        : {}),
+    },
+    paint: {
+      'icon-color': ['get', 'color'],
+      'icon-halo-color': '#111827',
+      'icon-halo-width': ['case', ['get', 'selected'], 3, 1.5],
+      'text-color': '#ffffff',
+    },
+  });
+  if (opts.labels)
+    add({
+      id: 'msg-depots-label',
+      type: 'symbol',
+      source: SRC.depots,
+      minzoom: 12,
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-size': 11,
+        'text-offset': [0, 1.6],
+        'text-anchor': 'top',
+      },
+      paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    });
   // Traffic signals: colour shows the simulated state; red also has a heavier ring (not colour alone).
   add({
     id: SIGNAL_LAYER,
@@ -846,6 +890,23 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     },
     paint: { 'text-color': '#ffffff' },
   });
+}
+
+const DEPOT_IMAGE = 'msg-depot';
+
+/** A rounded square (signed-distance mask, coloured per depot by the layer). */
+function depotImage() {
+  const size = 40;
+  const data = new Uint8Array(size * size * 4);
+  const r = 8;
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const dx = Math.max(r - x, 0, x - (size - 1 - r));
+      const dy = Math.max(r - y, 0, y - (size - 1 - r));
+      const inside = dx * dx + dy * dy <= r * r && x >= 2 && y >= 2 && x <= size - 3 && y <= size - 3;
+      if (inside) data.set([255, 255, 255, 255], (y * size + x) * 4);
+    }
+  return { width: size, height: size, data };
 }
 
 const plusImageId = (picked: boolean) => (picked ? 'msg-plus-picked' : 'msg-plus');

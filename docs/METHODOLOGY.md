@@ -223,6 +223,16 @@ point) × the headway in force / 3600, against the vehicle's own capacity or the
 consist capacity of its profile. Without an entered demand or capacity no figure is
 shown, only what is missing.
 
+**Street depots (F5)**: a depot of bus, BRT or trolleybus is a point with a capacity
+(default: the mode's vehicles, surplus included, shared over its depots; or an own
+value). Vehicles are allocated line by line to the nearest depot of their mode with
+room (straight-line distance from the line start, only for the choice), surplus vehicles
+to any with room. The runs between depot and line follow street routes from the routing
+server (stored with the depot, with provider and date); their durations come from the
+router. Without a routed link a vehicle waits at its line end: it never cuts across.
+Parked vehicles are drawn in rows beside the depot point (a drawing aid; the yard layout
+is not modelled).
+
 **Depot tracks (F6)**: tracks no service uses can be marked as depot (stabling) tracks
 (track inspector → Use); services are routed around them. Each rail mode needs as much
 depot track as all its consists are long, with the minimum gap (`followingMinGapM`)

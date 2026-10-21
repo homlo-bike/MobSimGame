@@ -241,7 +241,13 @@ export function deleteLine(scenario: Scenario, lineId: string): Scenario {
     sharedTracks: scenario.sharedTracks
       .map((st) => ({ ...st, members: st.members.filter((m) => m.lineId !== lineId) }))
       .filter((st) => st.members.length >= 2),
-    depots: scenario.depots.map((d) => ({ ...d, lineIds: d.lineIds.filter((id) => id !== lineId) })),
+    // A deleted line's depot routes go with it.
+    depots: scenario.depots.map((d) => {
+      if (!(lineId in d.links)) return d;
+      const links = { ...d.links };
+      delete links[lineId];
+      return { ...d, links };
+    }),
   });
 }
 

@@ -121,6 +121,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   window follows the vehicle and updates while the animation runs. How full is
   estimated from the peak or off-peak demand you enter for the line; without it the
   window says what is missing.
+- **Bus, BRT and trolleybus depots:** "Add depot" places a depot (a rounded square with a D
+  in the mode's colour, labelled with its places). Its capacity shares the mode's
+  vehicles over its depots unless you set its own. Vehicles go to the nearest depot with
+  room. "Route to and from the lines" asks the routing server (Valhalla) for the street
+  routes; vehicles drive to the depot and back only on those routes and wait at the
+  line end while a route is missing.
 - **Depot tracks:** mark a track no service uses as a depot track (track inspector →
   Use). Trains not needed in service run to the nearest free slot there, wait (also at
   night) and come back before their next trip. A warning appears when a mode's depot
