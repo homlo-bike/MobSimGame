@@ -185,7 +185,7 @@ set, labelled as such. See the [roadmap](#roadmap).
   share the remaining track. **Single track** used in both directions is occupied by
   one direction at a time (opposing trains wait), and following vehicles keep a
   minimum distance (placeholder values).
-- Schematic map (octilinear, interchange and terminal symbols, walking links between
+- Schematic map with a tab per rail mode (octilinear, interchange and terminal symbols, walking links between
   modes as dashed connectors with walking time, elevator/escalator/ramp symbols):
   select stations by click or Enter, move them by dragging or with the arrow keys, pan
   and zoom (wheel, background drag, + − and Fit), SVG/PNG export of the whole map, and a

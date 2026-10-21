@@ -21,6 +21,10 @@ export interface ParameterDefinition {
   notes?: string;
 }
 
+const GRENZZEICHEN =
+  'Clearance marker meaning: Eisenbahn-Signalordnung, signal Ra 12, and BOStrab Anlage 4, signal Sh 6 ("Grenze, bis zu der bei zusammenlaufenden Gleisen das Gleis besetzt werden darf"; neither gives a distance), gesetze-im-internet.de. Position at 3.50 m between track centres: German Wikipedia, "Grenzzeichen" (CC BY-SA 4.0), read 21 October 2026; secondary source, the sentence has no citation there.';
+const DURCHRUTSCHWEG =
+  'German Wikipedia, "Durchrutschweg", section Deutschland (CC BY-SA 4.0), read 21 October 2026: minimum overlaps for routes ending at intermediate and exit signals, 200 m above 60 km/h, 100 m up to 60 km/h, 50 m up to 40 km/h, none up to 30 km/h; after Jochim & Lademann, Planung von Bahnanlagen (Hanser 2008). Secondary source: the DB guideline (Ril 819) is not public.';
 const EBO_10 =
   'Eisenbahn-Bau- und Betriebsordnung (EBO) § 10 (Germany): track centre distance on open line at least 4.00 m for new construction (3.80 m where only urban rapid transit runs), 4.50 m in new stations; to be widened in curves below 250 m radius. https://www.gesetze-im-internet.de/ebo/__10.html';
 const PLACEHOLDER = 'Placeholder, not from a cited source. Enter a local value.';
@@ -122,6 +126,52 @@ export const TRACK_PARAMETERS = {
     max: 20,
     status: 'documented_default',
     source: SUMO_MINGAP,
+  },
+  clearanceMarkerSpacingM: {
+    id: 'clearanceMarkerSpacingM',
+    label:
+      'Track centre distance at the clearance marker of converging tracks (where a waiting train must stand clear)',
+    unit: 'm',
+    defaultValue: 3.5,
+    min: 2,
+    max: 6,
+    status: 'documented_default',
+    source: GRENZZEICHEN,
+    notes:
+      'A train waiting for a junction keeps its front behind this point on its track. For trams BOStrab gives no figure (§ 18: vehicles on adjacent tracks must not touch); the same value is used, editable.',
+  },
+  signalOverlapUpTo40M: {
+    id: 'signalOverlapUpTo40M',
+    label: 'Signal overlap before the clearance point, 31–40 km/h (metro and commuter rail)',
+    unit: 'm',
+    defaultValue: 50,
+    min: 0,
+    max: 500,
+    status: 'documented_default',
+    source: DURCHRUTSCHWEG,
+    notes: 'Up to 30 km/h no overlap. Signalled modes stop this much further back from a junction.',
+  },
+  signalOverlapUpTo60M: {
+    id: 'signalOverlapUpTo60M',
+    label: 'Signal overlap before the clearance point, 41–60 km/h (metro and commuter rail)',
+    unit: 'm',
+    defaultValue: 100,
+    min: 0,
+    max: 500,
+    status: 'documented_default',
+    source: DURCHRUTSCHWEG,
+  },
+  signalOverlapAbove60M: {
+    id: 'signalOverlapAbove60M',
+    label: 'Signal overlap before the clearance point, above 60 km/h (metro and commuter rail)',
+    unit: 'm',
+    defaultValue: 200,
+    min: 0,
+    max: 1000,
+    status: 'documented_default',
+    source: DURCHRUTSCHWEG,
+    notes:
+      'UK practice uses about 180 m for colour-light signals (English Wikipedia, "Overlap (railway signalling)", uncited).',
   },
   minSeparationRailM: {
     id: 'minSeparationRailM',
@@ -381,4 +431,12 @@ export function platformLengthM(
           ? 'platformLengthRailM'
           : 'platformLengthMetroM';
   return parameterValue(network, id);
+}
+
+/** Overlap (m) a signalled train keeps before a junction's clearance point at a speed (km/h). */
+export function signalOverlapM(network: Pick<TrackNetwork, 'parameterOverrides'>, speedKmh: number): number {
+  if (speedKmh <= 30) return 0;
+  if (speedKmh <= 40) return parameterValue(network, 'signalOverlapUpTo40M');
+  if (speedKmh <= 60) return parameterValue(network, 'signalOverlapUpTo60M');
+  return parameterValue(network, 'signalOverlapAbove60M');
 }

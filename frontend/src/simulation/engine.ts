@@ -27,10 +27,11 @@ import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates } from '../domain/serviceRouting';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
-import { following, parameterValue, type Following } from '../domain/trackParameters';
+import { following, parameterValue, signalOverlapM, type Following } from '../domain/trackParameters';
+import { clearanceDistanceM } from '../domain/clearancePoints';
 import { consistCapacity, consistLengthM } from '../domain/vehicles';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
-import { OccupancyLedger, type ResourceSpan } from './occupancy';
+import { OccupancyLedger, type Reservation, type ResourceSpan } from './occupancy';
 import { consistFootprint, consistShape, type ConsistShape } from './footprint';
 import { heightAtFraction, lineHeightProfile, type HeightProfile } from '../domain/ramps';
 import {
@@ -732,6 +733,13 @@ function occupancyInputs(
   };
   // Junction, turnout and crossing nodes are zones: one route at a time (R14b).
   const clearance = parameterValue(net, 'crossingClearanceM');
+  const spacing = parameterValue(net, 'clearanceMarkerSpacingM');
+  const signalled = separation.following.kind === 'signalled';
+  const hasReturnPath = line.alignment.kind === 'track' && !!line.alignment.returnPath?.length;
+  const speedAtFraction = (f: number) => {
+    const seg = line.segments.find((x) => f >= x.fromFraction - 1e-9 && f <= x.toFraction + 1e-9);
+    return seg ? segmentSpeedKmh(line, seg) : line.maxSpeedKmh;
+  };
   const nodes = new Map(net.nodes.map((n) => [n.id, n]));
   const zones = (steps: typeof line.alignment.path, reverseMap: boolean): ResourceSpan[] => {
     const total = stepsLengthM(net, steps);
@@ -752,14 +760,23 @@ function occupancyInputs(
       if (!node || (nodeEnds(net, nodeId).length < 3 && !node.turnout)) continue;
       const entryEnd = nx.to >= nx.from ? 'start' : 'end';
       const route = `${st.trackId}:${exitEnd}>${nx.trackId}:${entryEnd}`;
-      // The zone is held from the head reaching the clearance point before the node until
-      // the tail has cleared the one after it. Chainage is the middle of the consist, so
-      // the zone reaches half a train further on both sides, whichever way it is run.
-      const reach = clearance + separation.vehicleLengthM / 2;
+      // The zone is held from the head reaching the clearance point before the node (for
+      // signalled modes, the signal overlap further back) until the tail has passed the
+      // clearance point after it. Chainage is the middle of the consist, so the zone
+      // reaches half a train further on both sides.
+      const half = separation.vehicleLengthM / 2;
+      const approachM =
+        clearanceDistanceM(net, nodeId, { trackId: st.trackId, end: exitEnd }, spacing) +
+        (signalled ? signalOverlapM(net, speedAtFraction(at / path.lengthM)) : 0);
+      const departM = clearanceDistanceM(net, nodeId, { trackId: nx.trackId, end: entryEnd }, spacing);
+      // Run both ways on the same spans (no separate way back): the larger reach on both sides.
+      const both = !reverseMap && line.direction === 'bidirectional' && !hasReturnPath;
+      const before = (both ? Math.max(approachM, departM) : approachM) + half;
+      const after = (both ? Math.max(approachM, departM) : departM) + half;
       const atM = reverseMap ? path.lengthM - at : at;
       out.push({
-        fromM: Math.max(0, atM - reach),
-        toM: Math.min(path.lengthM, atM + reach),
+        fromM: Math.max(0, reverseMap ? atM - after : atM - before),
+        toM: Math.min(path.lengthM, reverseMap ? atM + before : atM + after),
         resourceId: `zone:${nodeId}`,
         sign: 1,
         opposing: false,
@@ -874,6 +891,10 @@ function buildTrip(
   delayS = 0,
 ): Phase[] {
   const phases: Phase[] = [];
+  /** Sections reserved on this trip, to be released when the train has actually left them. */
+  const bookings: { r: Reservation; span: ResourceSpan; dir: 1 | -1; from: number; atEnd: boolean }[] = [];
+  /** Section entries already reserved together with a junction ahead of them. */
+  const claimed = new Set<StopEvent>();
   let t = departS;
   if (delayS > 0) {
     // Late back from its previous trip: the vehicle leaves as soon as it is ready.
@@ -1005,50 +1026,107 @@ function buildTrip(
       phases[phases.length - 1] = { ...last, durationS, profile: prof };
       speed = 0;
     };
+    /** What a vehicle asks of the ledger for a section, from here. */
+    const request = (sp: ResourceSpan) => {
+      const cruiseS = model.speedAt(sp.fromM, sp.toM);
+      // Stops in the section, its ends included: the vehicle stands in it while it dwells.
+      const inside = dirEvents.filter(
+        (x) => x.kind === 'dwell' && x.chainageM >= sp.fromM - 0.01 && x.chainageM <= sp.toM + 0.01,
+      );
+      let dwellS = inside.reduce((sum, x) => sum + (x.durationS ?? 0), 0);
+      // Starting from a stop and stopping inside take longer than cruising through.
+      const vSpan = (sp.toM - sp.fromM) / Math.max(cruiseS, 1e-6);
+      const runS = model.rates
+        ? cruiseS + (inside.length + 1) * stopLossS(vSpan, model.rates.accelMs2, model.rates.decelMs2)
+        : cruiseS;
+      // A section that reaches the end of the leg is held through the fixed layover there
+      // too. (The wait for the vehicle's next departure beyond it is spent clear of the
+      // platform, as at a turnback siding: with the fleet sized to the cycle, the next
+      // vehicle arrives only after it has left.)
+      const atEnd = dir === 1 ? sp.toM >= to - 0.01 : sp.fromM <= to + 0.01;
+      if (atEnd && svc.pattern !== 'ring') dwellS += svc.layoverS;
+      const lengthM = Math.max(1e-6, sp.toM - sp.fromM);
+      // Time to keep behind the vehicle ahead: on sight, the steady-state gap of the
+      // Intelligent Driver Model (minimum gap + speed × time gap) plus that vehicle's length.
+      const vAvg = lengthM / Math.max(cruiseS, 1e-6);
+      const f = model.following;
+      const separationS =
+        f.kind === 'on_sight'
+          ? f.timeGapS + (f.minGapM + model.vehicleLengthM) / Math.max(vAvg, 0.1)
+          : (f.distanceM * runS) / lengthM;
+      return {
+        resourceId: sp.resourceId,
+        sign: sp.sign,
+        opposing: sp.opposing,
+        durationS: runS + dwellS,
+        separationS: sp.exclusive ? 0 : separationS,
+        queue: `${model.lineId}:${svc.id}:${dir}`,
+        exclusive: sp.exclusive ?? false,
+        // A train turning at a terminal platform does not wait for itself.
+        route: sp.resourceId.startsWith('platform:') ? `trip:${model.lineId}:${svc.id}:${departS}` : sp.route,
+        atEnd,
+      };
+    };
     for (const e of evs) {
       if (e.chainageM !== pos)
         run(e.chainageM, (e.kind === 'dwell' || e.kind === 'hold') && (e.durationS ?? 0) > 0);
       if (e.kind === 'enter' && !scheduled) continue;
       if (e.kind === 'enter') {
+        if (claimed.has(e)) continue;
+        // Route setting: at a junction the train asks for the junction and the sections
+        // just beyond it together, and goes only when all are free (or held by a train
+        // ahead running the same way at a safe distance); otherwise it waits clear of
+        // the junction.
         const sp = e.span!;
-        const cruiseS = model.speedAt(sp.fromM, sp.toM);
-        // Stops in the section, its ends included: the vehicle stands in it while it dwells.
-        const inside = dirEvents.filter(
-          (x) => x.kind === 'dwell' && x.chainageM >= sp.fromM - 0.01 && x.chainageM <= sp.toM + 0.01,
-        );
-        let dwellS = inside.reduce((sum, x) => sum + (x.durationS ?? 0), 0);
-        // Starting from a stop and stopping inside take longer than cruising through.
-        const vSpan = (sp.toM - sp.fromM) / Math.max(cruiseS, 1e-6);
-        const runS = model.rates
-          ? cruiseS + (inside.length + 1) * stopLossS(vSpan, model.rates.accelMs2, model.rates.decelMs2)
-          : cruiseS;
-        // A section that reaches the end of the leg is held through the fixed layover there
-        // too. (The wait for the vehicle's next departure beyond it is spent clear of the
-        // platform, as at a turnback siding: with the fleet sized to the cycle, the next
-        // vehicle arrives only after it has left.)
-        if ((dir === 1 ? sp.toM >= to - 0.01 : sp.fromM <= to + 0.01) && svc.pattern !== 'ring')
-          dwellS += svc.layoverS;
-        const lengthM = Math.max(1e-6, sp.toM - sp.fromM);
-        // Time to keep behind the vehicle ahead: on sight, the steady-state gap of the
-        // Intelligent Driver Model (minimum gap + speed × time gap) plus that vehicle's length.
-        const vAvg = lengthM / Math.max(cruiseS, 1e-6);
-        const f = model.following;
-        const separationS =
-          f.kind === 'on_sight'
-            ? f.timeGapS + (f.minGapM + model.vehicleLengthM) / Math.max(vAvg, 0.1)
-            : (f.distanceM * runS) / lengthM;
-        const start = model.context.ledger.reserve(
-          sp.resourceId,
-          sp.sign,
-          sp.opposing,
-          t,
-          runS + dwellS,
-          sp.exclusive ? 0 : separationS,
-          `${model.lineId}:${svc.id}:${dir}`,
-          sp.exclusive ?? false,
-          // A train turning at a terminal platform does not wait for itself.
-          sp.resourceId.startsWith('platform:') ? `trip:${model.lineId}:${svc.id}:${departS}` : sp.route,
-        );
+        const group: { ev: StopEvent; leadS: number }[] = [{ ev: e, leadS: 0 }];
+        if (sp.resourceId.startsWith('zone:')) {
+          const exitM = dir === 1 ? sp.toM : sp.fromM;
+          for (const x of evs)
+            if (
+              x !== e &&
+              x.kind === 'enter' &&
+              !claimed.has(x) &&
+              (x.chainageM - e.chainageM) * dir > 1e-6 &&
+              (exitM - x.chainageM) * dir >= -1e-6
+            )
+              group.push({
+                ev: x,
+                leadS: model.speedAt(Math.min(pos, x.chainageM), Math.max(pos, x.chainageM)),
+              });
+        }
+        const reqs = group.map(({ ev, leadS }) => ({ ...request(ev.span!), leadS, ev }));
+        let start = t;
+        for (let guard = 0; guard < 100; guard++) {
+          const next = Math.max(
+            ...reqs.map((q) =>
+              model.context.ledger.earliest(
+                q.resourceId,
+                q.sign,
+                q.opposing,
+                start,
+                q.leadS + q.durationS,
+                q.separationS,
+                q.queue,
+                q.exclusive,
+                q.route,
+              ),
+            ),
+          );
+          if (next <= start + 1e-9) break;
+          start = next;
+        }
+        for (const q of reqs) {
+          const r = model.context.ledger.book(
+            q.resourceId,
+            q.sign,
+            start,
+            q.leadS + q.durationS,
+            q.queue,
+            q.route,
+          );
+          bookings.push({ r, span: q.ev.span!, dir, from: phases.length, atEnd: q.atEnd });
+          claimed.add(q.ev);
+        }
         let wait = start - t;
         if (wait > 1e-6) {
           // The vehicle brakes to wait before the occupied section.
@@ -1102,7 +1180,47 @@ function buildTrip(
   } else if (svc.pattern === 'one_way') {
     phases.push({ kind: 'layover', chainageM: svc.endM, direction: 1, durationS: svc.layoverS });
   }
+  releaseAtExit(phases, departS, bookings);
   return phases.filter((p) => p.durationS > 0);
+}
+
+/**
+ * Set each reservation of a trip to end when the train actually left the section: the
+ * middle of the train passing the section's far end (which already reaches half a train
+ * beyond the track), or turning back. A section at the end of a leg is never held longer
+ * than reserved (the wait beyond the fixed layover is spent clear of it).
+ */
+function releaseAtExit(
+  phases: readonly Phase[],
+  departS: number,
+  bookings: readonly { r: Reservation; span: ResourceSpan; dir: 1 | -1; from: number; atEnd: boolean }[],
+) {
+  const starts: number[] = [];
+  let t = departS;
+  for (const p of phases) {
+    starts.push(t);
+    t += p.durationS;
+  }
+  const endS = t;
+  for (const b of bookings) {
+    const exitM = b.dir === 1 ? b.span.toM : b.span.fromM;
+    let left = endS;
+    for (let i = b.from; i < phases.length; i++) {
+      const p = phases[i]!;
+      if (p.direction !== b.dir) {
+        left = starts[i]!;
+        break;
+      }
+      if (b.atEnd || p.kind !== 'run') continue;
+      if ((p.toM - exitM) * b.dir >= -1e-6) {
+        const span = Math.abs(p.toM - p.fromM);
+        const f = span > 0 ? Math.min(1, Math.max(0, Math.abs(exitM - p.fromM) / span)) : 1;
+        left = starts[i]! + p.durationS * f;
+        break;
+      }
+    }
+    b.r.exit = b.atEnd ? Math.min(b.r.exit, left) : Math.max(b.r.enter, left);
+  }
 }
 
 export function tripPhases(model: LineSimulationModel, svc: ServiceModel, j: number): Phase[] {

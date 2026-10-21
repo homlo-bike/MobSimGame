@@ -267,14 +267,29 @@ other track.
   osrd.fr/en/docs/reference/design-docs/conflict-detection/, read 21 October 2026): two
   trains on different routes through the node never hold it together; trains on the
   same route (same entry and exit track end) only keep their following separation.
-  A train holds the zone from its head reaching the crossing clearance before the node
-  until its tail is the crossing clearance past it; as the simulated position is the
-  middle of the train, a waiting train stops half its length plus the clearance short
-  of the node. Single-track blocks likewise reach half a train beyond their ends.
+  - **Where a train waits**: at the clearance point of its track, the point where the
+    converging tracks are `clearanceMarkerSpacingM` (3.50 m) apart, measured from the
+    drawn geometry. The clearance marker's meaning is in the German signal rules (ESO
+    signal Ra 12; BOStrab signal Sh 6 for trams), which give no distance; the 3.50 m
+    comes from German Wikipedia, "Grenzzeichen" (secondary, uncited there). Signalled
+    modes (metro, commuter rail) stop a further signal overlap back, by line speed:
+    none up to 30 km/h, 50 m up to 40, 100 m up to 60, 200 m above (German Wikipedia,
+    "Durchrutschweg", after Jochim & Lademann 2008; UK practice about 180 m). All are
+    parameters in Project properties.
+  - A train holds the zone from its head reaching that point until its tail has passed
+    the clearance point beyond the node. The simulated position is the middle of the
+    train, so the zone reaches half a train further on both sides.
+  - **Route setting**: before a junction, the train asks for the junction and the
+    sections just beyond it together, and goes only when all are free, or held by a
+    train ahead running the same way at the following distance. Otherwise it waits
+    clear of the junction. A section is released when the train has actually left it
+    (the middle of the train past its far end, which reaches half a train beyond the
+    track), not at the estimate made on entry.
+  - Single-track blocks reach half a train beyond their ends. The time to reset a
+    turnout between routes is not modelled (no cited value).
 - **Platform tracks**: a platform track of a station holds one train at a time, of any
   line and direction, through its dwell and, at a terminal, its layover; the next
-  train waits with its head behind the tail of the standing one. The time to reset a turnout between routes is not
-  modelled (no cited value).
+  train waits with its head behind the tail of the standing one.
 - **Operations report** (Dashboard): one hour of service at the peak headways is
   scheduled in the same order as the animation; the waits for occupied track are summed
   per line and per place (single-track section, junction zone, crossing with another
