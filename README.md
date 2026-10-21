@@ -60,7 +60,8 @@ set, labelled as such. See the [roadmap](#roadmap).
     platform (or pick a platform per stop in the panel). The route is found between
     the platforms; after the last stop the service returns to the first stop (or, if
     chosen, runs back calling at the same stations on the other track). A missing
-    route names the two stops it fails between
+    route names the two stops it fails between and why (a one-way track in the way,
+    or tracks that are not connected); clicking a picked (+) again removes it
     ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
   - Rail lines cannot use "Follows streets" or "Straight segments".
   - Rail stations are objects with their own tracks and side or island

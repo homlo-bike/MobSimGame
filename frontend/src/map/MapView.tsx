@@ -98,6 +98,7 @@ import {
   vehicleBodiesCollection,
   stopDraftCollection,
   platformPicksCollection,
+  togglePlatformStop,
   rampsCollection,
   wiresCollection,
 } from './overlays';
@@ -629,25 +630,36 @@ export default function MapView() {
         return;
       }
       if (state.tool === 'new_service') {
-        // A (+) on a platform track: call at that platform.
-        const pick = map.getLayer(PLATFORM_PICK_LAYER)
-          ? map.queryRenderedFeatures(
-              [
-                [e.point.x - 10, e.point.y - 10],
-                [e.point.x + 10, e.point.y + 10],
-              ],
-              { layers: [PLATFORM_PICK_LAYER] },
-            )[0]
-          : undefined;
+        // A (+) on a platform track: call at that platform, or take it out again. The
+        // nearest marker on screen wins (markers sit on their tracks).
+        let pick: { stationId: string; trackId: string } | null = null;
+        let pickPx = 14;
+        if (map.getZoom() >= 15)
+          for (const f of platformPicksCollection(
+            sc,
+            stationsForMode(sc, state.newLineMode).map((s) => s.id),
+            state.serviceDraft,
+          ).features) {
+            const c = (f.geometry as GeoJSON.Point).coordinates as [number, number];
+            const p = map.project(c);
+            const px = Math.hypot(p.x - e.point.x, p.y - e.point.y);
+            if (px <= pickPx) {
+              pickPx = px;
+              pick = {
+                stationId: String(f.properties?.stationId ?? ''),
+                trackId: String(f.properties?.trackId ?? ''),
+              };
+            }
+          }
         if (pick) {
-          const stationId = String(pick.properties?.stationId ?? '');
-          const trackId = String(pick.properties?.trackId ?? '');
-          const station = sc.stations.find((x) => x.id === stationId);
+          const station = sc.stations.find((x) => x.id === pick.stationId);
           if (station) {
-            const draft = state.serviceDraft;
-            state.setServiceDraft([...draft, { stationId, trackId }]);
+            const res = togglePlatformStop(state.serviceDraft, pick);
+            state.setServiceDraft(res.draft);
             state.announce(
-              `Stop ${draft.length + 1}: ${station.name}, ${platformLabel(sc, trackId)}. Press Enter to create the service.`,
+              res.removed
+                ? `${station.name}, ${platformLabel(sc, pick.trackId)} removed from the service.`
+                : `Stop ${res.draft.length}: ${station.name}, ${platformLabel(sc, pick.trackId)}. Press Enter to create the service.`,
             );
             return;
           }
@@ -677,10 +689,13 @@ export default function MapView() {
           );
           return;
         }
-        const draft = state.serviceDraft;
-        if (draft[draft.length - 1]?.stationId === st.id) return;
-        state.setServiceDraft([...draft, { stationId: st.id, trackId: null }]);
-        state.announce(`Stop ${draft.length + 1}: ${st.name}. Press Enter to create the service.`);
+        const res = togglePlatformStop(state.serviceDraft, { stationId: st.id, trackId: null });
+        state.setServiceDraft(res.draft);
+        state.announce(
+          res.removed
+            ? `${st.name} removed from the service.`
+            : `Stop ${res.draft.length}: ${st.name}. Press Enter to create the service.`,
+        );
         return;
       }
       if (state.tool === 'add_station') {

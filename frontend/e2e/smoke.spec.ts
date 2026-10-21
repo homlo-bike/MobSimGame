@@ -110,8 +110,9 @@ test('place stations, connect them with double track, create a service and edit 
   await expect(page.getByRole('list', { name: 'Stations' }).getByRole('listitem')).toHaveCount(2);
   await expect(page.getByRole('heading', { name: 'Station layout' })).toBeVisible();
 
-  // Double track drawn from one station to the other joins their ends.
+  // Double track drawn from one station to the other joins their ends (single is the default).
   await page.getByRole('button', { name: 'Draw track', exact: true }).click();
+  await page.getByRole('radio', { name: /^Double/ }).check();
   for (const [fx, fy] of [
     [0.3, 0.75],
     [0.5, 0.6],

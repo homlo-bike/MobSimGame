@@ -20,7 +20,7 @@ import type {
 import { MODES } from './modes';
 import { isRing, stationMergeRadiusM, uniqueStationName } from './network';
 import { parameterValue } from './trackParameters';
-import { shortestPath, stepsLengthM, type Dir } from './trackGraph';
+import { explainNoPath, shortestPath, stepsLengthM, type Dir } from './trackGraph';
 import { serviceCanUse } from './compatibility';
 import {
   levelOfStructure,
@@ -262,13 +262,24 @@ export function routeThroughStations(
       next = step(true);
       if (next.length) reversesAt = sequence[i - 1]!.name;
     }
-    if (!next.length)
+    if (!next.length) {
+      // Say why: a one-way track in the way, a reversal, or no connection at all.
+      const why = states
+        .flatMap((st) =>
+          refsOfStop(i).map((target) =>
+            explainNoPath(net, st.cand, target, st.dir ?? undefined, allow, (id) =>
+              platformLabel(scenario, id),
+            ),
+          ),
+        )
+        .find((x): x is string => !!x);
       return {
         steps: [],
         error: closing
           ? `No permitted track path from the last stop ${platform(i - 1)} back to the first stop ${platform(0)}: add a crossover or a turning loop at the end, check running directions, or let the service run back calling at the same stations.`
-          : `No permitted track path from ${platform(i - 1)} to ${platform(i)} (check connections, turnouts and running directions).`,
+          : `No permitted track path from ${platform(i - 1)} to ${platform(i)}: ${why ?? 'check connections, turnouts and running directions'}.`,
       };
+    }
     states = next;
   }
   const best = states.reduce((a, b) => (b.cost < a.cost ? b : a));
