@@ -207,6 +207,9 @@ export interface AppState {
   setSimulationRunning: (v: boolean) => void;
   setSimulationMultiplier: (m: number) => void;
   resetSimulation: () => void;
+  /** A vehicle to open in the map's vehicle info window (fleet number), e.g. from the fleet table. */
+  vehicleToShow: string | null;
+  showVehicle: (code: string | null) => void;
   /** Jump the simulation to a time (seconds since midnight of day 1). */
   seekSimulation: (tS: number) => void;
   announce: (msg: string) => void;
@@ -293,6 +296,7 @@ export const useStore = create<AppState>()((set, get) => {
     simulationRunning: false,
     simulationMultiplier: 30,
     simulationEpoch: 0,
+    vehicleToShow: null,
     announcement: '',
     closures: [],
     projectActive: initialActive,
@@ -403,6 +407,8 @@ export const useStore = create<AppState>()((set, get) => {
       simulationClock.reset(simulationStartS(activeScenario(get().project)));
       set({ simulationEpoch: get().simulationEpoch + 1 });
     },
+    showVehicle: (vehicleToShow) =>
+      set({ vehicleToShow, ...(vehicleToShow ? { view: 'map' as const } : {}) }),
     seekSimulation: (tS) => {
       simulationClock.seek(tS);
       set({ simulationEpoch: get().simulationEpoch + 1 });

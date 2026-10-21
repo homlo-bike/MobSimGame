@@ -10,6 +10,7 @@ const date = (iso: string | null) => (iso ? iso.slice(0, 10) : '–');
 
 export function FleetSection({ scenario }: { scenario: Scenario }) {
   const commit = useStore((s) => s.commitScenario);
+  const showVehicle = useStore((s) => s.showVehicle);
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const lineName = (id: string | null) => scenario.lines.find((l) => l.id === id)?.name ?? '–';
   const typeOf = (id: string | null) => scenario.vehicleTypes.find((v) => v.id === id);
@@ -121,6 +122,11 @@ export function FleetSection({ scenario }: { scenario: Scenario }) {
                       />
                     </td>
                     <td>
+                      {v.status === 'allocated' && (
+                        <Button onClick={() => showVehicle(v.code)} aria-label={`Show ${v.code} on the map`}>
+                          Show on map
+                        </Button>
+                      )}
                       {v.status === 'surplus' && (
                         <Button onClick={() => setConfirm([v.id])} aria-label={`Delete ${v.code}`}>
                           Delete…
