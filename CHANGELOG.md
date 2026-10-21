@@ -128,6 +128,10 @@ All notable changes are documented here. The format follows
   project gauge and electrification, unless they set their own value ("Project setting"
   box in the line and track inspectors). Changing a project setting updates everything
   that follows it. Lines and tracks from earlier projects keep their values as their own.
+- **Junction symbols**: zoomed in (from zoom 15), every junction shows a small curve for
+  each permitted way through it (a small violet diagram at the node). Track direction
+  arrows appear only near the two ends
+  of each track instead of along its whole length.
 - **Service day in the animation**: lines run from their service start to their end,
   at peak headways inside the project's peak periods (new tab Project properties →
   Service day; placeholder defaults 07:00–09:00, 16:00–19:00) and off-peak headways
@@ -255,6 +259,8 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- **Direction arrows point along the track again** (they all pointed north since the
+  platform-marker change).
 - **Trains waiting at junctions overlapped the train passing**: the simulated position
   is the middle of the train, but junction zones and single-track blocks were measured
   from the head. Zones now reach half a train further, so a waiting train stops short of
