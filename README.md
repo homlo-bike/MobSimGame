@@ -113,7 +113,8 @@ set, labelled as such. See the [roadmap](#roadmap).
 - **Vehicles (fleet register):** every vehicle of the project has a fleet number (for
   example TRM-007), mode, type, line, status and the date it joined (Dashboard →
   Vehicles). The fleet follows the lines: a line gets the vehicles it needs in service
-  plus spares; vehicles no longer needed become surplus and stay until you delete them.
+  plus spares; vehicles no longer needed become surplus, stand in their depot (you get a
+  notification) and stay until you delete them.
   A vehicle can have its own capacity instead of the profile's. In the animation each
   vehicle carries its fleet number; spares wait in the depot.
 - **Vehicle info window:** click a vehicle on the map (or "Show on map" in Dashboard →

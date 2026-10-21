@@ -14,6 +14,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Surplus vehicles (F7)**: vehicles no longer needed after an edit stand in their depot
+  (street modes at the depot point after the line vehicles, rail modes on the depot track
+  room that is left), drawn in grey with their own info window. A notification lists them
+  and points to Dashboard → Vehicles, where they can be deleted after a confirmation; a
+  line that needs vehicles of the same type takes them first. Without a depot with room
+  they are listed but not drawn.
 - **Bus, BRT and trolleybus depots (F5)**: "Add depot" in the street-mode tools; depot
   inspector with name, capacity (shared default or own value), the lines it serves and
   "Route to and from the lines" (street routes from the routing server, stored per line).

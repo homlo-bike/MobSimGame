@@ -11,7 +11,8 @@
 import type { Scenario } from '../domain/schema';
 import { consistCapacity } from '../domain/vehicles';
 import { periodAt } from '../domain/timetable';
-import { departOf, lastTripAt, type LineSimulationModel, type VehicleState } from './engine';
+import { departOf, lastTripAt, SURPLUS_COLOR, type LineSimulationModel, type VehicleState } from './engine';
+import { allocateDepots } from '../domain/depots';
 
 export interface VehicleInfo {
   code: string;
@@ -99,6 +100,24 @@ export function vehicleInfo(
       capacity,
       percent: Math.round((100 * passengers) / capacity),
       basis: peak ? 'peak' : 'off-peak',
+    },
+  };
+}
+
+/** Info of a surplus vehicle (F7): no line; it waits in its depot until the user deletes it. */
+export function surplusInfo(scenario: Scenario, code: string): VehicleInfo {
+  const record = scenario.fleet.find((r) => r.code === code);
+  const depot = scenario.depots.find((d) => d.id === allocateDepots(scenario).get(code));
+  return {
+    code,
+    lineName: 'None (surplus)',
+    color: SURPLUS_COLOR,
+    status: `Surplus since ${record?.surplusSince?.slice(0, 10) ?? '–'}, ${depot ? `parked at ${depot.name}` : 'parked at the depot'}`,
+    nextStop: null,
+    load: {
+      kind: 'none',
+      reason:
+        'Not needed by any line. Delete it in Dashboard → Vehicles, or it is used again when a line needs a vehicle of its type.',
     },
   };
 }

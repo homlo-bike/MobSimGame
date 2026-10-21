@@ -4,7 +4,8 @@
  *
  * The fleet follows the lines: a line that needs more vehicles than it has gets new ones
  * (they start at a depot, F5/F6); vehicles no longer needed, or of a deleted line, become
- * surplus. Nothing is deleted here: the user deletes surplus vehicles (F7).
+ * surplus: they drive to (stand in) their depot and the user is told and asked to delete
+ * them. Nothing is deleted here: only the user deletes surplus vehicles (F7).
  */
 import type { Scenario, TransportMode, VehicleRecord } from './schema';
 import { newId, nowIso } from '../util/id';
@@ -99,6 +100,16 @@ export function syncFleet(scenario: Scenario, needed: ReadonlyMap<string, number
     }
   }
   return changed ? { ...scenario, fleet } : scenario;
+}
+
+/** Vehicles that are surplus in `after` but were allocated (or absent) in `before` (F7). */
+export function newlySurplus(
+  before: Pick<Scenario, 'fleet'>,
+  after: Pick<Scenario, 'fleet'>,
+): VehicleRecord[] {
+  if (before.fleet === after.fleet) return [];
+  const was = new Set(before.fleet.filter((v) => v.status === 'surplus').map((v) => v.id));
+  return after.fleet.filter((v) => v.status === 'surplus' && !was.has(v.id));
 }
 
 /** Delete surplus vehicles (only surplus ones; the user confirms first). */
