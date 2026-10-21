@@ -39,7 +39,7 @@ import { SIGNAL_MODES } from '../domain/signals';
 import { CommitField } from './CommitField';
 import { FindingsList } from './FindingsList';
 import { validateLine } from '../validation/validate';
-import { moveServiceStop, rerouteServices, setServiceStops } from '../domain/serviceRouting';
+import { moveServiceStop, platformLabel, rerouteServices, setServiceStops } from '../domain/serviceRouting';
 import { MetadataEditor } from './MetadataEditor';
 import { deleteLineWithNotice } from '../store/trackActions';
 import { describeDirection } from '../domain/direction';
@@ -613,6 +613,32 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 {i + 1}. {s.station.name}
               </button>
               <span className="text-xs text-slate-600">{formatDistance(s.chainageM, unitSystem)}</span>
+              {onTracks && s.station.trackRefs.length > 1 && (
+                <select
+                  aria-label={`Platform at ${s.station.name}`}
+                  className="max-w-28 rounded border border-slate-300 text-xs"
+                  value={line.stops.find((x) => x.stationId === s.station.id)?.trackId ?? ''}
+                  onChange={(e) =>
+                    commit(
+                      setServiceStops(
+                        scenario,
+                        line.id,
+                        line.stops.map((x) =>
+                          x.stationId === s.station.id ? { ...x, trackId: e.target.value || null } : x,
+                        ),
+                      ),
+                      'Platform changed',
+                    )
+                  }
+                >
+                  <option value="">Any platform</option>
+                  {s.station.trackRefs.map((r) => (
+                    <option key={r.trackId} value={r.trackId}>
+                      {platformLabel(scenario, r.trackId)}
+                    </option>
+                  ))}
+                </select>
+              )}
               {onTracks &&
                 ([-1, 1] as const).map((d) => (
                   <Button
@@ -662,7 +688,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                       ? setServiceStops(
                           removeStopFromLine(scenario, line.id, s.station.id),
                           line.id,
-                          line.stops.filter((x) => x.stationId !== s.station.id).map((x) => x.stationId),
+                          line.stops.filter((x) => x.stationId !== s.station.id),
                         )
                       : removeStopFromLine(scenario, line.id, s.station.id),
                     'Stop removed',

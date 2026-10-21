@@ -290,7 +290,7 @@ describe('scenarios and projects', () => {
 
   it('rejects projects with dangling station references', () => {
     const p = buildDemoProject();
-    p.scenarios[0]!.lines[0]!.stops.push({ stationId: 'missing' });
+    p.scenarios[0]!.lines[0]!.stops.push({ stationId: 'missing', trackId: null });
     const r = parseProject(p);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.join()).toMatch(/missing station/);

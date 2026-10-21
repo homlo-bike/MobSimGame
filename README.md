@@ -55,8 +55,12 @@ set, labelled as such. See the [roadmap](#roadmap).
     at a chainage. Deleting a track that services use asks whether to reroute,
     break or delete those services.
   - **Stations** serve the tracks within 20 m on their level (adjustable).
-  - **Services** are routed over the tracks through their stations in calling
-    order, and on double track the way back uses the other track
+  - **Services** are lists of stops. Zoomed in, the New service tool shows a (+) on
+    every platform track of a station; clicking it makes the service call at that
+    platform (or pick a platform per stop in the panel). The route is found between
+    the platforms; after the last stop the service returns to the first stop (or, if
+    chosen, runs back calling at the same stations on the other track). A missing
+    route names the two stops it fails between
     ([docs/SERVICE_ROUTING.md](docs/SERVICE_ROUTING.md)).
   - Rail lines cannot use "Follows streets" or "Straight segments".
   - Rail stations are objects with their own tracks and side or island

@@ -14,7 +14,7 @@ import { distanceM, slicePath } from '../geo/geometry';
 import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
-import { nodeEnds, trackGeometry } from '../domain/tracks';
+import { networkFrame, nodeEnds, pointOnTrack, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
 import { curveHandles } from '../domain/curveHandles';
 import { stationGeometry, stationObjectLevel } from '../domain/stationLayout';
@@ -773,6 +773,66 @@ export function rampsCollection(scenario: Scenario): FeatureCollection {
           label: r.fromLevel < 0 || r.toLevel < 0 ? 'Portal' : 'Ramp start',
         },
       });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+/**
+ * (+) markers on every platform track of the stations a new rail service may call at
+ * (R14a); a marker already picked shows its stop numbers instead.
+ */
+export function platformPicksCollection(
+  scenario: Scenario,
+  stationIds: readonly string[],
+  draft: readonly { stationId: string; trackId: string | null }[],
+): FeatureCollection {
+  const net = scenario.trackNetwork;
+  const frame = networkFrame(net);
+  const allowed = new Set(stationIds);
+  const features: Feature[] = [];
+  /** Spacing of the fanned-out markers (px). */
+  const GAP = 22;
+  for (const st of scenario.stations) {
+    if (!allowed.has(st.id)) continue;
+    const centre = frame.toMetres(st.position);
+    const marks = st.trackRefs
+      .map((ref) => {
+        const track = net.tracks.find((t) => t.id === ref.trackId);
+        if (!track) return null;
+        const p = pointOnTrack(net, track, ref.fraction);
+        return { ref, p };
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null);
+    if (!marks.length) continue;
+    // One heading for the whole fan: that of the first track.
+    const heading = marks[0]!.p.heading;
+    const sideOf = (m: (typeof marks)[number]) =>
+      Math.sin(heading) * (m.p.metres[0] - centre[0]) - Math.cos(heading) * (m.p.metres[1] - centre[1]);
+    marks.sort((a, b) => sideOf(a) - sideOf(b));
+    // Markers turn with the track so the fan lies across it; the turn is kept within ±90°
+    // so the stop numbers stay upright (a half turn flips the order of the offsets).
+    const raw = 90 - (heading * 180) / Math.PI - 90;
+    const rotate = ((((raw + 90) % 180) + 180) % 180) - 90;
+    const flip = Math.round((raw - rotate) / 180) % 2 === 0 ? 1 : -1;
+    marks.forEach((m, k) => {
+      const shift = (k - (marks.length - 1) / 2) * GAP;
+      const picks = draft.flatMap((d, i) =>
+        d.stationId === st.id && d.trackId === m.ref.trackId ? [i + 1] : [],
+      );
+      features.push({
+        type: 'Feature',
+        properties: {
+          stationId: st.id,
+          trackId: m.ref.trackId,
+          picked: picks.length > 0,
+          label: picks.join(','),
+          rotate,
+          iconOffset: [0, flip * shift],
+          textOffset: [0, (flip * shift) / 11],
+        },
+        geometry: { type: 'Point', coordinates: [st.position[0], st.position[1]] },
+      });
+    });
   }
   return { type: 'FeatureCollection', features };
 }

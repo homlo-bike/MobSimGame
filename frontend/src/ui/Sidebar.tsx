@@ -14,6 +14,7 @@ import { STRUCTURE_LABELS } from '../domain/modes';
 import { defaultRadiusM, isRailMode, trackGeometry } from '../domain/tracks';
 import { trackSpacingM } from '../domain/trackParameters';
 import { finishServiceDraft } from '../store/trackActions';
+import { platformLabel } from '../domain/serviceRouting';
 import { finishStopDraft } from '../store/stopActions';
 import { isStopLineMode, stopNear } from '../domain/stopLines';
 import { layoutError, MAX_PLATFORMS, STATION_LEVELS, stationLevelLabel } from '../domain/stationLayout';
@@ -109,6 +110,8 @@ export function ToolPanel() {
   const setTrackDraw = useStore((s) => s.setTrackDraw);
   const draft = useStore((s) => s.serviceDraft);
   const setDraft = useStore((s) => s.setServiceDraft);
+  const serviceReturn = useStore((s) => s.serviceReturn);
+  const setServiceReturn = useStore((s) => s.setServiceReturn);
   const rail = isRailMode(mode);
   const hasTracks = scenario.trackNetwork.tracks.length > 0;
   // A service of the active mode can only call at stations of that mode.
@@ -225,29 +228,61 @@ export function ToolPanel() {
             New service: stations in calling order
           </legend>
           <ol className="mb-1 list-decimal ps-5 text-sm" aria-label="Picked stations">
-            {draft.map((id, i) => (
-              <li key={`${id}-${i}`}>
-                {scenario.stations.find((x) => x.id === id)?.name ?? id}{' '}
-                <button
-                  type="button"
-                  className="text-xs underline"
-                  aria-label={`Remove stop ${i + 1}`}
-                  onClick={() => setDraft(draft.filter((_, k) => k !== i))}
-                >
-                  remove
-                </button>
-              </li>
-            ))}
+            {draft.map((stop, i) => {
+              const st = scenario.stations.find((x) => x.id === stop.stationId);
+              return (
+                <li key={`${stop.stationId}-${i}`} className="mb-1">
+                  {st?.name ?? stop.stationId}{' '}
+                  <button
+                    type="button"
+                    className="text-xs underline"
+                    aria-label={`Remove stop ${i + 1}`}
+                    onClick={() => setDraft(draft.filter((_, k) => k !== i))}
+                  >
+                    remove
+                  </button>
+                  {st && st.trackRefs.length > 1 && (
+                    <SelectField
+                      label={`Platform at stop ${i + 1}`}
+                      value={stop.trackId ?? ''}
+                      onChange={(e) =>
+                        setDraft(
+                          draft.map((x, k) => (k === i ? { ...x, trackId: e.target.value || null } : x)),
+                        )
+                      }
+                      options={[
+                        { value: '', label: 'Any (the route decides)' },
+                        ...st.trackRefs.map((r) => ({
+                          value: r.trackId,
+                          label: platformLabel(scenario, r.trackId),
+                        })),
+                      ]}
+                    />
+                  )}
+                </li>
+              );
+            })}
           </ol>
           <SelectField
             label="Add a station"
             value=""
-            onChange={(e) => e.target.value && setDraft([...draft, e.target.value])}
+            onChange={(e) =>
+              e.target.value && setDraft([...draft, { stationId: e.target.value, trackId: null }])
+            }
             options={[
               { value: '', label: `Choose a ${MODES[mode].label} station…` },
               ...onTrackStations.map((st) => ({ value: st.id, label: st.name })),
             ]}
-            hint="Or click stations on the map."
+            hint="Or click a station on the map; zoomed in, click the (+) on a platform track to call there."
+          />
+          <SelectField
+            label="After the last stop"
+            value={serviceReturn}
+            onChange={(e) => setServiceReturn(e.target.value as 'loop' | 'back')}
+            options={[
+              { value: 'loop', label: 'Return to the first stop' },
+              { value: 'back', label: 'Run back calling at the same stations' },
+            ]}
           />
           <Button variant="primary" disabled={draft.length < 2} onClick={() => finishServiceDraft()}>
             Create service

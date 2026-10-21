@@ -175,63 +175,117 @@ interface Candidate {
  */
 export function routeThroughStations(
   scenario: Scenario,
-  stationIds: readonly string[],
+  stopsIn: readonly (string | StopInput)[],
   closeRing = false,
   mode?: TransportMode,
 ): {
   steps: TrackStep[];
   error: string | null;
+  /** Stop after which the service reverses to return to its first stop, if it must. */
+  reversesAt?: string;
 } {
   const net = scenario.trackNetwork;
   const byId = new Map(scenario.stations.map((s) => [s.id, s]));
-  const stops = stationIds.map((id) => byId.get(id)).filter((s): s is Station => !!s);
+  const wanted = stopsIn.map((x) => (typeof x === 'string' ? { stationId: x, trackId: null } : x));
+  const resolved = wanted
+    .map((w) => ({ st: byId.get(w.stationId), trackId: w.trackId ?? null }))
+    .filter((x): x is { st: Station; trackId: string | null } => !!x.st);
+  const stops = resolved.map((x) => x.st);
   if (stops.length < 2)
     return { steps: [], error: 'Add at least two stations on tracks to route the service.' };
   const missing = stops.find((s) => !s.trackRefs.length);
   if (missing) return { steps: [], error: `Station "${missing.name}" is not on a track.` };
+  const badPlatform = resolved.find((x) => x.trackId && !x.st.trackRefs.some((r) => r.trackId === x.trackId));
+  if (badPlatform)
+    return {
+      steps: [],
+      error: `"${badPlatform.st.name}" has no platform on the chosen track any more; choose another platform.`,
+    };
   // Only tracks whose infrastructure class the service mode may use (domain/compatibility.ts).
   const byTrack = new Map(net.tracks.map((t) => [t.id, t]));
   const allow = mode ? (t: PhysicalTrack) => serviceCanUse(mode, t) : undefined;
-  const refsOf = (s: Station) =>
+  const usable = (s: Station) =>
     allow
       ? s.trackRefs.filter((r) => {
           const t = byTrack.get(r.trackId);
           return !!t && allow(t);
         })
       : s.trackRefs;
-  const incompatible = mode ? stops.find((s) => !refsOf(s).length) : undefined;
+  // A stop on a chosen platform track uses that track only.
+  const refsOfStop = (k: number) => {
+    const { st, trackId } = resolved[k % resolved.length]!;
+    const refs = usable(st);
+    return trackId ? refs.filter((r) => r.trackId === trackId) : refs;
+  };
+  const incompatible = mode ? stops.find((s) => !usable(s).length) : undefined;
   if (incompatible)
     return {
       steps: [],
       error: `Station "${incompatible.name}" has no track this ${MODES[mode!].label.toLowerCase()} service may use (see infrastructure compatibility).`,
     };
   const sequence = closeRing ? [...stops, stops[0]!] : stops;
+  const platform = (k: number) => {
+    const { st, trackId } = resolved[k % resolved.length]!;
+    return trackId ? `"${st.name}" (${platformLabel(scenario, trackId)})` : `"${st.name}"`;
+  };
   type State = { cand: Candidate; dir: Dir | null; cost: number; steps: TrackStep[] };
-  let states: State[] = refsOf(sequence[0]!).map((r) => ({ cand: r, dir: null, cost: 0, steps: [] }));
+  let states: State[] = refsOfStop(0).map((r) => ({ cand: r, dir: null, cost: 0, steps: [] }));
+  let reversesAt: string | undefined;
   for (let i = 1; i < sequence.length; i++) {
-    const next: State[] = [];
-    for (const target of refsOf(sequence[i]!)) {
-      for (const d of [1, -1] as Dir[]) {
-        let best: State | null = null;
-        for (const s of states) {
-          const p = shortestPath(net, s.cand, target, s.dir ?? undefined, allow);
-          if (!p || p.arrivalDir !== d) continue;
-          const cost = s.cost + p.lengthM;
-          if (!best || cost < best.cost)
-            best = { cand: target, dir: d, cost, steps: [...s.steps, ...p.steps] };
+    // Returning to the first stop, the train may reverse at the last stop (a terminus).
+    const closing = closeRing && i === sequence.length - 1;
+    const step = (allowReverse: boolean) => {
+      const next: State[] = [];
+      for (const target of refsOfStop(i)) {
+        for (const d of [1, -1] as Dir[]) {
+          let best: State | null = null;
+          for (const s of states) {
+            const p = shortestPath(
+              net,
+              s.cand,
+              target,
+              allowReverse ? undefined : (s.dir ?? undefined),
+              allow,
+            );
+            if (!p || p.arrivalDir !== d) continue;
+            const cost = s.cost + p.lengthM;
+            if (!best || cost < best.cost)
+              best = { cand: target, dir: d, cost, steps: [...s.steps, ...p.steps] };
+          }
+          if (best) next.push(best);
         }
-        if (best) next.push(best);
       }
+      return next;
+    };
+    let next = step(false);
+    if (!next.length && closing) {
+      next = step(true);
+      if (next.length) reversesAt = sequence[i - 1]!.name;
     }
     if (!next.length)
       return {
         steps: [],
-        error: `No permitted track path from "${sequence[i - 1]!.name}" to "${sequence[i]!.name}" (check connections and running directions).`,
+        error: closing
+          ? `No permitted track path from the last stop ${platform(i - 1)} back to the first stop ${platform(0)}: add a crossover or a turning loop at the end, check running directions, or let the service run back calling at the same stations.`
+          : `No permitted track path from ${platform(i - 1)} to ${platform(i)} (check connections, turnouts and running directions).`,
       };
     states = next;
   }
   const best = states.reduce((a, b) => (b.cost < a.cost ? b : a));
-  return { steps: mergeSteps(best.steps), error: null };
+  return { steps: mergeSteps(best.steps), error: null, reversesAt };
+}
+
+/** Name of a platform track as the editor shows it: its name, else "Track n". */
+export function platformLabel(scenario: Pick<Scenario, 'trackNetwork'>, trackId: string): string {
+  const i = scenario.trackNetwork.tracks.findIndex((t) => t.id === trackId);
+  const t = scenario.trackNetwork.tracks[i];
+  return t?.name || `Track ${i + 1}`;
+}
+
+/** A stop given to the router: a station and, optionally, its platform track. */
+export interface StopInput {
+  stationId: string;
+  trackId?: string | null;
 }
 
 /** Join consecutive steps on the same track in the same direction. */
@@ -252,12 +306,25 @@ function mergeSteps(steps: TrackStep[]): TrackStep[] {
 }
 
 export function routeService(scenario: Scenario, line: TransportLine): ServiceRoute {
-  const ids = line.stops.map((s) => s.stationId);
+  const ids = line.stops;
   const ring = isRing(line);
   const out = routeThroughStations(scenario, ids, ring, line.mode);
   if (out.error) return { path: [], returnPath: null, error: out.error };
-  if (ring || line.direction === 'one_way') return { path: out.steps, returnPath: null, error: null };
-  const back = routeThroughStations(scenario, [...ids].reverse(), false, line.mode);
+  if (ring || line.direction === 'one_way')
+    return {
+      path: out.steps,
+      returnPath: null,
+      error: out.reversesAt
+        ? `The train reverses at "${out.reversesAt}" to return to the first stop (a turnback; no loop or crossover leads back without reversing).`
+        : null,
+    };
+  // The way back calls at the same stations; the router picks their platforms for that direction.
+  const back = routeThroughStations(
+    scenario,
+    [...ids].reverse().map((x) => x.stationId),
+    false,
+    line.mode,
+  );
   if (back.error) return { path: out.steps, returnPath: null, error: `Return direction: ${back.error}` };
   return { path: out.steps, returnPath: back.steps, error: null };
 }
@@ -444,11 +511,25 @@ export function returnCoordinates(scenario: Scenario, line: TransportLine): LngL
 
 export { levelOfStructure };
 
-/** Set the stops of a track service in the given order and route it again. */
-export function setServiceStops(scenario: Scenario, lineId: string, stationIds: readonly string[]): Scenario {
+/**
+ * Set the stops of a track service in the given order and route it again. A stop is a
+ * station id (the router picks the platform) or a station with its platform track.
+ */
+export function setServiceStops(
+  scenario: Scenario,
+  lineId: string,
+  stops: readonly (string | StopInput)[],
+): Scenario {
   const line = scenario.lines.find((l) => l.id === lineId);
   if (!line) return scenario;
-  const updated: TransportLine = { ...line, stops: stationIds.map((stationId) => ({ stationId })) };
+  const updated: TransportLine = {
+    ...line,
+    stops: stops.map((x) =>
+      typeof x === 'string'
+        ? { stationId: x, trackId: null }
+        : { stationId: x.stationId, trackId: x.trackId ?? null },
+    ),
+  };
   const sc = { ...scenario, lines: scenario.lines.map((l) => (l.id === lineId ? updated : l)) };
   return touch({ ...sc, lines: sc.lines.map((l) => (l.id === lineId ? applyServiceRoute(sc, l) : l)) });
 }
@@ -462,12 +543,12 @@ export function moveServiceStop(
 ): Scenario {
   const line = scenario.lines.find((l) => l.id === lineId);
   if (!line) return scenario;
-  const ids = line.stops.map((s) => s.stationId);
-  const i = ids.indexOf(stationId);
+  const stops = [...line.stops];
+  const i = stops.findIndex((s) => s.stationId === stationId);
   const j = i + delta;
-  if (i < 0 || j < 0 || j >= ids.length) return scenario;
-  [ids[i], ids[j]] = [ids[j]!, ids[i]!];
-  return setServiceStops(scenario, lineId, ids);
+  if (i < 0 || j < 0 || j >= stops.length) return scenario;
+  [stops[i], stops[j]] = [stops[j]!, stops[i]!];
+  return setServiceStops(scenario, lineId, stops);
 }
 
 /** After stations or tracks moved: refresh station track fractions and reroute the affected services. */

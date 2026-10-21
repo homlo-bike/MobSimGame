@@ -132,6 +132,8 @@ test('place stations, connect them with double track, create a service and edit 
   await page.getByRole('button', { name: 'New service', exact: true }).click();
   await page.getByLabel('Add a station').selectOption({ label: 'Station 1' });
   await page.getByLabel('Add a station').selectOption({ label: 'Station 2' });
+  // Plain double track without crossovers: the service runs back on the other track.
+  await page.getByLabel('After the last stop').selectOption('back');
   await page.getByRole('button', { name: 'Create service' }).click();
   await expect(page.getByRole('list', { name: 'Lines' }).getByRole('listitem')).toHaveCount(1);
   await expect(page.getByTestId('track-route-status')).toContainText('Routed over tracks');

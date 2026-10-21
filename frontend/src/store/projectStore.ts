@@ -49,6 +49,11 @@ export type Tool =
 /** Tabs of the Project properties dialog. */
 export type PropertiesTab = 'parameters' | 'modes' | 'vehicles' | 'priority';
 
+export interface ServiceDraftStop {
+  stationId: string;
+  trackId: string | null;
+}
+
 export interface TrackDrawOptions {
   double: boolean;
   /** 'default' = the mode's cited radius; null = no curves (kinks); a number = metres. */
@@ -106,7 +111,10 @@ export interface AppState {
   stationTargetLineId: string | null;
   trackDraw: TrackDrawOptions;
   /** Stations picked so far with the new_service tool, in order. */
-  serviceDraft: string[];
+  /** Stops picked with the "New service" tool: a station and, optionally, its platform track (R14a). */
+  serviceDraft: ServiceDraftStop[];
+  /** After the last stop: loop back to the first stop, or run back through the same stations. */
+  serviceReturn: 'loop' | 'back';
   /** Stops clicked so far for a new bus, BRT or trolleybus line, in order. */
   stopDraft: LngLat[];
   /** The Project properties dialog is open (at this tab). */
@@ -164,7 +172,8 @@ export interface AppState {
   setNewLineMode: (m: TransportMode) => void;
   setStationTargetLine: (id: string | null) => void;
   setTrackDraw: (patch: Partial<TrackDrawOptions>) => void;
-  setServiceDraft: (ids: string[]) => void;
+  setServiceDraft: (stops: ServiceDraftStop[]) => void;
+  setServiceReturn: (r: 'loop' | 'back') => void;
   setStopDraft: (points: LngLat[]) => void;
   openProperties: (tab: PropertiesTab | null) => void;
   setPendingTrackDeletion: (p: PendingTrackDeletion | null) => void;
@@ -242,6 +251,7 @@ export const useStore = create<AppState>()((set, get) => {
     stationTargetLineId: null,
     trackDraw: { double: true, radius: 'default', structure: 'default', guides: true },
     serviceDraft: [],
+    serviceReturn: 'loop',
     stopDraft: [],
     propertiesTab: null,
     pendingTrackDeletion: null,
@@ -351,6 +361,7 @@ export const useStore = create<AppState>()((set, get) => {
     },
     setTrackDraw: (patch) => set({ trackDraw: { ...get().trackDraw, ...patch } }),
     setServiceDraft: (serviceDraft) => set({ serviceDraft }),
+    setServiceReturn: (serviceReturn) => set({ serviceReturn }),
     setStopDraft: (stopDraft) => set({ stopDraft }),
     openProperties: (propertiesTab) => set({ propertiesTab }),
     setPendingTrackDeletion: (pendingTrackDeletion) => set({ pendingTrackDeletion }),

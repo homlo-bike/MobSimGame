@@ -58,6 +58,7 @@ import {
   SIGNAL_LAYER,
   SRC,
   STATION_LAYER,
+  PLATFORM_PICK_LAYER,
   TRACK_LAYER_PREFIX,
   TRACK_NODE_LAYER,
   FINDING_CLUSTER_LAYER,
@@ -96,6 +97,7 @@ import {
   vehiclesCollection,
   vehicleBodiesCollection,
   stopDraftCollection,
+  platformPicksCollection,
   rampsCollection,
   wiresCollection,
 } from './overlays';
@@ -103,7 +105,8 @@ import { setMapInstance } from './mapInstance';
 import { nameStationsFromMap } from './autoName';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
 import { findConflicts } from '../simulation/conflicts';
-import { stationMode } from '../domain/modeSeparation';
+import { stationMode, stationsForMode } from '../domain/modeSeparation';
+import { platformLabel } from '../domain/serviceRouting';
 import {
   nearbyTrackBearing,
   placeStation,
@@ -626,6 +629,29 @@ export default function MapView() {
         return;
       }
       if (state.tool === 'new_service') {
+        // A (+) on a platform track: call at that platform.
+        const pick = map.getLayer(PLATFORM_PICK_LAYER)
+          ? map.queryRenderedFeatures(
+              [
+                [e.point.x - 10, e.point.y - 10],
+                [e.point.x + 10, e.point.y + 10],
+              ],
+              { layers: [PLATFORM_PICK_LAYER] },
+            )[0]
+          : undefined;
+        if (pick) {
+          const stationId = String(pick.properties?.stationId ?? '');
+          const trackId = String(pick.properties?.trackId ?? '');
+          const station = sc.stations.find((x) => x.id === stationId);
+          if (station) {
+            const draft = state.serviceDraft;
+            state.setServiceDraft([...draft, { stationId, trackId }]);
+            state.announce(
+              `Stop ${draft.length + 1}: ${station.name}, ${platformLabel(sc, trackId)}. Press Enter to create the service.`,
+            );
+            return;
+          }
+        }
         // Nearest station on screen (from the project data, not from what is rendered yet).
         let st: (typeof sc.stations)[number] | null = null;
         let bestPx = STATION_SNAP_PX;
@@ -652,8 +678,8 @@ export default function MapView() {
           return;
         }
         const draft = state.serviceDraft;
-        if (draft[draft.length - 1] === st.id) return;
-        state.setServiceDraft([...draft, st.id]);
+        if (draft[draft.length - 1]?.stationId === st.id) return;
+        state.setServiceDraft([...draft, { stationId: st.id, trackId: null }]);
         state.announce(`Stop ${draft.length + 1}: ${st.name}. Press Enter to create the service.`);
         return;
       }
@@ -897,6 +923,12 @@ export default function MapView() {
     map.on('mouseleave', STATION_LAYER, () => {
       if (!dragging) map.getCanvas().style.cursor = '';
     });
+    map.on('mouseenter', PLATFORM_PICK_LAYER, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', PLATFORM_PICK_LAYER, () => {
+      map.getCanvas().style.cursor = '';
+    });
 
     return () => {
       offs.forEach((off) => off());
@@ -961,6 +993,23 @@ export default function MapView() {
     if (!map || !map.getSource(SRC.stopDraft)) return;
     setData(map, SRC.stopDraft, stopDraftCollection(stopDraft));
   }, [stopDraft, styleVersion]);
+
+  // (+) on platform tracks while a rail service is being created (R14a).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource(SRC.platformPicks)) return;
+    setData(
+      map,
+      SRC.platformPicks,
+      tool === 'new_service'
+        ? platformPicksCollection(
+            scenario,
+            stationsForMode(scenario, newLineMode).map((s) => s.id),
+            serviceDraft,
+          )
+        : EMPTY,
+    );
+  }, [tool, scenario, newLineMode, serviceDraft, styleVersion]);
 
   // The curve editor belongs to the selected track.
   useEffect(() => {

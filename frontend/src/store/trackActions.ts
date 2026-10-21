@@ -3,7 +3,7 @@
  * (all pure; this module only reads and commits store state).
  */
 import type { LngLat } from '../domain/schema';
-import { activeScenario, createLine, deleteLine } from '../domain/network';
+import { activeScenario, createLine, deleteLine, updateLine } from '../domain/network';
 import { stopsOnlyServedBy } from '../domain/stationKinds';
 import { notify } from './notifications';
 import { createTracks, drawnAsLoop, isRailMode, removeTrack, trackUsage } from '../domain/tracks';
@@ -118,7 +118,8 @@ export function resolveTrackDeletion(choice: DeleteTrackChoice | 'cancel') {
 /** Create a service on tracks from the stations picked with the "New service" tool. */
 export function finishServiceDraft(): string | null {
   const state = useStore.getState();
-  const ids = state.serviceDraft;
+  const stops = state.serviceDraft;
+  const ids = stops.map((x) => x.stationId);
   if (ids.length < 2) {
     state.announce('Pick at least two stations on tracks, then press Enter or “Create service”.');
     return null;
@@ -133,9 +134,13 @@ export function finishServiceDraft(): string | null {
     return null;
   }
   const positions = ids.map((id) => sc.stations.find((s) => s.id === id)!.position);
-  const c = createLine(sc, { coordinates: positions, mode, ring: false });
-  const next = setServiceStops(c.scenario, c.line.id, ids);
-  state.commitScenario(next, `Service "${c.line.name}" created with ${ids.length} stations`);
+  // Loop (default): after the last stop the train returns to the first stop; back: it runs
+  // back through the same stations.
+  const loop = state.serviceReturn === 'loop';
+  const c = createLine(sc, { coordinates: positions, mode, ring: loop });
+  const base = loop ? updateLine(c.scenario, c.line.id, { direction: 'one_way' }) : c.scenario;
+  const next = setServiceStops(base, c.line.id, stops);
+  state.commitScenario(next, `Service "${c.line.name}" created with ${ids.length} stops`);
   state.setServiceDraft([]);
   state.setTool('select');
   state.select({ kind: 'line', id: c.line.id });

@@ -8,6 +8,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Stops at platforms (R14a)**: while creating a rail service, zoomed in, every
+  platform track of a station shows a (+); clicking it adds a stop at that platform
+  (also selectable per stop in the panel and the line inspector). Routes are found
+  between the platforms. By default the service returns from its last stop to its first
+  (reversing at the end only where no other way exists); an error names the two stops
+  without a route. "Run back calling at the same stations" keeps the earlier behaviour.
 - **Turnouts and crossings (R5)**: a node where three or four track ends meet can be a
   turnout, a diamond crossing or a single or double slip. The switch toe, main and
   diverging routes are found from the geometry and the permitted movements follow the

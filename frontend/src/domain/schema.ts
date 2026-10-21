@@ -497,6 +497,8 @@ export type Crossover = z.infer<typeof CrossoverSchema>;
 
 export const LineStopSchema = z.object({
   stationId: z.string(),
+  /** Rail services (R14a): the platform track the service calls at; null = the router picks one. */
+  trackId: z.string().nullable().default(null),
 });
 export type LineStop = z.infer<typeof LineStopSchema>;
 

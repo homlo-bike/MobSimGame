@@ -28,6 +28,7 @@ export const SRC = {
   ramps: 'msg-ramps',
   wires: 'msg-wires',
   stopDraft: 'msg-stop-draft',
+  platformPicks: 'msg-platform-picks',
   curveLabels: 'msg-curve-labels',
   platforms: 'msg-platforms',
   stationHandles: 'msg-station-handles',
@@ -44,6 +45,8 @@ export const SRC = {
 } as const;
 
 export const STATION_LAYER = 'msg-stations-circle';
+/** (+) on each platform track of a station while creating a rail service (R14a). */
+export const PLATFORM_PICK_LAYER = 'msg-platform-pick';
 /** Vehicle opacity by height (m): full at street level and above, faint deep underground. */
 const DEPTH_OPACITY = [
   'interpolate',
@@ -546,7 +549,7 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     minzoom: 13,
     layout: {
       'icon-image': ARROW_IMAGE,
-      'icon-rotate': ['get', 'bearing'],
+      'icon-rotate': ['get', 'rotate'],
       'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 0.9],
       'icon-allow-overlap': true,
@@ -791,6 +794,60 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'circle-stroke-width': ['case', ['==', ['get', 'state'], 'running'], 1.5, 3],
     },
   });
+  // (+) on platform tracks while a rail service is being created (R14a), on top of
+  // everything. The markers of one station fan out across its tracks in the order of the
+  // tracks (offset in the map frame), so parallel platforms each get their own (+).
+  for (const picked of [false, true])
+    if (!map.hasImage(plusImageId(picked)))
+      map.addImage(plusImageId(picked), plusImage(picked), { pixelRatio: 1 });
+  add({
+    id: PLATFORM_PICK_LAYER,
+    type: 'symbol',
+    source: SRC.platformPicks,
+    minzoom: 15,
+    layout: {
+      'icon-image': ['case', ['get', 'picked'], plusImageId(true), plusImageId(false)],
+      'icon-rotation-alignment': 'map',
+      'icon-rotate': ['get', 'rotate'],
+      'icon-offset': ['get', 'iconOffset'],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      ...(opts.labels
+        ? {
+            'text-field': ['get', 'label'],
+            'text-size': 11,
+            'text-rotation-alignment': 'map',
+            'text-rotate': ['get', 'rotate'],
+            'text-offset': ['get', 'textOffset'],
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          }
+        : {}),
+    },
+    paint: { 'text-color': '#ffffff' },
+  });
+}
+
+const plusImageId = (picked: boolean) => (picked ? 'msg-plus-picked' : 'msg-plus');
+
+/** A round (+) button: white with a blue plus, or filled blue once picked (stop number on top). */
+function plusImage(picked: boolean) {
+  const size = 20;
+  const data = new Uint8Array(size * size * 4);
+  const c = (size - 1) / 2;
+  const blue = [29, 78, 216, 255];
+  const white = [255, 255, 255, 255];
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const r = Math.hypot(x - c, y - c);
+      if (r > c) continue;
+      const ring = r > c - 2;
+      const plus =
+        !picked &&
+        ((Math.abs(x - c) <= 1 && Math.abs(y - c) <= 5) || (Math.abs(y - c) <= 1 && Math.abs(x - c) <= 5));
+      data.set(ring || plus || picked ? blue : white, (y * size + x) * 4);
+    }
+  return { width: size, height: size, data };
 }
 
 export function setData(map: MlMap, source: string, data: FeatureCollection) {
