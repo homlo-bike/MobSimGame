@@ -184,6 +184,7 @@ describe('File menu', () => {
       'Open project….json',
       'Save project.json',
       'Project properties…',
+      'Settings…notifications',
       'Import GeoJSON…',
       'Export GeoJSON',
       'Export GTFS timetable.zip',

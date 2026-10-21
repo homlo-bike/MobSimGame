@@ -9,6 +9,7 @@ import { importGeoJSON, MAX_IMPORT_BYTES, sampledCoordinatesCsv, scenarioToGeoJS
 import { openServerReport, shareProject } from '../api/projects';
 import { currentSession, logout } from '../api/auth';
 import { LoginDialog } from './LoginDialog';
+import { SettingsDialog } from './SettingsDialog';
 import { NotificationMenu } from './NotificationMenu';
 import { notify } from '../store/notifications';
 import { ProviderError } from '../providers/backend';
@@ -97,6 +98,7 @@ export function Header({
   };
 
   const [loginOpen, setLoginOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [signedInAs, setSignedInAs] = useState<string | null>(() => currentSession()?.username ?? null);
 
   /** Share again right after signing in when sharing is what asked for the login. */
@@ -205,6 +207,7 @@ export function Header({
       label: 'Project properties…',
       onSelect: () => useStore.getState().openProperties('parameters'),
     },
+    { kind: 'item', label: 'Settings…', hint: 'notifications', onSelect: () => setSettingsOpen(true) },
     { kind: 'heading', label: 'Import / export' },
     { kind: 'item', label: 'Import GeoJSON…', onSelect: () => geojsonInput.current?.click() },
     { kind: 'item', label: 'Export GeoJSON', onSelect: exportGeoJSON },
@@ -331,6 +334,7 @@ export function Header({
           e.target.files?.[0] && onImportGeoJSON(e.target.files[0]).finally(() => (e.target.value = ''))
         }
       />
+      {settingsOpen && <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />}
       {loginOpen && (
         <LoginDialog
           open={loginOpen}

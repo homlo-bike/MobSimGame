@@ -553,6 +553,11 @@ export const TransportLineSchema = z.object({
   servicePatterns: z.array(ServicePatternSchema),
   vehicleTypeId: z.string().nullable(),
   /**
+   * Other vehicle types of the same mode the line accepts (F8). The main type above sets
+   * how many vehicles the line needs; a vehicle of an accepted type can fill a place.
+   */
+  acceptedVehicleTypeIds: z.array(z.string()).default([]),
+  /**
    * Vehicles (consists) in service at the peak; null = the calculated default (from the
    * headway, or from the demand below). Fewer vehicles than the timetable needs make the
    * line run less often.
@@ -597,6 +602,9 @@ export const VehicleRecordSchema = z.object({
   /** When the vehicle joined the fleet (ISO date-time) and, if surplus, since when. */
   addedAt: z.string(),
   surplusSince: z.string().nullable().default(null),
+  /** Line it last served and where that line started (F8): a surplus vehicle without depot room stays there. */
+  lastLineId: z.string().nullable().default(null),
+  lastPosition: LngLatSchema.nullable().default(null),
   /** Own capacity (passengers); null = the vehicle profile's (G1). */
   capacityOverride: z.number().int().positive().nullable().default(null),
   notes: z.string().default(''),

@@ -34,6 +34,8 @@ import {
 import { wireRailCrossings } from '../domain/overheadWire';
 import { lineFleet } from '../analysis/fleet';
 import { stablingNeed } from '../domain/stabling';
+import { railDepotReach, surplusPlaces } from '../domain/reassign';
+import { lineVehicles } from '../domain/fleetRegistry';
 import { allocateDepots, DEPOT_MODES, depotCapacity, depotLines } from '../domain/depots';
 import { trackGeometry } from '../domain/tracks';
 
@@ -735,6 +737,19 @@ export function validateStabling(scenario: Scenario): Finding[] {
         message: `"${l.name}" runs over a depot track: reroute the service (it is routed around depot tracks) or make the track a running track.`,
       });
   }
+  // Trains must be able to get from a depot track to the first stop of their line (F8).
+  for (const l of scenario.lines) {
+    if (l.alignment.kind !== 'track' || !lineVehicles(scenario, l.id).length) continue;
+    const reach = railDepotReach(scenario, l);
+    if (reach.depotTracks && !reach.reachable)
+      out.push({
+        id: `depot-unreachable-${l.id}`,
+        severity: 'error',
+        category: 'operations',
+        lineId: l.id,
+        message: `Trains of "${l.name}" cannot reach its first stop from any ${MODES[l.mode].label} depot track (no way there and back over the tracks). Connect a depot track; until then they wait at the line end.`,
+      });
+  }
   const modes = new Set(scenario.lines.filter((l) => l.alignment.kind === 'track').map((l) => l.mode));
   for (const mode of modes) {
     const need = stablingNeed(scenario, mode, (l) => {
@@ -798,13 +813,36 @@ export function validateDepots(scenario: Scenario): Finding[] {
       const line = scenario.lines.find((l) => l.id === lineId);
       out.push({
         id: `bus-depot-route-${d.id}-${lineId}`,
-        severity: 'info',
+        severity: 'error',
         category: 'operations',
         lineId,
         position: d.position,
-        message: `${d.name}: no street route to and from "${line?.name ?? lineId}" yet. Route it in the depot inspector; until then its vehicles wait at the line end.`,
+        message: `${d.name}: its vehicles cannot reach the first stop of "${line?.name ?? lineId}": no street route to and from the line yet. Route it in the depot inspector; until then they wait at the line end.`,
       });
     }
+  return out;
+}
+
+/** Surplus vehicles without a depot place (F8): they stay at their last line's start. */
+export function validateSurplus(scenario: Scenario): Finding[] {
+  const out: Finding[] = [];
+  for (const [code, place] of surplusPlaces(scenario)) {
+    if (place) continue;
+    const v = scenario.fleet.find((x) => x.code === code)!;
+    const line = scenario.lines.find((l) => l.id === v.lastLineId);
+    out.push({
+      id: `surplus-no-depot-${code}`,
+      severity: line || v.lastPosition ? 'warning' : 'error',
+      category: 'operations',
+      ...(line ? { lineId: line.id } : {}),
+      ...(v.lastPosition ? { position: v.lastPosition } : {}),
+      message: line
+        ? `${code}: no depot space available; it stays at the start of "${line.name}". Add depot space or delete the vehicle.`
+        : v.lastPosition
+          ? `${code}: no depot space available and its line was deleted; it stays where that line began. Add depot space or delete the vehicle.`
+          : `${code}: no depot space available and no known position, so it cannot be shown on the map. Add depot space or delete the vehicle.`,
+    });
+  }
   return out;
 }
 
@@ -814,6 +852,7 @@ export function validateScenario(scenario: Scenario, options: ValidationOptions 
     ...scenario.lines.flatMap((l) => validateLine(l, scenario, options)),
     ...validateStabling(scenario),
     ...validateDepots(scenario),
+    ...validateSurplus(scenario),
   ];
   for (const st of scenario.stations) {
     const lines = servingLines(scenario, st.id);

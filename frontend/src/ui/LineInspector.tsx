@@ -420,6 +420,36 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                     : `No ${MODES[line.mode].label.toLowerCase()} vehicle profile yet: add one under Vehicle profiles.`
               }
             />
+            {vehicleChoices.some((v) => v.id !== line.vehicleTypeId) && (
+              <fieldset className="mb-2" data-testid="accepted-types">
+                <legend className="text-xs font-medium">
+                  Also accepts (surplus vehicles of these types can fill a place)
+                </legend>
+                {vehicleChoices
+                  .filter((v) => v.id !== line.vehicleTypeId)
+                  .map((v) => (
+                    <Checkbox
+                      key={v.id}
+                      label={`${v.name} · ${v.capacity} pax`}
+                      checked={line.acceptedVehicleTypeIds.includes(v.id)}
+                      onChange={(on) =>
+                        patch(
+                          {
+                            acceptedVehicleTypeIds: on
+                              ? [...line.acceptedVehicleTypeIds, v.id]
+                              : line.acceptedVehicleTypeIds.filter((x) => x !== v.id),
+                          },
+                          on ? `${line.name} accepts ${v.name}` : `${line.name} no longer accepts ${v.name}`,
+                        )
+                      }
+                    />
+                  ))}
+                <p className="text-xs text-slate-600">
+                  The main type above sets how many vehicles the line needs; capacity and drawing follow each
+                  vehicle's own type.
+                </p>
+              </fieldset>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <CommitField
                 label="Units per consist"

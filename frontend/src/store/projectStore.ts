@@ -15,19 +15,61 @@ import { loadFromLocalStorage } from './persistence';
 import { stationMode } from '../domain/modeSeparation';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock, simulationStartS } from '../simulation/runtime';
-import { newlySurplus, syncFleet } from '../domain/fleetRegistry';
+import { newlySurplus, syncFleet, type FleetChanges } from '../domain/fleetRegistry';
+import { spareRanker } from '../domain/reassign';
 import { notify } from './notifications';
 import { lineFleet } from '../analysis/fleet';
 
 /** Vehicles each transit line needs (in service plus spares), and the fleet synced to it. */
-function withFleet(scenario: Scenario): Scenario {
+function withFleet(scenario: Scenario, before?: Scenario, changes?: FleetChanges): Scenario {
   const needed = new Map<string, number>();
   for (const l of scenario.lines) {
     if (l.mode === 'cycling' || l.mode === 'pedestrian') continue;
     const f = lineFleet(l, scenario);
     if (f) needed.set(l.id, f.inService + f.spares);
   }
-  return syncFleet(scenario, needed);
+  return syncFleet(scenario, needed, { rank: spareRanker(scenario), before, changes });
+}
+
+/** Tell the user what the edit did to the fleet (F7/F8). */
+function reportFleet(before: Scenario, after: Scenario, changes: FleetChanges) {
+  const lineName = (id: string) => after.lines.find((l) => l.id === id)?.name ?? id;
+  const extra = newlySurplus(before, after);
+  if (extra.length)
+    notify({
+      severity: 'warning',
+      kind: 'project',
+      title: `${extra.length} vehicle(s) no longer needed`,
+      message: `${extra
+        .map((v) => v.code)
+        .join(
+          ', ',
+        )} now go to the depot. Delete them in Dashboard → Vehicles, or keep them: a line that accepts their type uses them again.`,
+    });
+  const ok = changes.reassigned.filter((r) => r.reachable);
+  const stuck = changes.reassigned.filter((r) => !r.reachable);
+  if (ok.length)
+    notify({
+      severity: 'info',
+      kind: 'project',
+      title: `${ok.length} surplus vehicle(s) back in service`,
+      message: ok.map((r) => `${r.vehicle.code} → ${lineName(r.lineId)}`).join(', '),
+    });
+  for (const r of stuck)
+    notify({
+      severity: 'error',
+      kind: 'project',
+      title: `${r.vehicle.code} cannot reach ${lineName(r.lineId)}`,
+      message: `Reassigned to the line, but no depot of its mode has a way to the line's first stop (street route or depot track). Route the depot link or connect a depot track.`,
+      target: { lineId: r.lineId },
+    });
+  if (changes.added.length)
+    notify({
+      severity: 'info',
+      kind: 'project',
+      title: `${changes.added.length} new vehicle(s) added`,
+      message: changes.added.map((v) => `${v.code} → ${lineName(v.lineId ?? '')}`).join(', '),
+    });
 }
 import { createLogger } from '../util/logger';
 import { DEFAULT_BASEMAP_ID } from '../providers/basemaps';
@@ -310,21 +352,10 @@ export const useStore = create<AppState>()((set, get) => {
     // The fleet follows the lines on every edit (F3): no vehicle appears or vanishes unseen.
     commitScenario: (scenario, label) => {
       const before = activeScenario(get().project);
-      const synced = withFleet(scenario);
+      const changes: FleetChanges = { reassigned: [], added: [] };
+      const synced = withFleet(scenario, before, changes);
       push(replaceScenario(get().project, synced), label);
-      // Vehicles no longer needed go to their depot; the user decides whether to delete them (F7).
-      const extra = newlySurplus(before, synced);
-      if (extra.length)
-        notify({
-          severity: 'warning',
-          kind: 'project',
-          title: `${extra.length} vehicle(s) no longer needed`,
-          message: `${extra
-            .map((v) => v.code)
-            .join(
-              ', ',
-            )} now stand in the depot. Delete them in Dashboard → Vehicles, or keep them: a line that needs vehicles of the same type uses them again.`,
-        });
+      reportFleet(before, synced, changes);
     },
     commitProject: (project, label) => push(project, label),
     loadProject: (project) => {

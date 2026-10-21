@@ -7,6 +7,7 @@ import { railLine, xy } from '../test/fixtures/tracks';
 import { buildScenarioModels, surplusStates, SURPLUS_COLOR } from './engine';
 import { surplusInfo } from './vehicleInfo';
 import { distanceM } from '../geo/geometry';
+import { validateSurplus } from '../validation/validate';
 
 describe('vehicle lifecycle (F7)', () => {
   it('reports the vehicles an edit makes surplus, once', () => {
@@ -36,14 +37,18 @@ describe('vehicle lifecycle (F7)', () => {
     expect(surplusInfo(s, 'BUS-003').status).toMatch(/Surplus since .*Depot 1/);
   });
 
-  it('surplus trams stand on the depot track room left; without a depot they are not drawn', () => {
+  it('surplus trams stand on the depot track room left; without a depot they wait at their line start', () => {
     const { s: s0, line } = railLine([xy(0, 0), xy(2000, 0)], 'tram', [xy(0, 0), xy(1000, 0), xy(2000, 0)], {
       double: false,
     });
     let s = updateLine(s0, line.id, { direction: 'bidirectional' });
     s = syncFleet(s, new Map([[line.id, 3]]));
     s = syncFleet(s, new Map([[line.id, 2]]));
-    expect(surplusStates(s, buildScenarioModels(s))).toEqual([]);
+    // No depot: still drawn, before the start of the line it last served, with a warning.
+    const waiting = surplusStates(s, buildScenarioModels(s));
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]!.position[0]).toBeLessThan(xy(0, 0)[0]);
+    expect(validateSurplus(s).map((f) => f.severity)).toEqual(['warning']);
     const before = new Set(s.trackNetwork.tracks.map((t) => t.id));
     s = createTracks(s, { points: [xy(0, 0), xy(-400, 0)], mode: 'tram', double: false }).scenario;
     const depot = s.trackNetwork.tracks.find((t) => !before.has(t.id))!;

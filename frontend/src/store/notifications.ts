@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import type { LngLat } from '../domain/schema';
 import { newId } from '../util/id';
+import { applySettings, useNotificationSettings } from './notificationSettings';
 
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
 export type NotificationKind =
@@ -126,8 +127,15 @@ interface NotificationState {
 export const useNotifications = create<NotificationState>()((set, get) => ({
   items: load(),
   toast: null,
-  notify: (input) => {
+  notify: (raw) => {
     const now = new Date().toISOString();
+    // The user's notification settings decide pop-up and keeping (errors are always kept).
+    const pref = applySettings(useNotificationSettings.getState().settings, raw.severity);
+    const input = {
+      ...raw,
+      toast: raw.toast !== false && pref.popup,
+      record: raw.record !== false && pref.keep,
+    };
     if (input.record === false) {
       const n = addNotification([], input, now).notification;
       if (input.toast !== false) set({ toast: n });
