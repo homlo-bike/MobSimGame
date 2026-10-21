@@ -172,6 +172,7 @@ export function createLine(
       },
     ],
     vehicleTypeId: vehicle?.id ?? null,
+    acceptedVehicleTypeIds: [],
     fleetSize: null,
     peakDemandPphpd: null,
     offPeakDemandPphpd: null,

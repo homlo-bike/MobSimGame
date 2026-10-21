@@ -14,12 +14,29 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Vehicle lifecycle rules (F8)**:
+  - A line has a main vehicle type plus optional *accepted* types of the same mode (line
+    inspector → "Also accepts"). The main type sets how many vehicles the line needs; a
+    surplus vehicle of an accepted type can fill a place, and capacity and drawing follow
+    each vehicle's own type. Vehicles of a type their line no longer takes become surplus.
+  - A line that needs vehicles takes surplus ones first: from the nearest depot that can
+    reach the line (routed street link, or a depot-track path there and back), then the
+    next nearest; only then are new vehicles added.
+  - Notifications for vehicles reassigned and added, and an error when a reassigned
+    vehicle cannot reach its line's first stop. Validation errors (not notes) when a
+    depot's vehicles have no street route to their line, or trains cannot reach their
+    first stop from any depot track.
+  - Vehicles never vanish from the map: a spare or surplus vehicle without a depot place
+    waits before the start of its (last) line, with a warning that no depot space is
+    available; a vehicle of a deleted line stays where that line began.
+  - Settings (File → Settings…): per severity (information, warning, error) show as a
+    pop-up and keep in the notification list; errors are always kept. Stored in this
+    browser only.
 - **Surplus vehicles (F7)**: vehicles no longer needed after an edit stand in their depot
   (street modes at the depot point after the line vehicles, rail modes on the depot track
   room that is left), drawn in grey with their own info window. A notification lists them
   and points to Dashboard → Vehicles, where they can be deleted after a confirmation; a
-  line that needs vehicles of the same type takes them first. Without a depot with room
-  they are listed but not drawn.
+  line that needs vehicles of the same type takes them first.
 - **Bus, BRT and trolleybus depots (F5)**: "Add depot" in the street-mode tools; depot
   inspector with name, capacity (shared default or own value), the lines it serves and
   "Route to and from the lines" (street routes from the routing server, stored per line).

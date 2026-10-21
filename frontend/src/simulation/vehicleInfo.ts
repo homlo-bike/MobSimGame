@@ -12,7 +12,7 @@ import type { Scenario } from '../domain/schema';
 import { consistCapacity } from '../domain/vehicles';
 import { periodAt } from '../domain/timetable';
 import { departOf, lastTripAt, SURPLUS_COLOR, type LineSimulationModel, type VehicleState } from './engine';
-import { allocateDepots } from '../domain/depots';
+import { surplusPlaces } from '../domain/reassign';
 
 export interface VehicleInfo {
   code: string;
@@ -75,8 +75,12 @@ export function vehicleInfo(
   if (!line) return { ...base, load: { kind: 'none', reason: 'Line not found.' } };
   if (!inService) return { ...base, load: { kind: 'none', reason: 'No passengers (out of service).' } };
   const record = scenario.fleet.find((r) => r.code === v.id);
-  const vehicle = scenario.vehicleTypes.find((x) => x.id === line.vehicleTypeId);
-  const capacity = record?.capacityOverride ?? consistCapacity(line, vehicle);
+  // The vehicle's own type (a line may accept several, F8); the line's consist size applies to its main type.
+  const typeId = record?.vehicleTypeId ?? line.vehicleTypeId;
+  const vehicle = scenario.vehicleTypes.find((x) => x.id === typeId);
+  const capacity =
+    record?.capacityOverride ??
+    consistCapacity(typeId === line.vehicleTypeId ? line : { consistUnits: null }, vehicle);
   const pattern = line.servicePatterns[0];
   const period = pattern ? periodAt(pattern, scenario.peakPeriods, tS) : 'peak';
   const peak = period !== 'off_peak';
@@ -104,20 +108,29 @@ export function vehicleInfo(
   };
 }
 
-/** Info of a surplus vehicle (F7): no line; it waits in its depot until the user deletes it. */
+/** Info of a surplus vehicle (F7/F8): no line; it waits in its depot until the user deletes it. */
 export function surplusInfo(scenario: Scenario, code: string): VehicleInfo {
   const record = scenario.fleet.find((r) => r.code === code);
-  const depot = scenario.depots.find((d) => d.id === allocateDepots(scenario).get(code));
+  const place = surplusPlaces(scenario).get(code) ?? null;
+  const last = scenario.lines.find((l) => l.id === record?.lastLineId);
+  const where =
+    place?.kind === 'street'
+      ? `parked at ${scenario.depots.find((d) => d.id === place.depotId)?.name ?? 'the depot'}`
+      : place?.kind === 'rail'
+        ? 'parked on a depot track'
+        : last
+          ? `no depot space: waiting at the start of ${last.name}`
+          : 'no depot space: waiting where its line was';
   return {
     code,
     lineName: 'None (surplus)',
     color: SURPLUS_COLOR,
-    status: `Surplus since ${record?.surplusSince?.slice(0, 10) ?? '–'}, ${depot ? `parked at ${depot.name}` : 'parked at the depot'}`,
+    status: `Surplus since ${record?.surplusSince?.slice(0, 10) ?? '–'}, ${where}`,
     nextStop: null,
     load: {
       kind: 'none',
       reason:
-        'Not needed by any line. Delete it in Dashboard → Vehicles, or it is used again when a line needs a vehicle of its type.',
+        'Not needed by any line. Delete it in Dashboard → Vehicles, or a line that accepts its type uses it again.',
     },
   };
 }

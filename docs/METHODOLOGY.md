@@ -238,7 +238,20 @@ its depot the whole day: at a street depot in the places after the line vehicles
 in the depot track room left after the line vehicles (same minimum gap). The model does
 not simulate the run from the line to the depot at the moment of the edit: the edit
 changes the plan, not a running day. The user is notified and decides whether to delete
-them; a line that needs vehicles of the same type and mode takes them first.
+them.
+
+**Vehicle types and reassignment (F8)**: a line has a main vehicle type, which sets how
+many vehicles it needs (headway, cycle time, demand), and may accept other types of its
+mode. A line short of vehicles takes surplus vehicles of its mode and of an accepted type
+first. Among them it prefers vehicles that can reach the line's first stop (street modes:
+their depot has a routed street link to and from the line; rail: a path over the mode's
+tracks from a depot track to the line's start and back), then the shortest way
+(straight-line depot distance for street modes, path length for rail). If none can reach
+it, the nearest is still assigned and an error is raised. Capacity and vehicle shape
+follow each vehicle's own type. A vehicle without a depot place (no depot, or no room)
+is drawn waiting before the start of the line it serves or last served (the line extended
+straight backwards: a drawing aid) and a warning is raised; it is never removed from the
+map.
 
 **Depot tracks (F6)**: tracks no service uses can be marked as depot (stabling) tracks
 (track inspector → Use); services are routed around them. Each rail mode needs as much

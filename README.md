@@ -114,7 +114,9 @@ set, labelled as such. See the [roadmap](#roadmap).
   example TRM-007), mode, type, line, status and the date it joined (Dashboard →
   Vehicles). The fleet follows the lines: a line gets the vehicles it needs in service
   plus spares; vehicles no longer needed become surplus, stand in their depot (you get a
-  notification) and stay until you delete them.
+  notification) and stay until you delete them. A line can accept several vehicle types
+  of its mode; surplus vehicles that can reach it from the nearest depot are used first.
+  File → Settings… chooses which notifications pop up and which are kept.
   A vehicle can have its own capacity instead of the profile's. In the animation each
   vehicle carries its fleet number; spares wait in the depot.
 - **Vehicle info window:** click a vehicle on the map (or "Show on map" in Dashboard →

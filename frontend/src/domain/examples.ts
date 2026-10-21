@@ -92,6 +92,7 @@ function baseLine(data: NetworkLineData, mode: TransportMode, index: number): Tr
       },
     ],
     vehicleTypeId: null,
+    acceptedVehicleTypeIds: [],
     fleetSize: null,
     peakDemandPphpd: null,
     offPeakDemandPphpd: null,

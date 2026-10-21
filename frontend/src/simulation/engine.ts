@@ -27,6 +27,7 @@ import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates, stepsCoordinates } from '../domain/serviceRouting';
 import { assignStabling } from '../domain/stabling';
+import { surplusPlaces } from '../domain/reassign';
 import { lineVehicles } from '../domain/fleetRegistry';
 import { allocateDepots, isDepotMode, parkingSpot } from '../domain/depots';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
@@ -212,6 +213,8 @@ export interface LineSimulationModel {
    * the ones in service are spares and wait in their depot slots.
    */
   vehicleCodes: string[];
+  /** Shape of vehicles of an accepted type other than the line's main type, by fleet number (F8). */
+  consistOf?: Map<string, ConsistShape>;
   /** Stops along the line's path (station, chainage), in chainage order. */
   stops: { stationId: string; chainageM: number }[];
 }
@@ -1378,6 +1381,9 @@ export function roundTripS(model: LineSimulationModel): number {
  * A trip departs every headway from the start of each service (also before
  * t = 0, so the line is already populated); a trip is one vehicle's round trip.
  */
+/** Shape of a vehicle: its own type when it differs from the line's main type (F8). */
+const shapeFor = (model: LineSimulationModel, id: string) => model.consistOf?.get(id) ?? model.consist;
+
 /** A vehicle on its empty run to or from its depot slot, or stabled there. */
 function depotState(
   model: LineSimulationModel,
@@ -1408,7 +1414,7 @@ function depotState(
     bearingDeg,
     direction: 1,
     state,
-    footprint: model.consist ? consistFootprint(path, d, 1, model.consist, false) : [],
+    footprint: shapeFor(model, id) ? consistFootprint(path, d, 1, shapeFor(model, id)!, false) : [],
     heightM: 0,
   };
 }
@@ -1445,16 +1451,17 @@ function stateOnTrip(
         : interpolate(model.path, chainageM);
       const heading = back ? bearingDeg : p.direction === 1 ? bearingDeg : (bearingDeg + 180) % 360;
       // On the separate return path the vehicle runs forward along that path.
-      const footprint = model.consist
+      const shape = shapeFor(model, id);
+      const footprint = shape
         ? back
           ? consistFootprint(
               model.returnPath!,
               (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM,
               1,
-              model.consist,
+              shape,
               false,
             )
-          : consistFootprint(model.path, chainageM, p.direction, model.consist, model.ring)
+          : consistFootprint(model.path, chainageM, p.direction, shape, model.ring)
         : [];
       return {
         id,
@@ -1537,9 +1544,15 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
         }
       }
       // Spares: not needed in service, they wait in their depot slots.
+      let spareSlot = 0;
       for (let k = model.fleet; k < model.vehicleCodes.length; k++) {
         const run = model.stabling?.get(k);
-        if (run) out.push(depotState(model, run, tS, -Infinity, Infinity, model.vehicleCodes[k]!));
+        // Without a depot place a spare waits before the start of its line (never vanishes).
+        out.push(
+          run
+            ? depotState(model, run, tS, -Infinity, Infinity, model.vehicleCodes[k]!)
+            : waitingBehindStart(model, model.vehicleCodes[k]!, spareSlot++),
+        );
       }
       continue;
     }
@@ -1617,78 +1630,92 @@ export function surplusStates(scenario: Scenario, models: readonly LineSimulatio
     };
   };
   const out: VehicleState[] = [];
-  // Street modes: the depot point, after every vehicle allocated there before them.
-  const allocation = allocateDepots(scenario);
-  const index = new Map<string, number>();
-  const spotOf = new Map<string, number>();
-  for (const [code, depotId] of allocation) {
-    const n = index.get(depotId) ?? 0;
-    index.set(depotId, n + 1);
-    spotOf.set(code, n);
-  }
-  // Rail modes: room left on the depot tracks.
+  const places = surplusPlaces(scenario);
   const byId = new Map(models.map((m) => [m.lineId, m]));
-  const railModes = new Set(
-    surplus.filter((v) => !isDepotMode(v.mode) && depotTracksOf(scenario, v.mode)).map((v) => v.mode),
-  );
-  const railSlots = new Map<string, { trackId: string; fraction: number }>();
-  for (const mode of railModes) {
-    const extra = surplus
-      .filter((v) => v.mode === mode)
-      .map((v) => {
-        const sh = shapeOf(v.vehicleTypeId);
-        return { key: v.code, lengthM: sh.unitLengthM * sh.units };
-      });
-    const { slots } = assignStabling(scenario, mode, railVehicles(scenario, byId, mode), extra);
-    for (const e of extra) {
-      const slot = slots.get(e.key);
-      if (slot) railSlots.set(e.key, slot);
-    }
-  }
+  const waiting = new Map<string, number>();
+  const eastWest = (at: LngLat, lengthM: number) => {
+    const half = (lengthM / 2) * (180 / (Math.PI * 6371008.8 * Math.cos((at[1] * Math.PI) / 180)));
+    return measurePath(
+      [
+        [at[0] - half, at[1]],
+        [at[0] + half, at[1]],
+      ],
+      false,
+    );
+  };
   for (const v of surplus) {
     const shape = shapeOf(v.vehicleTypeId);
     const lengthM = shape.unitLengthM * shape.units;
-    if (isDepotMode(v.mode)) {
-      const depot = scenario.depots.find((d) => d.id === allocation.get(v.code));
-      if (!depot) continue;
-      const spot = parkingSpot(depot, spotOf.get(v.code) ?? 0, lengthM, shape.widthM);
-      // A short west–east path through the spot, so the vehicle stands like the parked ones.
-      const half = (lengthM / 2) * (180 / (Math.PI * 6371008.8 * Math.cos((spot[1] * Math.PI) / 180)));
+    const place = places.get(v.code) ?? null;
+    if (place?.kind === 'street') {
+      const depot = scenario.depots.find((d) => d.id === place.depotId)!;
       out.push(
-        state(
-          v.code,
-          measurePath(
-            [
-              [spot[0] - half, spot[1]],
-              [spot[0] + half, spot[1]],
-            ],
-            false,
-          ),
-          shape,
-        ),
+        state(v.code, eastWest(parkingSpot(depot, place.index, lengthM, shape.widthM), lengthM), shape),
       );
       continue;
     }
-    const slot = railSlots.get(v.code);
-    if (!slot) continue;
-    const track = net.tracks.find((t) => t.id === slot.trackId);
-    if (!track) continue;
-    const half = lengthM / 2 / Math.max(trackGeometry(net, track).lengthM, 1e-9);
-    const coords = stepsCoordinates(scenario, [
-      {
-        trackId: slot.trackId,
-        reversed: false,
-        from: Math.max(0, slot.fraction - half),
-        to: Math.min(1, slot.fraction + half),
-      },
-    ]);
-    if (coords.length >= 2) out.push(state(v.code, measurePath(coords, false), shape));
+    if (place?.kind === 'rail') {
+      const track = net.tracks.find((t) => t.id === place.trackId)!;
+      const half = lengthM / 2 / Math.max(trackGeometry(net, track).lengthM, 1e-9);
+      const coords = stepsCoordinates(scenario, [
+        {
+          trackId: place.trackId,
+          reversed: false,
+          from: Math.max(0, place.fraction - half),
+          to: Math.min(1, place.fraction + half),
+        },
+      ]);
+      if (coords.length >= 2) {
+        out.push(state(v.code, measurePath(coords, false), shape));
+        continue;
+      }
+    }
+    // No depot with room: it stays at the start of the line it last served (behind the
+    // line's own waiting vehicles); a vehicle of a deleted line stays where that line began.
+    const m = v.lastLineId ? byId.get(v.lastLineId) : undefined;
+    if (m) {
+      const n = waiting.get(m.lineId) ?? Math.max(0, m.vehicleCodes.length - m.fleet);
+      waiting.set(m.lineId, n + 1);
+      out.push({ ...waitingBehindStart(m, v.code, n, shape), color: SURPLUS_COLOR, lineId: '' });
+    } else if (v.lastPosition) out.push(state(v.code, eastWest(v.lastPosition, lengthM), shape));
   }
   return out;
 }
 
-const depotTracksOf = (scenario: Scenario, mode: string) =>
-  scenario.trackNetwork.tracks.some((t) => t.usage === 'depot' && t.designMode === mode);
+/**
+ * A vehicle out of service without a depot place, waiting before the start of its line
+ * (`slot` 0, 1, … one behind the other, a gap apart). Drawing aid: the line is extended
+ * straight backwards; the vehicle is never removed from the map.
+ */
+function waitingBehindStart(
+  model: LineSimulationModel,
+  id: string,
+  slot: number,
+  shape?: ConsistShape,
+): VehicleState {
+  const sh = shape ?? shapeFor(model, id);
+  const lengthM = sh ? sh.unitLengthM * sh.units : model.vehicleLengthM;
+  const gap = 5;
+  const c = -(slot + 0.5) * (lengthM + gap) - gap;
+  const footprint = sh ? consistFootprint(model.path, c, 1, sh, false) : [];
+  const ring = footprint.flat();
+  const start = interpolate(model.path, 0);
+  const position: LngLat = ring.length
+    ? [ring.reduce((x, p) => x + p[0], 0) / ring.length, ring.reduce((x, p) => x + p[1], 0) / ring.length]
+    : start.position;
+  return {
+    id,
+    lineId: model.lineId,
+    color: model.color,
+    chainageM: 0,
+    position,
+    bearingDeg: start.bearingDeg,
+    direction: 1,
+    state: 'parked',
+    footprint,
+    heightM: 0,
+  };
+}
 
 export function buildScenarioModels(scenario: Scenario, options?: SimulationOptions): LineSimulationModel[] {
   const context = new SimulationContext();
@@ -1701,7 +1728,17 @@ export function buildScenarioModels(scenario: Scenario, options?: SimulationOpti
   for (const m of models) {
     m.context = context;
     context.add(m);
-    m.vehicleCodes = lineVehicles(scenario, m.lineId).map((v) => v.code);
+    const records = lineVehicles(scenario, m.lineId);
+    m.vehicleCodes = records.map((v) => v.code);
+    const line = scenario.lines.find((l) => l.id === m.lineId)!;
+    for (const r of records)
+      if (r.vehicleTypeId !== line.vehicleTypeId && m.consist) {
+        m.consistOf ??= new Map();
+        m.consistOf.set(
+          r.code,
+          consistShape({ ...line, vehicleTypeId: r.vehicleTypeId, consistUnits: null }, scenario),
+        );
+      }
   }
   // Depot tracks (F6): with the service day, vehicles out of service wait in depot slots.
   if (options?.timetable) {
