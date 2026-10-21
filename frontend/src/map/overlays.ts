@@ -2,7 +2,7 @@
 import { accessFacilities, accessIconId } from '../domain/stationAccess';
 import type { FeatureCollection, Feature } from 'geojson';
 import { circle } from '@turf/turf';
-import type { LngLat, Scenario, TransportMode } from '../domain/schema';
+import type { LngLat, Scenario, TrackEndRef, TransportMode } from '../domain/schema';
 import {
   isInterchange,
   isRing,
@@ -14,7 +14,7 @@ import { distanceM, slicePath } from '../geo/geometry';
 import { isGreen } from '../domain/signals';
 import { interpolate, measurePath, type VehicleState } from '../simulation/engine';
 import type { PopulationCell, TrafficSegment, TransitRoute } from '../providers/types';
-import { nodeEnds, pointOnTrack, trackGeometry } from '../domain/tracks';
+import { networkFrame, nodeEnds, pointOnTrack, trackGeometry } from '../domain/tracks';
 import { stationKind } from '../domain/stationKinds';
 import { curveHandles } from '../domain/curveHandles';
 import { stationGeometry, stationObjectLevel } from '../domain/stationLayout';
@@ -124,6 +124,55 @@ export function trackNodesCollection(scenario: Scenario, selectedNodeId: string 
       };
     }),
   };
+}
+
+/**
+ * Permitted movements through junctions (nodes where three or more track ends meet, or
+ * with a turnout), drawn as a small diagram at the node: one arm per track end, pointing
+ * to where that track is a few symbol sizes away (so tangential tracks still fan out),
+ * and for each permitted movement a curve between the two arms through the node. Ways
+ * through the junction without a curve are not allowed.
+ */
+export function junctionMovesCollection(scenario: Scenario, reachM: number): FeatureCollection {
+  const net = scenario.trackNetwork;
+  const frame = networkFrame(net);
+  const byId = new Map(net.tracks.map((t) => [t.id, t]));
+  const features: Feature[] = [];
+  for (const n of net.nodes) {
+    if (nodeEnds(net, n.id).length < 3 && !n.turnout) continue;
+    const c = frame.toMetres(n.position);
+    const arm = (e: TrackEndRef): [number, number] | null => {
+      const t = byId.get(e.trackId);
+      if (!t) return null;
+      const len = trackGeometry(net, t).lengthM;
+      if (len <= 0) return null;
+      const s = Math.min(4 * reachM, len / 2);
+      const p = pointOnTrack(net, t, e.end === 'start' ? s / len : 1 - s / len).metres;
+      const dx = p[0] - c[0];
+      const dy = p[1] - c[1];
+      const d = Math.hypot(dx, dy);
+      return d > 0 ? [c[0] + (dx / d) * reachM, c[1] + (dy / d) * reachM] : null;
+    };
+    n.movements.forEach((m, i) => {
+      const a = arm(m.a);
+      const b = arm(m.b);
+      if (!a || !b) return;
+      // Quadratic curve with the node as control point.
+      const pts = Array.from({ length: 9 }, (_, k) => {
+        const u = k / 8;
+        const w0 = (1 - u) * (1 - u);
+        const w1 = 2 * u * (1 - u);
+        const w2 = u * u;
+        return frame.toLngLat([w0 * a[0] + w1 * c[0] + w2 * b[0], w0 * a[1] + w1 * c[1] + w2 * b[1]]);
+      });
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: pts },
+        properties: { nodeId: n.id, movement: i },
+      });
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 /**
@@ -340,6 +389,11 @@ export interface ArrowOptions {
   avoid?: readonly LngLat[];
   /** Clearance around `avoid` points, metres. */
   avoidM?: number;
+  /**
+   * Only one arrow (or pair) this far from each end of a feature instead of along its whole
+   * length: tracks show their running direction where they meet nodes.
+   */
+  atEndsM?: number;
 }
 
 /**
@@ -362,7 +416,20 @@ export function arrowsCollection(segments: FeatureCollection, options: ArrowOpti
     const both = p.arrow === '‹ ›';
     // Both directions on one line: each arrow sits on the right of its own travel direction.
     const side = both ? p.offsetSign || 1 : (p.offsetSign ?? 0);
-    for (let d = spacing / 2; d < path.lengthM; d += spacing) {
+    const ends =
+      options.atEndsM === undefined
+        ? null
+        : path.lengthM > 4 * options.atEndsM
+          ? [options.atEndsM, path.lengthM - options.atEndsM]
+          : [path.lengthM / 2];
+    const at =
+      ends ??
+      Array.from(
+        { length: Math.ceil((path.lengthM - spacing / 2) / spacing) },
+        (_, k) => spacing / 2 + k * spacing,
+      );
+    for (const d of at) {
+      if (d < 0 || d >= path.lengthM) continue;
       const here = interpolate(path, d).position;
       if (clear > 0 && avoid.some((a) => distanceM(a, here) < clear)) continue;
       const ahead = interpolate(path, Math.min(path.lengthM, d + 2)).position;
