@@ -6,6 +6,12 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Documentation
+
+- docs/EVALUATION_PLAN.md: plan for the project evaluation (ridership, costs, fares,
+  benefits, appraisal, wider and social impacts) with the data sources and methods
+  checked and their licences.
+
 ### Added
 
 - **Junction zones and an operations report (R14b)**: junctions, turnouts and crossings
