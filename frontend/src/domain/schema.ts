@@ -525,8 +525,18 @@ export const TransportLineSchema = z.object({
   termination: LineTerminationSchema,
   servicePatterns: z.array(ServicePatternSchema),
   vehicleTypeId: z.string().nullable(),
-  /** Vehicles (consists) assigned to the line; null = not set (the simulation runs every scheduled trip). */
+  /**
+   * Vehicles (consists) in service at the peak; null = the calculated default (from the
+   * headway, or from the demand below). Fewer vehicles than the timetable needs make the
+   * line run less often.
+   */
   fleetSize: z.number().int().nonnegative().nullable().default(null),
+  /**
+   * Expected peak-hour demand at the busiest point of the line, passengers per hour per
+   * direction; null = not known (the fleet follows the headway only). User input until the
+   * ridership estimate (evaluation step E2) provides it.
+   */
+  peakDemandPphpd: z.number().nonnegative().nullable().default(null),
   /** Units coupled per consist on this line; null = the vehicle profile's value. */
   consistUnits: z.number().int().positive().nullable().default(null),
   dwellTimeS: z.number().nonnegative(),

@@ -93,6 +93,7 @@ function baseLine(data: NetworkLineData, mode: TransportMode, index: number): Tr
     ],
     vehicleTypeId: null,
     fleetSize: null,
+    peakDemandPphpd: null,
     consistUnits: null,
     dwellTimeS: defaults.defaultDwellTimeS,
     maxSpeedKmh: defaults.defaultMaxSpeedKmh,

@@ -376,11 +376,11 @@ describe('vehicles in the line inspector', () => {
     const labels = [...select.options].map((o) => o.text);
     expect(labels.some((l) => /metro/i.test(l))).toBe(true);
     expect(labels.some((l) => /bus|tram/i.test(l))).toBe(false);
-    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/Needed: \d+ at peak/);
-    const assigned = screen.getByLabelText(/Vehicles assigned/);
+    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/Calculated: \d+ vehicle\(s\) in service/);
+    const assigned = screen.getByLabelText(/Vehicles in service at the peak/);
     await user.clear(assigned);
     await user.type(assigned, '1{Enter}');
-    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/short of the peak headway/);
+    expect(screen.getByTestId('fleet-summary')).toHaveTextContent(/vehicle\(s\) short: the line runs every/);
   });
 });
 

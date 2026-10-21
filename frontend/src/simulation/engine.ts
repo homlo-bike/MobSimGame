@@ -28,7 +28,7 @@ import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates } from '../domain/serviceRouting';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
 import { following, parameterValue, type Following } from '../domain/trackParameters';
-import { consistLengthM } from '../domain/vehicles';
+import { consistCapacity, consistLengthM } from '../domain/vehicles';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
 import { consistFootprint, consistShape, type ConsistShape } from './footprint';
@@ -371,8 +371,34 @@ function buildModel(
   if (model) {
     model.consist = consistShape(line, scenario);
     model.ring = isRing(line);
+    applyFleetHeadway(model, line, scenario);
   }
   return model;
+}
+
+/**
+ * Headway the line actually runs (R16): the timetable headway, shorter where the expected
+ * demand needs more vehicles to pass (60 × consist capacity / demand), and longer when the
+ * user sets fewer vehicles than that needs (cycle / vehicles). Pure.
+ */
+function applyFleetHeadway(model: LineSimulationModel, line: TransportLine, scenario: Scenario) {
+  const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
+  const perConsist = consistCapacity(line, vehicle);
+  let headwayS = model.headwayS;
+  if (line.peakDemandPphpd && perConsist)
+    headwayS = Math.min(headwayS, (3600 * perConsist) / line.peakDemandPphpd);
+  if (line.fleetSize && line.fleetSize > 0 && model.services[0]) {
+    // One undisturbed round trip at the design headway gives the cycle.
+    model.headwayS = headwayS;
+    model.cache.clear();
+    const cycleS = roundTripS(model);
+    model.cache.clear();
+    headwayS = Math.max(headwayS, cycleS / line.fleetSize);
+  }
+  if (headwayS !== model.headwayS) {
+    model.headwayS = Math.max(1, headwayS);
+    model.cache.clear();
+  }
 }
 
 function buildModelBody(

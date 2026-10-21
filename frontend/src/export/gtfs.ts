@@ -158,7 +158,8 @@ export function buildGtfs(project: Project, scenario: Scenario, opt: GtfsOptions
           tripId,
           gtfsTime(clockS(pattern.serviceStart)),
           gtfsTime(clockS(pattern.serviceEnd)),
-          Math.round(pattern.peakHeadwayMin * 60),
+          // The headway the line runs: shorter for the expected demand, longer with fewer vehicles.
+          Math.round(model.headwayS),
           0,
         ]);
       const coords = shapeCoords(line, model.returnPath?.coords ?? null, dir);
