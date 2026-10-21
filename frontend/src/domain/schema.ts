@@ -225,6 +225,12 @@ export const VehicleTypeSchema = z.object({
   davisAKn: z.number().nonnegative().nullable().default(null),
   davisBKnPerMs: z.number().nonnegative().nullable().default(null),
   davisCKnPerMs2: z.number().nonnegative().nullable().default(null),
+  /** Energy (R15b): efficiency from the supply (pantograph, tank, battery) to the wheel, 0–1. */
+  tractionEfficiency: z.number().gt(0).max(1).nullable().default(null),
+  /** Share of braking energy returned to the supply (regeneration and receptivity together), 0–1. */
+  regenerationShare: z.number().min(0).max(1).nullable().default(null),
+  /** Power of auxiliaries (heating, cooling, lighting) of one unit (kW). */
+  auxiliaryPowerKw: z.number().nonnegative().nullable().default(null),
   /** Smallest curve radius the vehicle can run through, metres (from the manufacturer). */
   minRadiusM: z.number().positive().nullable().default(null),
   maxGradePercent: z.number().positive().nullable().default(null),

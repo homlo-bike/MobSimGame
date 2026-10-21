@@ -50,6 +50,7 @@ import {
   VEHICLE_CATEGORY_LABELS,
 } from '../domain/vehicles';
 import { lineFleet } from '../analysis/fleet';
+import { LineEnergy } from './LineEnergy';
 
 const END_LABELS: Record<EndType, string> = {
   terminal_station: 'Terminal station',
@@ -441,6 +442,7 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 )}
               </p>
             )}
+            <LineEnergy line={line} scenario={scenario} />
           </>
         )}
       </Section>
