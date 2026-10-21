@@ -209,6 +209,8 @@ export const VehicleTypeSchema = z.object({
   lengthM: z.number().positive(),
   widthM: z.number().positive().nullable().default(null),
   unitsPerConsist: z.number().int().positive().default(1),
+  /** Cars or articulated sections of one unit, for drawing; null = from the section-length parameter. */
+  sectionsPerUnit: z.number().int().positive().nullable().default(null),
   accelerationMs2: z.number().positive().nullable().default(null),
   serviceBrakingMs2: z.number().positive().nullable().default(null),
   /**

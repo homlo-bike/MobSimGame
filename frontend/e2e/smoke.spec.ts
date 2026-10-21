@@ -159,6 +159,8 @@ test('place stations, connect them with double track, create a service and edit 
   await page.getByLabel('Mode of the new track or line').selectOption('bus');
   await page.getByLabel(/Coordinates, one/).fill('10.0, 50.0\n10.01, 50.01');
   await page.getByRole('button', { name: 'Create line' }).click();
+  // The station list shows the stations of the selected mode tab: back to tram.
+  await page.getByRole('tab', { name: /^Tram/ }).click();
   await page.getByRole('list', { name: 'Stations' }).getByRole('button').first().click();
   await page.getByLabel(/Make this station a stop of another line/).selectOption({ index: 1 });
   await expect(page.getByText(/Interchange \(2 lines\)/)).toBeVisible();

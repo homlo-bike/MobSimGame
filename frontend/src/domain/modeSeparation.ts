@@ -19,6 +19,17 @@ export function stationsForMode(scenario: Scenario, mode: TransportMode): Statio
   return scenario.stations.filter((s) => s.trackRefs.length > 0 && stationMode(scenario, s) === mode);
 }
 
+/**
+ * Stations listed under a mode tab: those of the mode, plus stations whose mode is not
+ * known yet (no layout, track or line), so nothing drops out of every list.
+ */
+export function stationsOfMode(scenario: Scenario, mode: TransportMode): Station[] {
+  return scenario.stations.filter((s) => {
+    const m = stationMode(scenario, s);
+    return m === null || m === mode;
+  });
+}
+
 /** The tabs of the editor, one per mode group shown to the user. */
 export const MODE_TABS: { mode: TransportMode; label: string }[] = [
   { mode: 'bus', label: 'Bus' },

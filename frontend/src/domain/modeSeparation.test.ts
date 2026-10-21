@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyScenario } from './network';
 import { applyTrackHandles, createTracks, nodeEnds, trackHandles } from './tracks';
 import { placeStation } from './stationLayout';
-import { modeCounts, stationMode, stationsForMode } from './modeSeparation';
+import { modeCounts, stationMode, stationsForMode, stationsOfMode } from './modeSeparation';
 import { xy } from '../test/fixtures/tracks';
 
 describe('modes are kept separate', () => {
@@ -49,5 +49,26 @@ describe('modes are kept separate', () => {
     expect(stationsForMode(s, 'metro').map((x) => x.id)).toEqual([metro!.id]);
     expect(stationsForMode(s, 'light_rail')).toEqual([]);
     expect(modeCounts(s)).toMatchObject({ tram: 3, metro: 3 });
+  });
+
+  it('lists under a mode tab only the stations of that mode', () => {
+    let s = emptyScenario();
+    s = placeStation(s, {
+      position: xy(0, 0),
+      mode: 'tram',
+      bearingDeg: 90,
+      sidePlatforms: 1,
+      islandPlatforms: 0,
+    }).scenario;
+    s = placeStation(s, {
+      position: xy(500, 0),
+      mode: 'metro',
+      bearingDeg: 90,
+      sidePlatforms: 1,
+      islandPlatforms: 0,
+    }).scenario;
+    expect(stationsOfMode(s, 'tram').map((x) => stationMode(s, x))).toEqual(['tram']);
+    expect(stationsOfMode(s, 'metro').map((x) => stationMode(s, x))).toEqual(['metro']);
+    expect(stationsOfMode(s, 'bus')).toHaveLength(0);
   });
 });

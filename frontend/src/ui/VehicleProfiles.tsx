@@ -143,6 +143,13 @@ function ProfileEditor({ v }: { v: VehicleType }) {
           onCommit={(n) => n && patch({ unitsPerConsist: n })}
         />
         <NumberField
+          label="Cars or articulated sections (per unit, for drawing)"
+          integer
+          min={1}
+          value={v.sectionsPerUnit}
+          onCommit={(n) => patch({ sectionsPerUnit: n })}
+        />
+        <NumberField
           label="Doors (per unit)"
           integer
           value={v.doorCount}
