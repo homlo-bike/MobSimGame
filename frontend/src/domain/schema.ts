@@ -578,6 +578,29 @@ export const TransportLineSchema = z.object({
 });
 export type TransportLine = z.infer<typeof TransportLineSchema>;
 
+/**
+ * One vehicle (consist) of the project's fleet (F3). Vehicles are never created or
+ * removed silently: the fleet follows the lines (domain/fleetRegistry.ts), extra
+ * vehicles become surplus and only the user deletes them.
+ */
+export const VehicleRecordSchema = z.object({
+  id: z.string(),
+  /** Fleet number shown to the user, e.g. "TRM-007". */
+  code: z.string(),
+  vehicleTypeId: z.string().nullable(),
+  mode: TransportModeSchema,
+  /** Line the vehicle is allocated to; null when surplus. */
+  lineId: z.string().nullable(),
+  status: z.enum(['allocated', 'surplus']),
+  /** When the vehicle joined the fleet (ISO date-time) and, if surplus, since when. */
+  addedAt: z.string(),
+  surplusSince: z.string().nullable().default(null),
+  /** Own capacity (passengers); null = the vehicle profile's (G1). */
+  capacityOverride: z.number().int().positive().nullable().default(null),
+  notes: z.string().default(''),
+});
+export type VehicleRecord = z.infer<typeof VehicleRecordSchema>;
+
 export const StationSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -880,6 +903,8 @@ export const ScenarioSchema = z.object({
   trafficSignals: z.array(TrafficSignalSchema).default([]),
   signalSettings: SignalSettingsSchema.default(PLACEHOLDER_SIGNAL_SETTINGS),
   vehicleTypes: z.array(VehicleTypeSchema),
+  /** Every vehicle of the project (F3). */
+  fleet: z.array(VehicleRecordSchema).default([]),
   assumptionSetId: z.string().nullable(),
   /** Peak periods of the service day (R-F2); other service hours are off-peak. */
   peakPeriods: z.array(ServicePeriodSchema).default(PLACEHOLDER_PEAK_PERIODS),

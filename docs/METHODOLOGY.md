@@ -208,6 +208,14 @@ first peak. Steady-state analyses (round trip, energy, operations report, GTFS) 
 use a trip every peak headway. Street lines with a leg not yet routed on streets are not
 animated (a vehicle never cuts across on a straight placeholder).
 
+**Fleet register (F3)**: the project stores every vehicle (fleet number by mode, type,
+line, status, date added, optional own capacity). After every edit each transit line's
+need is its vehicles in service plus spares (R16); missing vehicles are added (surplus
+vehicles of the same type first), extra ones and those of deleted lines become surplus.
+Only the user deletes vehicles. The simulation's vehicle 1, 2, … of a line are its
+allocated vehicles in fleet-number order; spares beyond those in service wait in their
+depot slots (F6).
+
 **Depot tracks (F6)**: tracks no service uses can be marked as depot (stabling) tracks
 (track inspector → Use); services are routed around them. Each rail mode needs as much
 depot track as all its consists are long, with the minimum gap (`followingMinGapM`)
