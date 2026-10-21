@@ -125,9 +125,21 @@ height difference between the levels over its own length, so its gradient is
   0.75 (dedicated track). Line running speed is the length-weighted harmonic mean.
 - Cycle time: two-ended lines `2 × (L / v + n × dwell) + 2 × layover`;
   rings `L / v + n × dwell + layover`.
-- Vehicles in service: `⌈cycle / peak headway⌉` (also off-peak). A line's assigned
-  fleet below the peak figure is an error. The simulation does not yet limit
-  departures to the assigned fleet; that comes in work package P3-14.
+- **Fleet (R16)**: the design headway is the shorter of the timetable headway and the
+  headway the expected demand needs, `h = 60 × C / D` (C passengers per consist at the
+  planning load, D the expected peak demand at the busiest point in passengers per hour
+  per direction): enough consists pass to carry the demand. Vehicles in service
+  `N = ⌈cycle / h⌉`, with the cycle from one simulated round trip in the line inspector
+  (the speed estimate above in validation and exports); spares `⌈N × spare ratio⌉`
+  (project parameter, 20 %: the US FTA guideline for bus fleets of 50 or more vehicles,
+  Circular 9030.1C ch. V §9.a.5 as reported in TCRP Synthesis 109, 2014; a ceiling for US
+  buses, used as a planning allowance for every mode). The user may set the vehicles in
+  service; with fewer than needed the simulation and the GTFS export run the line every
+  `cycle / N` minutes, and validation warns. Demand above the capacity offered is
+  warned. These are standard definitions (vehicles = cycle / headway; capacity = 60 / h ×
+  C); no open library implementing demand-based fleet sizing was found (the GTFS libraries
+  checked analyse existing service). Expected demand is user input until the ridership
+  estimate (docs/EVALUATION_PLAN.md, E2) provides it.
 - Consist length = vehicle length × units per consist; consist capacity = vehicle
   capacity × units. Capacity (pphpd) uses the consist.
 - Capacity (pphpd): `60 / headway × consist capacity` (placeholder vehicle types unless the user enters a profile).

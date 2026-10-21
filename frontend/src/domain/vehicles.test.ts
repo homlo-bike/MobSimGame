@@ -98,8 +98,15 @@ describe('fleet and vehicle validation', () => {
       validateLine(l, sc)
         .filter((x) => x.severity === 'error')
         .map((x) => x.message);
-    expect(errors({ ...line, fleetSize: 1 }).some((m) => /vehicle\(s\) assigned, but/.test(m))).toBe(true);
-    expect(errors({ ...line, fleetSize: 100 }).some((m) => /assigned/.test(m))).toBe(false);
+    // Fewer vehicles than needed is a warning: the line runs less often.
+    const warnings = (l: typeof line) =>
+      validateLine(l, s)
+        .filter((x) => x.severity === 'warning')
+        .map((x) => x.message);
+    expect(warnings({ ...line, fleetSize: 1 }).some((m) => /1 vehicle\(s\) in service, but/.test(m))).toBe(
+      true,
+    );
+    expect(warnings({ ...line, fleetSize: 100 }).some((m) => /in service, but/.test(m))).toBe(false);
     expect(errors({ ...line, vehicleTypeId: 'vt-bus-12m' }).some((m) => /not compatible/.test(m))).toBe(true);
     const curvy = railLine([xy(0, 0), xy(500, 0), xy(500, 500)], 'tram', [xy(0, 0), xy(500, 500)], {
       radiusM: 30,

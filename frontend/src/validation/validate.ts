@@ -505,9 +505,15 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
   const fleet = transitMode ? lineFleet(line, scenario) : null;
   if (fleet && fleet.assigned !== null && fleet.shortfall > 0)
     add({
-      severity: 'error',
+      severity: 'warning',
       category: 'operations',
-      message: `${fleet.assigned} vehicle(s) assigned, but ${fleet.peakRequired} are needed for the ${line.servicePatterns[0]!.peakHeadwayMin}-minute peak headway (cycle ≈ ${Math.round(fleet.cycleMin)} min with placeholder speeds). Add vehicles or lengthen the headway.`,
+      message: `${fleet.assigned} vehicle(s) in service, but ${fleet.peakRequired} are needed for a ${fleet.designHeadwayMin.toFixed(1)}-minute headway (cycle ≈ ${Math.round(fleet.cycleMin)} min, estimate with placeholder speeds): the line runs every ${fleet.effectiveHeadwayMin.toFixed(1)} min. Add vehicles or accept the longer headway.`,
+    });
+  if (fleet && fleet.loadRatio !== null && fleet.loadRatio > 1)
+    add({
+      severity: 'warning',
+      category: 'operations',
+      message: `The expected peak demand (${line.peakDemandPphpd} passengers/hour/direction) exceeds the capacity offered (${Math.round(fleet.peakCapacityPphpd ?? 0)}): add vehicles, couple longer consists or choose a larger vehicle.`,
     });
 
   // --- Street network ----------------------------------------------------------

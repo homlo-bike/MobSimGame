@@ -173,6 +173,7 @@ export function createLine(
     ],
     vehicleTypeId: vehicle?.id ?? null,
     fleetSize: null,
+    peakDemandPphpd: null,
     consistUnits: null,
     dwellTimeS: mode.defaultDwellTimeS,
     maxSpeedKmh: mode.defaultMaxSpeedKmh,

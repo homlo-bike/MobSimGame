@@ -14,6 +14,13 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Vehicles per line (R16)**: the line inspector calculates the vehicles in service at
+  the peak from the simulated round trip and the design headway, which is shortened when
+  the expected peak demand (new field, passengers per hour per direction) needs more
+  consists to pass; spares follow the new spare-ratio parameter (20 %, cited). The number
+  can be set by hand; with fewer vehicles the simulation and the GTFS export run the line
+  less often. A fleet short of the headway is now a warning (was an error), and demand
+  above the capacity offered is warned.
 - **Schematic (R11)**: stations can be selected (click or Enter) and dragged (snapped
   to half grid steps) besides the arrow keys; the view pans and zooms (wheel, drag, + −,
   Fit) and exports always show the whole map; walking links appear as dashed connectors

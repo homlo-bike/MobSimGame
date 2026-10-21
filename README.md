@@ -95,8 +95,11 @@ set, labelled as such. See the [roadmap](#roadmap).
   reversed; services on tracks reverse their stop order.
 - **Vehicle profiles** per mode (bus, BRT, tram, light rail, metro and train
   categories) with dimensions, performance and compatibility. A line lists only
-  vehicles of its mode. You set the fleet and consist per line, and errors flag a
-  fleet too small for the headway or curves too tight for the vehicle.
+  vehicles of its mode. You set the consist per line; the number of vehicles in
+  service is calculated from the round trip, the headway and the expected peak demand
+  with the vehicle capacity (plus spares), and can be set by hand: with fewer vehicles
+  the line runs less often. Warnings flag a fleet too small, demand above capacity and
+  curves too tight for the vehicle.
 - **Project properties** (File menu or sidebar) show every default in one place with
   its source and status: parameters (track spacing, stop merge distance, minimum
   separation, placeholders for unknown vehicle size, …) with default, range and source,

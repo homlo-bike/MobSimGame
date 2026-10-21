@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { buildLineModel, roundTripS } from '../simulation/engine';
+import { parameterValue } from '../domain/trackParameters';
 import { bbox, lineString } from '@turf/turf';
 import type {
   EndType,
@@ -74,7 +76,13 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
     patch({ servicePatterns: [{ ...pattern, ...p }, ...line.servicePatterns.slice(1)] }, 'Service updated');
   const vehicle = scenario.vehicleTypes.find((v) => v.id === line.vehicleTypeId);
   const vehicleChoices = compatibleVehicles(scenario.vehicleTypes, line.mode);
-  const fleet = usesVehicles(line.mode) ? lineFleet(line, scenario) : null;
+  // Cycle time from one simulated round trip at the design headway (not limited by the fleet).
+  const simulatedCycleMin = useMemo(() => {
+    if (!usesVehicles(line.mode)) return undefined;
+    const m = buildLineModel({ ...line, fleetSize: null }, scenario);
+    return m ? roundTripS(m) / 60 : undefined;
+  }, [line, scenario]);
+  const fleet = usesVehicles(line.mode) ? lineFleet(line, scenario, { cycleMin: simulatedCycleMin }) : null;
   const consistLength = consistLengthM(line, vehicle);
   const onTracks = line.alignment.kind === 'track';
   const notServed = scenario.stations.filter(
@@ -414,8 +422,8 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                 }
               />
               <CommitField
-                label="Vehicles assigned"
-                unit="empty = not set"
+                label="Vehicles in service at the peak"
+                unit={fleet ? `empty = calculated (${fleet.peakRequired})` : 'empty = calculated'}
                 type="number"
                 min={0}
                 max={10000}
@@ -427,20 +435,84 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                     : 'Whole numbers only'
                 }
               />
+              <CommitField
+                label="Expected peak demand"
+                unit="passengers/hour/direction at the busiest point"
+                type="number"
+                min={0}
+                max={200000}
+                step={1}
+                value={line.peakDemandPphpd}
+                onCommit={(v) =>
+                  v === '' || Number(v) >= 0
+                    ? patch({ peakDemandPphpd: v === '' ? null : Number(v) }, 'Expected demand changed')
+                    : 'Zero or more'
+                }
+                hint="Your estimate until the ridership estimate is available; it sizes the fleet with the vehicle capacity."
+              />
             </div>
             {fleet && (
-              <p className="text-sm text-slate-800" data-testid="fleet-summary">
-                Needed: <strong>{fleet.peakRequired}</strong> at peak, {fleet.offPeakRequired} off-peak (cycle
-                ≈ {Math.round(fleet.cycleMin)} min; placeholder speeds).
-                {consistLength !== null && ` Consist length ${consistLength} m.`}
-                {fleet.peakCapacityPphpd !== null &&
-                  ` Peak capacity ${Math.round(fleet.peakCapacityPphpd).toLocaleString()} passengers/hour/direction.`}
+              <div className="text-sm text-slate-800" data-testid="fleet-summary">
+                <p>
+                  Calculated: <strong>{fleet.peakRequired}</strong> vehicle(s) in service at the peak +{' '}
+                  {fleet.spares} spare = {fleet.peakRequired + fleet.spares} ({fleet.offPeakRequired}{' '}
+                  off-peak).
+                  {line.fleetSize !== null && line.fleetSize !== fleet.peakRequired && (
+                    <Button
+                      variant="ghost"
+                      className="ms-1"
+                      onClick={() => patch({ fleetSize: null }, 'Fleet follows the calculation')}
+                    >
+                      Use calculated
+                    </Button>
+                  )}
+                </p>
+                <ul className="list-disc ps-5 text-xs text-slate-700">
+                  <li>
+                    Round trip {Math.round(fleet.cycleMin)} min (
+                    {fleet.cycleSource === 'simulation' ? 'simulated' : 'estimate with placeholder speeds'}
+                    ).
+                  </li>
+                  <li>
+                    Headway {fleet.designHeadwayMin.toFixed(1)} min
+                    {fleet.demandHeadwayMin !== null && fleet.demandHeadwayMin < fleet.policyHeadwayMin
+                      ? ` for the expected demand (timetable ${fleet.policyHeadwayMin} min)`
+                      : ' from the timetable'}
+                    : vehicles = ⌈round trip / headway⌉; spares{' '}
+                    {Math.round(parameterValue(scenario.trackNetwork, 'spareRatio') * 100)}% (project
+                    parameter).
+                  </li>
+                  {fleet.demandHeadwayMin === null && (
+                    <li>Enter the expected peak demand to size the fleet for it.</li>
+                  )}
+                  {line.fleetSize !== null && (
+                    <li>
+                      With {line.fleetSize} vehicle(s) the line runs every{' '}
+                      {fleet.effectiveHeadwayMin.toFixed(1)} min.
+                    </li>
+                  )}
+                  {consistLength !== null && <li>Consist length {consistLength} m.</li>}
+                  {fleet.peakCapacityPphpd !== null && (
+                    <li>
+                      Capacity {Math.round(fleet.peakCapacityPphpd).toLocaleString()}{' '}
+                      passengers/hour/direction
+                      {fleet.loadRatio !== null && ` · expected load ${Math.round(fleet.loadRatio * 100)} %`}.
+                    </li>
+                  )}
+                </ul>
                 {fleet.shortfall > 0 && (
                   <strong className="block text-red-900">
-                    ⛔ {fleet.shortfall} vehicle(s) short of the peak headway.
+                    ⛔ {fleet.shortfall} vehicle(s) short: the line runs every{' '}
+                    {fleet.effectiveHeadwayMin.toFixed(1)} min instead of {fleet.designHeadwayMin.toFixed(1)}.
                   </strong>
                 )}
-              </p>
+                {fleet.loadRatio !== null && fleet.loadRatio > 1 && (
+                  <strong className="block text-amber-900">
+                    ⚠ The expected demand exceeds the capacity offered: more vehicles, longer consists or a
+                    larger vehicle.
+                  </strong>
+                )}
+              </div>
             )}
             <LineEnergy line={line} scenario={scenario} />
           </>

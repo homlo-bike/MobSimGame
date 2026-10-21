@@ -75,6 +75,19 @@ export const TRACK_PARAMETERS = {
     status: 'demonstration',
     source: 'Editor tolerance, not an engineering value.',
   },
+  spareRatio: {
+    id: 'spareRatio',
+    label: 'Spare vehicles, share of the vehicles in peak service (fleet)',
+    unit: '',
+    defaultValue: 0.2,
+    min: 0,
+    max: 0.5,
+    status: 'documented_default',
+    source:
+      'US FTA guideline for bus fleets of 50 or more vehicles: spares should not exceed 20 % of the vehicles in maximum service (FTA Circular 9030.1C, ch. V §9.a.5), as reported in TCRP Synthesis 109 "System-Specific Spare Bus Ratios Update" (2014), doi:10.17226/22409. The circular text itself was not read.',
+    notes:
+      'A ceiling for US bus fleets, used here for every mode as a planning allowance; rail operators usually plan their own reserve. Set the local value.',
+  },
   adhesionCoefficient: {
     id: 'adhesionCoefficient',
     label: 'Wheel–rail adhesion for starting, when a vehicle gives no starting tractive effort (simulation)',
