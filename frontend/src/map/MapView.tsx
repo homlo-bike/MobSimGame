@@ -1133,6 +1133,8 @@ export default function MapView() {
     const map = mapRef.current;
     if (!map || !map.getSource(SRC.segments)) return;
     setVisible(map, 'msg-catchments-fill', layers.catchments);
+    setVisible(map, 'msg-junction-moves-casing', layers.junctionSymbols);
+    setVisible(map, 'msg-junction-moves', layers.junctionSymbols);
     setBasemapSourceLayersVisible(map, ['building'], layers.buildings);
     setBasemapSourceLayersVisible(map, ['landuse', 'landcover', 'park'], layers.parkingLandUse);
     const fictional = project.fictional;
