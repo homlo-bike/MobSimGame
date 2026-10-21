@@ -110,6 +110,10 @@ set, labelled as such. See the [roadmap](#roadmap).
   editable per project; per-mode defaults (cited curve radii, speed, dwell, catchment,
   platform length, and the gauge and electrification new track gets); vehicle profiles;
   crossing priority. Uncited values are marked placeholder.
+- **Depot tracks:** mark a track no service uses as a depot track (track inspector →
+  Use). Trains not needed in service run to the nearest free slot there, wait (also at
+  night) and come back before their next trip. A warning appears when a mode's depot
+  tracks are shorter than all its trains together.
 - **Project settings are the global values.** A line's maximum speed and dwell time, and
   a track's gauge and electrification, follow the project setting of their mode
   (Project properties → Modes) unless you give them their own value: each such field

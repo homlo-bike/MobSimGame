@@ -25,7 +25,8 @@ import { isRing, orderedStops, placedCrossovers } from '../domain/network';
 import { pathCoordinates, snapToPath } from '../geo/geometry';
 import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
-import { returnCoordinates } from '../domain/serviceRouting';
+import { returnCoordinates, stepsCoordinates } from '../domain/serviceRouting';
+import { assignStabling } from '../domain/stabling';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
 import { following, parameterValue, signalOverlapM, type Following } from '../domain/trackParameters';
 import { clearanceDistanceM } from '../domain/clearancePoints';
@@ -202,6 +203,16 @@ export interface LineSimulationModel {
   tripsOf: Map<string, number[]>;
   /** When each vehicle of a service is free again, by service. */
   ready: Map<string, number[]>;
+  /** Depot slot of each vehicle and the empty runs there and back (F6); null = none. */
+  stabling: Map<number, DepotRun> | null;
+}
+
+/** A vehicle's empty runs between the start of its line and its depot slot. */
+export interface DepotRun {
+  out: MeasuredPath;
+  back: MeasuredPath;
+  outS: number;
+  backS: number;
 }
 
 /** Departure time (s) of trip `j`. */
@@ -281,7 +292,7 @@ export interface VehicleState {
   position: LngLat;
   bearingDeg: number;
   direction: 1 | -1;
-  state: 'running' | 'dwelling' | 'layover' | 'waiting' | 'parked';
+  state: 'running' | 'dwelling' | 'layover' | 'waiting' | 'parked' | 'deadhead';
   /** Outline of each unit of the consist (closed rings), to scale; empty when unknown. */
   footprint: LngLat[][];
   /** Height (m) relative to the street: negative underground, positive elevated. */
@@ -674,6 +685,7 @@ function buildModelBody(
     vehicleOf: new Map(),
     tripsOf: new Map(),
     ready: new Map(),
+    stabling: null,
   };
 }
 
@@ -978,6 +990,7 @@ function emptyModel(
     vehicleOf: new Map(),
     tripsOf: new Map(),
     ready: new Map(),
+    stabling: null,
   };
 }
 
@@ -1350,6 +1363,41 @@ export function roundTripS(model: LineSimulationModel): number {
  * A trip departs every headway from the start of each service (also before
  * t = 0, so the line is already populated); a trip is one vehicle's round trip.
  */
+/** A vehicle on its empty run to or from its depot slot, or stabled there. */
+function depotState(
+  model: LineSimulationModel,
+  run: DepotRun,
+  tS: number,
+  endS: number,
+  startS: number,
+  id: string,
+): VehicleState {
+  let path = run.out;
+  let d = run.out.lengthM;
+  let state: VehicleState['state'] = 'parked';
+  if (Number.isFinite(endS) && tS < endS + run.outS) {
+    d = ((tS - endS) / Math.max(run.outS, 1e-9)) * run.out.lengthM;
+    state = 'deadhead';
+  } else if (Number.isFinite(startS) && tS >= startS - run.backS) {
+    path = run.back;
+    d = ((tS - (startS - run.backS)) / Math.max(run.backS, 1e-9)) * run.back.lengthM;
+    state = 'deadhead';
+  }
+  const { position, bearingDeg } = interpolate(path, d);
+  return {
+    id,
+    lineId: model.lineId,
+    color: model.color,
+    chainageM: 0,
+    position,
+    bearingDeg,
+    direction: 1,
+    state,
+    footprint: model.consist ? consistFootprint(path, d, 1, model.consist, false) : [],
+    heightM: 0,
+  };
+}
+
 /** Where a vehicle is `local` seconds into a trip (clamped to the trip's end). */
 function stateOnTrip(
   model: LineSimulationModel,
@@ -1425,11 +1473,32 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
     // Schedule every trip up to now (in global order with the other lines).
     if (last !== null) tripPhases(model, svc, last);
     if (model.fleet > 0) {
+      // Vehicles may leave a depot before their next trip: know the trips just ahead.
+      const look = model.stabling ? Math.max(0, ...[...model.stabling.values()].map((r) => r.backS)) : 0;
+      if (look > 0) {
+        const ahead = lastTripAt(model, tS + look);
+        if (ahead !== null) tripPhases(model, svc, ahead);
+      }
       for (let k = 0; k < model.fleet; k++) {
         const id = `${model.lineId}-${svc.id}-v${k + 1}`;
         const list = model.tripsOf.get(`${svc.id}:${k}`) ?? [];
         let i = list.length - 1;
         while (i >= 0 && departOf(model, list[i]!) > tS) i--;
+        // Out of service long enough to run to its depot slot and back: it stables there.
+        const run = model.stabling?.get(k);
+        if (run) {
+          const endS =
+            i >= 0
+              ? departOf(model, list[i]!) +
+                tripPhases(model, svc, list[i]!).reduce((x, p) => x + p.durationS, 0)
+              : -Infinity;
+          const next = list[i + 1];
+          const startS = next !== undefined ? departOf(model, next) : Infinity;
+          if (tS >= endS && startS - endS >= run.outS + run.backS) {
+            out.push(depotState(model, run, tS, endS, startS, id));
+            continue;
+          }
+        }
         if (i >= 0) {
           let j = list[i]!;
           let phases = tripPhases(model, svc, j);
@@ -1479,6 +1548,31 @@ export function buildScenarioModels(scenario: Scenario, options?: SimulationOpti
   for (const m of models) {
     m.context = context;
     context.add(m);
+  }
+  // Depot tracks (F6): with the service day, vehicles out of service wait in depot slots.
+  if (options?.timetable) {
+    const speedMs = parameterValue(scenario.trackNetwork, 'depotRunSpeedKmh') / 3.6;
+    const byId = new Map(models.map((m) => [m.lineId, m]));
+    const modes = new Set(scenario.lines.filter((l) => l.alignment.kind === 'track').map((l) => l.mode));
+    for (const mode of modes) {
+      const vehicles = new Map(
+        scenario.lines
+          .filter((l) => l.mode === mode && (byId.get(l.id)?.fleet ?? 0) > 0)
+          .map((l) => [l.id, byId.get(l.id)!.fleet]),
+      );
+      const { slots } = assignStabling(scenario, mode, vehicles);
+      for (const [key, slot] of slots) {
+        const [lineId, k] = [key.slice(0, key.lastIndexOf(':')), Number(key.slice(key.lastIndexOf(':') + 1))];
+        const m = byId.get(lineId);
+        const outC = stepsCoordinates(scenario, slot.out);
+        const backC = stepsCoordinates(scenario, slot.back);
+        if (!m || outC.length < 2 || backC.length < 2) continue;
+        const out = measurePath(outC, false);
+        const back = measurePath(backC, false);
+        m.stabling ??= new Map();
+        m.stabling.set(k, { out, back, outS: out.lengthM / speedMs, backS: back.lengthM / speedMs });
+      }
+    }
   }
   return models;
 }

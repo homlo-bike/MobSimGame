@@ -590,6 +590,7 @@ export function createTracks(scenario: Scenario, input: CreateTrackInput): Creat
     speedLimitKmh: null,
     // New track follows the project defaults of its mode (G1).
     inherits: ['gaugeMm', 'electrification'] as PhysicalTrack['inherits'],
+    usage: 'running' as PhysicalTrack['usage'],
     groupId: null as string | null,
     stationId: null as string | null,
     origin: input.origin ?? { source: 'user' as const, ref: null, edited: false },

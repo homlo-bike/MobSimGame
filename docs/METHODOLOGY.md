@@ -208,6 +208,18 @@ first peak. Steady-state analyses (round trip, energy, operations report, GTFS) 
 use a trip every peak headway. Street lines with a leg not yet routed on streets are not
 animated (a vehicle never cuts across on a straight placeholder).
 
+**Depot tracks (F6)**: tracks no service uses can be marked as depot (stabling) tracks
+(track inspector → Use); services are routed around them. Each rail mode needs as much
+depot track as all its consists are long, with the minimum gap (`followingMinGapM`)
+between them (vehicles in service plus spares, R16); with less, a warning asks for more
+track. Each vehicle gets the nearest free slot (shortest path along the tracks from the
+start of its line, slots filled from one end of each depot track). In the service day,
+a vehicle whose next trip is far enough away to run to its slot and back does so, at
+`depotRunSpeedKmh` (25 km/h, a placeholder: shunting speeds are operator rules, e.g. DB
+Ril 408, not public), waits there (at night too) and runs back just before its next
+trip. Vehicles without a slot wait at the line end. Limitation: the empty runs are not
+yet checked against other trains' occupancy.
+
 **Vehicles in service** (rings and two-direction lines): the line runs a fixed fleet,
 N = ⌈cycle / headway⌉ (the cycle is one undisturbed round trip; R16). Vehicle k runs
 every N-th trip; between trips it waits at the start of the service until its next

@@ -396,6 +396,11 @@ export const PhysicalTrackSchema = z.object({
   speedLimitKmh: z.number().positive().nullable().default(null),
   /** Fields that follow the project defaults of the track's mode; the others are its own. */
   inherits: z.array(z.enum(['gaugeMm', 'electrification'])).default([]),
+  /**
+   * running: services may use it; depot: a stabling track where vehicles of the mode wait
+   * out of service (F6); services never route over it.
+   */
+  usage: z.enum(['running', 'depot']).default('running'),
   /** Double track: both tracks share a group. */
   groupId: z.string().nullable().default(null),
   /** The station object this track belongs to (its geometry follows the station). */

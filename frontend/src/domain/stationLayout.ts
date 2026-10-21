@@ -252,6 +252,7 @@ function rebuildStation(scenario: Scenario, stationId: string): Scenario {
       const base: Omit<PhysicalTrack, 'id' | 'fromNodeId' | 'toNodeId' | 'points' | 'radii'> = {
         name: `${st.name} track ${i + 1}`,
         inherits: ['gaugeMm', 'electrification'],
+        usage: 'running',
         direction: 'both',
         structure,
         level,

@@ -256,6 +256,18 @@ export const TRACK_PARAMETERS = {
     source: PLACEHOLDER,
     notes: 'A vehicle occupies a crossing from this distance before it until its rear is this far past it.',
   },
+  depotRunSpeedKmh: {
+    id: 'depotRunSpeedKmh',
+    label: 'Speed of empty runs between a line and its depot tracks (simulation)',
+    unit: 'km/h',
+    defaultValue: 25,
+    min: 5,
+    max: 80,
+    status: 'demonstration',
+    source: PLACEHOLDER,
+    notes:
+      'Shunting speeds are set by operators (in Germany in the DB guideline Ril 408, which is not public; the EBO gives no value). Enter the local value.',
+  },
   unknownVehicleLengthM: {
     id: 'unknownVehicleLengthM',
     label: 'Vehicle length when a line has no vehicle type (simulation)',
