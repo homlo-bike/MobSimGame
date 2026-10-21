@@ -18,7 +18,7 @@
  * Vehicle state is a pure function of simulated time, so rendering frame rate
  * never affects where vehicles are. The map layer only samples `vehicleStates`.
  */
-import type { LngLat, Scenario, TransportLine } from '../domain/schema';
+import type { LngLat, Scenario, ServicePeriod, TransportLine } from '../domain/schema';
 import { findConflicts, modeRank } from './conflicts';
 import { MODE_PRIORITY } from '../domain/modeSeparation';
 import { isRing, orderedStops, placedCrossovers } from '../domain/network';
@@ -29,6 +29,7 @@ import { returnCoordinates } from '../domain/serviceRouting';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
 import { following, parameterValue, signalOverlapM, type Following } from '../domain/trackParameters';
 import { clearanceDistanceM } from '../domain/clearancePoints';
+import { DAY_S, dayDepartures } from '../domain/timetable';
 import { consistCapacity, consistLengthM } from '../domain/vehicles';
 import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type Reservation, type ResourceSpan } from './occupancy';
@@ -94,6 +95,8 @@ export type Phase =
   | {
       kind: 'dwell' | 'layover' | 'hold' | 'signal' | 'occupied';
       durationS: number;
+      /** For 'layover': the vehicle came back late from its previous trip and leaves late. */
+      late?: boolean;
       chainageM: number;
       direction: 1 | -1;
       /** For 'occupied': the resource waited for, and where it is. */
@@ -188,6 +191,51 @@ export interface LineSimulationModel {
    * vehicles circulate and never vanish. 0 = trips are not tied to vehicles.
    */
   fleet: number;
+  /**
+   * Departures of one service day (s after midnight), repeated every day; null = a trip
+   * every headway around the clock (steady-state analyses, tests).
+   */
+  timetable: number[] | null;
+  /** Vehicle (0 … fleet − 1) running each trip, by `${service}:${trip}`. */
+  vehicleOf: Map<string, number>;
+  /** Trips of each vehicle in departure order, by `${service}:${vehicle}`. */
+  tripsOf: Map<string, number[]>;
+  /** When each vehicle of a service is free again, by service. */
+  ready: Map<string, number[]>;
+}
+
+/** Departure time (s) of trip `j`. */
+export function departOf(model: LineSimulationModel, j: number): number {
+  const tt = model.timetable;
+  if (!tt) return j * model.headwayS;
+  if (!tt.length || j < 0) return -Infinity;
+  const day = Math.floor(j / tt.length);
+  return day * DAY_S + tt[j - day * tt.length]!;
+}
+
+/** The last trip departing at or before `tS`, or null when none has departed yet. */
+export function lastTripAt(model: LineSimulationModel, tS: number): number | null {
+  const tt = model.timetable;
+  if (!tt) return Math.floor(tS / model.headwayS);
+  if (!tt.length) return null;
+  /** Last index with tt[k] ≤ x, or -1. */
+  const lastAtOrBefore = (x: number) => {
+    let lo = -1;
+    let hi = tt.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (tt[mid]! <= x) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  };
+  const day = Math.floor(tS / DAY_S);
+  const k = lastAtOrBefore(tS - day * DAY_S);
+  if (k >= 0) return day * tt.length + k;
+  // Before the first departure of the day: the previous day's service (it may run past midnight).
+  if (day < 1) return null;
+  const kp = lastAtOrBefore(tS - (day - 1) * DAY_S);
+  return kp >= 0 ? (day - 1) * tt.length + kp : null;
 }
 
 /** Train physics of a line and the track it runs on, in line chainage. */
@@ -233,7 +281,7 @@ export interface VehicleState {
   position: LngLat;
   bearingDeg: number;
   direction: 1 | -1;
-  state: 'running' | 'dwelling' | 'layover' | 'waiting';
+  state: 'running' | 'dwelling' | 'layover' | 'waiting' | 'parked';
   /** Outline of each unit of the consist (closed rings), to scale; empty when unknown. */
   footprint: LngLat[][];
   /** Height (m) relative to the street: negative underground, positive elevated. */
@@ -261,7 +309,7 @@ export class SimulationContext {
 
   /** First trip index scheduled in order for a model (earlier ones are built standalone). */
   firstIndex(model: LineSimulationModel): number {
-    return Math.floor(this.startS / model.headwayS);
+    return model.timetable ? 0 : Math.floor(this.startS / model.headwayS);
   }
 
   /**
@@ -289,7 +337,7 @@ export class SimulationContext {
         m.services.forEach((svc) => {
           const k = `${m.lineId}:${svc.id}`;
           const j = this.next.get(k) ?? this.firstIndex(m);
-          const t = j * m.headwayS;
+          const t = departOf(m, j);
           const key = t + lv * w;
           if (key <= departS + top * w && (!pick || key < pick.key)) pick = { m, svc, j, t, k, key };
         });
@@ -303,9 +351,35 @@ export class SimulationContext {
         k: string;
       };
       this.ledger.prune(t - top * w);
-      // The vehicle starts only once it is back from its previous trip.
-      const delayS = m.fleet > 0 ? Math.max(0, tripEndS(m, svc, j - m.fleet) - t) : 0;
-      m.cache.set(`${svc.id}:${j}`, buildTrip(m, svc, t, true, delayS));
+      if (!Number.isFinite(t)) {
+        this.next.set(k, j + 1);
+        continue;
+      }
+      let delayS = 0;
+      let vehicle = -1;
+      if (m.fleet > 0) {
+        // Vehicle blocking: of the vehicles free at the departure, the one that came back
+        // last (the others stay out of service while fewer are needed); if none is free,
+        // the first one back, which leaves late.
+        const ready = m.ready.get(svc.id) ?? new Array<number>(m.fleet).fill(-Infinity);
+        m.ready.set(svc.id, ready);
+        let best = -1;
+        for (let v = 0; v < ready.length; v++)
+          if (ready[v]! <= t && (best < 0 || ready[v]! > ready[best]!)) best = v;
+        if (best < 0)
+          for (let v = 0; v < ready.length; v++) if (best < 0 || ready[v]! < ready[best]!) best = v;
+        vehicle = best;
+        delayS = Math.max(0, ready[best]! - t);
+      }
+      const phases = buildTrip(m, svc, t, true, delayS);
+      m.cache.set(`${svc.id}:${j}`, phases);
+      if (vehicle >= 0) {
+        m.ready.get(svc.id)![vehicle] = t + phases.reduce((x, p) => x + p.durationS, 0);
+        m.vehicleOf.set(`${svc.id}:${j}`, vehicle);
+        const list = m.tripsOf.get(`${svc.id}:${vehicle}`) ?? [];
+        list.push(j);
+        m.tripsOf.set(`${svc.id}:${vehicle}`, list);
+      }
       this.next.set(k, j + 1);
     }
   }
@@ -356,6 +430,17 @@ export interface SimulationOptions {
   conflicts?: ReturnType<typeof findConflicts>;
   /** Constant speed between stops, no acceleration or braking (for comparisons and tests). */
   constantSpeed?: boolean;
+  /**
+   * Run the service day: departures from each line's service start to its end, at peak
+   * headways inside these periods and off-peak headways outside them, every day. Without
+   * it, a trip departs every peak headway around the clock (steady-state analyses).
+   */
+  timetable?: { peakPeriods: readonly ServicePeriod[] };
+  /**
+   * Only animate street lines whose every leg follows the street network (or a path the
+   * user drew and accepted): a vehicle never cuts across on a straight placeholder.
+   */
+  routedOnly?: boolean;
 }
 
 export function buildLineModel(
@@ -381,6 +466,15 @@ function buildModel(
     model.consist = consistShape(line, scenario);
     model.ring = isRing(line);
     applyFleetHeadway(model, line, scenario);
+    const pattern = line.servicePatterns[0];
+    if (options.timetable && pattern) {
+      // With fewer vehicles set than the peak needs, no headway is shorter than they allow.
+      model.timetable = dayDepartures(pattern, options.timetable.peakPeriods, {
+        peak: model.headwayS,
+        offPeak: Math.max(pattern.offPeakHeadwayMin * 60, line.fleetSize ? model.headwayS : 0),
+      });
+      model.cache.clear();
+    }
   }
   return model;
 }
@@ -415,8 +509,6 @@ function applyFleetHeadway(model: LineSimulationModel, line: TransportLine, scen
     const cycleS = roundTripS(model);
     model.cache.clear();
     model.fleet = Math.max(1, Math.ceil(cycleS / model.headwayS - 1e-6));
-    // A trip now lasts until the vehicle's next departure.
-    model.maxTripS = Math.max(model.maxTripS, model.fleet * model.headwayS + model.maxTripS / 2);
   }
 }
 
@@ -428,6 +520,17 @@ function buildModelBody(
   const ring = isRing(line);
   const path = measurePath(line.coordinates, ring);
   if (path.lengthM <= 0) return null;
+  if (
+    options.routedOnly &&
+    line.alignment.kind === 'routed' &&
+    line.alignment.legs.some((l) => l.status === 'unrouted')
+  ) {
+    const empty = emptyModel(line, path, 600, () => 0);
+    empty.notes.push(
+      'Not animated: part of the route is not routed on streets yet (vehicles never cut across on a straight placeholder). Route it or accept the drawn legs.',
+    );
+    return empty;
+  }
   const layoverS = options.layoverS ?? 120;
   const ordered = orderedStops(line, scenario.stations);
   const stopAt = new Map(
@@ -567,6 +670,10 @@ function buildModelBody(
     heightProfile: lineHeightProfile(scenario, line),
     physics,
     fleet: 0,
+    timetable: null,
+    vehicleOf: new Map(),
+    tripsOf: new Map(),
+    ready: new Map(),
   };
 }
 
@@ -867,6 +974,10 @@ function emptyModel(
     heightProfile: [],
     physics: null,
     fleet: 0,
+    timetable: null,
+    vehicleOf: new Map(),
+    tripsOf: new Map(),
+    ready: new Map(),
   };
 }
 
@@ -898,23 +1009,14 @@ function buildTrip(
   let t = departS;
   if (delayS > 0) {
     // Late back from its previous trip: the vehicle leaves as soon as it is ready.
-    phases.push({ kind: 'layover', chainageM: svc.startM, direction: 1, durationS: delayS });
+    phases.push({ kind: 'layover', chainageM: svc.startM, direction: 1, durationS: delayS, late: true });
     t += delayS;
   }
   // A section is entered before the stop at its start, so the platform is held while the
   // vehicle stands there.
   const ORDER = { enter: 0, dwell: 1, signal: 2, hold: 3 } as const;
-  /** Leg that ends at the start of the service again (ring, or the way back). */
-  const lastLeg = (dir: 1 | -1) => (svc.pattern === 'ring' ? dir === 1 : dir === -1);
-  /**
-   * Layover at the end of a leg arriving at `arriveS`: the fixed layover at a terminal;
-   * at the start of a service with a fleet, until the vehicle's next departure.
-   */
-  const layoverAfter = (dir: 1 | -1, arriveS: number) => {
-    const min = svc.pattern === 'ring' ? 0 : svc.layoverS;
-    if (!lastLeg(dir) || model.fleet <= 0) return svc.pattern === 'ring' ? 0 : min;
-    return Math.max(min, departS + model.fleet * model.headwayS - arriveS);
-  };
+  /** Fixed layover at the end of a leg (none on a ring: it runs straight on). */
+  const layoverAfter = () => (svc.pattern === 'ring' ? 0 : svc.layoverS);
   const leg = (dir: 1 | -1) => {
     const from = dir === 1 ? svc.startM : svc.endM;
     const to = dir === 1 ? svc.endM : svc.startM;
@@ -1173,10 +1275,7 @@ function buildTrip(
     // The way back starts after the layover (signal and occupancy times depend on it).
     t += svc.layoverS;
     leg(-1);
-    phases.push({ kind: 'layover', chainageM: svc.startM, direction: -1, durationS: layoverAfter(-1, t) });
-  } else if (svc.pattern === 'ring') {
-    // Back at the start: wait there for the next departure of this vehicle.
-    phases.push({ kind: 'layover', chainageM: svc.endM, direction: 1, durationS: layoverAfter(1, t) });
+    phases.push({ kind: 'layover', chainageM: svc.startM, direction: -1, durationS: layoverAfter() });
   } else if (svc.pattern === 'one_way') {
     phases.push({ kind: 'layover', chainageM: svc.endM, direction: 1, durationS: svc.layoverS });
   }
@@ -1229,32 +1328,21 @@ export function tripPhases(model: LineSimulationModel, svc: ServiceModel, j: num
   if (phases) return phases;
   if (j >= model.context.firstIndex(model)) {
     // Scheduled in global order with every other line of the context.
-    model.context.ensure(j * model.headwayS);
+    model.context.ensure(departOf(model, j));
     phases = model.cache.get(key);
   }
   if (!phases) {
-    phases = buildTrip(model, svc, j * model.headwayS);
+    phases = buildTrip(model, svc, departOf(model, j));
     model.cache.set(key, phases);
   }
   return phases;
-}
-
-/** Simulated time at which trip `j` of a service ends (its vehicle is ready again). */
-function tripEndS(model: LineSimulationModel, svc: ServiceModel, j: number): number {
-  return j * model.headwayS + tripPhases(model, svc, j).reduce((s, p) => s + p.durationS, 0);
 }
 
 /** Duration of trip 0 of the first service (a full round trip without signal waits beyond trip 0's). */
 export function roundTripS(model: LineSimulationModel): number {
   const svc = model.services[0];
   if (!svc) return 0;
-  const phases = tripPhases(model, svc, 0);
-  const total = phases.reduce((s, p) => s + p.durationS, 0);
-  // Without the wait for the vehicle's next departure at the start (only the fixed layover).
-  const end = phases[phases.length - 1];
-  if (model.fleet > 0 && end?.kind === 'layover')
-    return total - end.durationS + (svc.pattern === 'ring' ? 0 : svc.layoverS);
-  return total;
+  return tripPhases(model, svc, 0).reduce((s, p) => s + p.durationS, 0);
 }
 
 /**
@@ -1262,80 +1350,119 @@ export function roundTripS(model: LineSimulationModel): number {
  * A trip departs every headway from the start of each service (also before
  * t = 0, so the line is already populated); a trip is one vehicle's round trip.
  */
+/** Where a vehicle is `local` seconds into a trip (clamped to the trip's end). */
+function stateOnTrip(
+  model: LineSimulationModel,
+  phases: readonly Phase[],
+  localIn: number,
+  id: string,
+): VehicleState | null {
+  let local = localIn;
+  const total = phases.reduce((x, p) => x + p.durationS, 0);
+  if (local >= total) local = total - 1e-6;
+  for (const p of phases) {
+    if (local < p.durationS) {
+      let chainageM: number;
+      let state: VehicleState['state'];
+      if (p.kind === 'run') {
+        const f = p.envelope
+          ? envelopeDistance(p.envelope, local) / Math.max(p.envelope.d, 1e-9)
+          : p.profile
+            ? profileDistance(p.profile, local) / Math.max(p.profile.d, 1e-9)
+            : local / p.durationS;
+        chainageM = p.fromM + (p.toM - p.fromM) * Math.min(1, f);
+        state = 'running';
+      } else {
+        chainageM = p.chainageM;
+        state = p.kind === 'dwell' ? 'dwelling' : p.kind === 'layover' ? 'layover' : 'waiting';
+      }
+      const back = p.direction === -1 && model.returnPath;
+      const { position, bearingDeg } = back
+        ? interpolate(model.returnPath!, (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM)
+        : interpolate(model.path, chainageM);
+      const heading = back ? bearingDeg : p.direction === 1 ? bearingDeg : (bearingDeg + 180) % 360;
+      // On the separate return path the vehicle runs forward along that path.
+      const footprint = model.consist
+        ? back
+          ? consistFootprint(
+              model.returnPath!,
+              (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM,
+              1,
+              model.consist,
+              false,
+            )
+          : consistFootprint(model.path, chainageM, p.direction, model.consist, model.ring)
+        : [];
+      return {
+        id,
+        lineId: model.lineId,
+        color: model.color,
+        chainageM,
+        position,
+        bearingDeg: heading,
+        direction: p.direction,
+        state,
+        footprint,
+        heightM: heightAtFraction(model.heightProfile, chainageM / Math.max(model.path.lengthM, 1e-9)),
+      };
+    }
+    local -= p.durationS;
+  }
+  return null;
+}
+
+/**
+ * Where every vehicle of a line is at simulated time `tS` (seconds since midnight of the
+ * first day with a timetable, else since start). With a fleet, every vehicle is always
+ * somewhere: on its latest trip, at the end of it until its next one, or, before its
+ * first trip, out of service at the start of the line. Without a fleet (one-way lines),
+ * every trip that may still run.
+ */
 export function vehicleStates(model: LineSimulationModel, tS: number): VehicleState[] {
   const out: VehicleState[] = [];
-  const h = model.headwayS;
   for (const svc of model.services) {
-    const last = Math.floor(tS / h);
-    // With a fleet, each vehicle's latest trip (it lasts until its next departure, so the
-    // vehicle is always somewhere on the line); otherwise every trip that may still run
-    // (occupancy waits can lengthen trips beyond the undisturbed trip time).
-    const trips =
-      model.fleet > 0
-        ? Array.from({ length: model.fleet }, (_, k) => last - k)
-        : Array.from({ length: last - Math.floor((tS - 3 * model.maxTripS) / h) + 1 }, (_, i) => last - i);
-    for (const j0 of trips) {
-      let j = j0;
-      // Its next trip has not started yet: the vehicle is still on the previous one.
-      if (model.fleet > 0 && tS < tripEndS(model, svc, j - model.fleet)) j -= model.fleet;
-      let local = tS - j * h;
+    const last = lastTripAt(model, tS);
+    // Schedule every trip up to now (in global order with the other lines).
+    if (last !== null) tripPhases(model, svc, last);
+    if (model.fleet > 0) {
+      for (let k = 0; k < model.fleet; k++) {
+        const id = `${model.lineId}-${svc.id}-v${k + 1}`;
+        const list = model.tripsOf.get(`${svc.id}:${k}`) ?? [];
+        let i = list.length - 1;
+        while (i >= 0 && departOf(model, list[i]!) > tS) i--;
+        if (i >= 0) {
+          let j = list[i]!;
+          let phases = tripPhases(model, svc, j);
+          // Late back from its previous trip: still on that one.
+          const lead = phases[0];
+          if (lead?.kind === 'layover' && lead.late && tS - departOf(model, j) < lead.durationS && i > 0) {
+            j = list[i - 1]!;
+            phases = tripPhases(model, svc, j);
+          }
+          const st = stateOnTrip(model, phases, tS - departOf(model, j), id);
+          if (st) out.push(st);
+        } else {
+          // Not out yet today: waiting out of service at the start of the line.
+          const st = stateOnTrip(
+            model,
+            [{ kind: 'layover', chainageM: svc.startM, direction: 1, durationS: 1 }],
+            0,
+            id,
+          );
+          if (st) out.push({ ...st, state: 'parked' });
+        }
+      }
+      continue;
+    }
+    if (last === null) continue;
+    const first = Math.max(lastTripAt(model, tS - 3 * model.maxTripS) ?? 0, model.timetable ? 0 : -Infinity);
+    for (let j = last; j >= first; j--) {
+      const local = tS - departOf(model, j);
       if (local < 0) continue;
       const phases = tripPhases(model, svc, j);
-      // A vehicle late back from its previous trip is still on that one.
-      if (model.fleet > 0) {
-        const total = phases.reduce((x, p) => x + p.durationS, 0);
-        if (local >= total) local = total - 1e-6;
-      }
-      const vehicle = model.fleet > 0 ? `v${(((j % model.fleet) + model.fleet) % model.fleet) + 1}` : `t${j}`;
-      for (const p of phases) {
-        if (local < p.durationS) {
-          let chainageM: number;
-          let state: VehicleState['state'];
-          if (p.kind === 'run') {
-            const f = p.envelope
-              ? envelopeDistance(p.envelope, local) / Math.max(p.envelope.d, 1e-9)
-              : p.profile
-                ? profileDistance(p.profile, local) / Math.max(p.profile.d, 1e-9)
-                : local / p.durationS;
-            chainageM = p.fromM + (p.toM - p.fromM) * Math.min(1, f);
-            state = 'running';
-          } else {
-            chainageM = p.chainageM;
-            state = p.kind === 'dwell' ? 'dwelling' : p.kind === 'layover' ? 'layover' : 'waiting';
-          }
-          const back = p.direction === -1 && model.returnPath;
-          const { position, bearingDeg } = back
-            ? interpolate(model.returnPath!, (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM)
-            : interpolate(model.path, chainageM);
-          const heading = back ? bearingDeg : p.direction === 1 ? bearingDeg : (bearingDeg + 180) % 360;
-          // On the separate return path the vehicle runs forward along that path.
-          const footprint = model.consist
-            ? back
-              ? consistFootprint(
-                  model.returnPath!,
-                  (1 - chainageM / model.path.lengthM) * model.returnPath!.lengthM,
-                  1,
-                  model.consist,
-                  false,
-                )
-              : consistFootprint(model.path, chainageM, p.direction, model.consist, model.ring)
-            : [];
-          out.push({
-            id: `${model.lineId}-${svc.id}-${vehicle}`,
-            lineId: model.lineId,
-            color: model.color,
-            chainageM,
-            position,
-            bearingDeg: heading,
-            direction: p.direction,
-            state,
-            footprint,
-            heightM: heightAtFraction(model.heightProfile, chainageM / Math.max(model.path.lengthM, 1e-9)),
-          });
-          break;
-        }
-        local -= p.durationS;
-      }
+      if (local >= phases.reduce((x, p) => x + p.durationS, 0)) continue;
+      const st = stateOnTrip(model, phases, local, `${model.lineId}-${svc.id}-t${j}`);
+      if (st) out.push(st);
     }
   }
   return out;
@@ -1375,8 +1502,12 @@ export class SimulationClock {
     this.running = false;
     this.lastReal = null;
   }
-  reset() {
-    this.simS = 0;
+  reset(toS = 0) {
+    this.seek(toS);
+  }
+  /** Jump to a simulated time (seconds). */
+  seek(toS: number) {
+    this.simS = Math.max(0, toS);
     this.lastReal = this.running ? this.now() : null;
   }
   setMultiplier(m: number) {

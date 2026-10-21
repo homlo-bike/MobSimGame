@@ -1198,7 +1198,7 @@ export default function MapView() {
       models = buildScenarioModels(scenario, simOptions);
       if (map.getSource(SRC.vehicles)) {
         const t = simulationClock.timeS;
-        const states = t > 0 ? models.flatMap((m) => vehicleStates(m, t)) : [];
+        const states = models.flatMap((m) => vehicleStates(m, t));
         setData(map, SRC.vehicles, states.length ? vehiclesCollection(states) : EMPTY);
         setData(map, SRC.vehicleBodies, states.length ? vehicleBodiesCollection(states) : EMPTY);
       }

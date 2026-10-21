@@ -14,7 +14,7 @@ import { newId, nowIso } from '../util/id';
 import { loadFromLocalStorage } from './persistence';
 import { stationMode } from '../domain/modeSeparation';
 import type { UnitSystem } from '../analysis/units';
-import { simulationClock } from '../simulation/runtime';
+import { simulationClock, simulationStartS } from '../simulation/runtime';
 import { createLogger } from '../util/logger';
 import { DEFAULT_BASEMAP_ID } from '../providers/basemaps';
 
@@ -47,7 +47,7 @@ export type Tool =
 
 /** Options for drawing track (rail modes). */
 /** Tabs of the Project properties dialog. */
-export type PropertiesTab = 'parameters' | 'modes' | 'vehicles' | 'priority';
+export type PropertiesTab = 'parameters' | 'modes' | 'vehicles' | 'priority' | 'service_day';
 
 export interface ServiceDraftStop {
   stationId: string;
@@ -192,6 +192,8 @@ export interface AppState {
   setSimulationRunning: (v: boolean) => void;
   setSimulationMultiplier: (m: number) => void;
   resetSimulation: () => void;
+  /** Jump the simulation to a time (seconds since midnight of day 1). */
+  seekSimulation: (tS: number) => void;
   announce: (msg: string) => void;
   addClosure: (c: Omit<SectionClosure, 'id'>) => void;
   removeClosure: (id: string) => void;
@@ -381,7 +383,11 @@ export const useStore = create<AppState>()((set, get) => {
     setSimulationRunning: (simulationRunning) => set({ simulationRunning }),
     setSimulationMultiplier: (simulationMultiplier) => set({ simulationMultiplier }),
     resetSimulation: () => {
-      simulationClock.reset();
+      simulationClock.reset(simulationStartS(activeScenario(get().project)));
+      set({ simulationEpoch: get().simulationEpoch + 1 });
+    },
+    seekSimulation: (tS) => {
+      simulationClock.seek(tS);
       set({ simulationEpoch: get().simulationEpoch + 1 });
     },
     announce: (announcement) => set({ announcement }),

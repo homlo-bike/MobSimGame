@@ -123,6 +123,16 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Service day in the animation**: lines run from their service start to their end,
+  at peak headways inside the project's peak periods (new tab Project properties →
+  Service day; placeholder defaults 07:00–09:00, 16:00–19:00) and off-peak headways
+  otherwise, with no service at night. The clock shows day and time, starts at the
+  first peak and can jump to a time, the peak, midday or night.
+- **Vehicle blocking**: trips are assigned to the line's vehicles as they depart; off-peak
+  fewer vehicles circulate and the rest stand out of service; a vehicle back late leaves
+  late. No vehicle appears or vanishes.
+- Street lines with a leg not yet routed on streets are no longer animated (no straight
+  shortcuts); the reason is noted on the line.
 - **Trains wait at the clearance point of a junction**: the point where the converging
   tracks are 3.50 m apart, measured on the drawn tracks; metro and commuter trains stop
   a further signal overlap back (0, 50, 100 or 200 m by speed). Sources and status are
