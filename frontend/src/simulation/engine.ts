@@ -29,7 +29,7 @@ import { returnCoordinates } from '../domain/serviceRouting';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
 import { following, parameterValue, type Following } from '../domain/trackParameters';
 import { consistLengthM } from '../domain/vehicles';
-import { trackGeometry } from '../domain/tracks';
+import { nodeEnds, trackGeometry } from '../domain/tracks';
 import { OccupancyLedger, type ResourceSpan } from './occupancy';
 import { consistFootprint, consistShape, type ConsistShape } from './footprint';
 import { heightAtFraction, lineHeightProfile, type HeightProfile } from '../domain/ramps';
@@ -95,6 +95,9 @@ export type Phase =
       durationS: number;
       chainageM: number;
       direction: 1 | -1;
+      /** For 'occupied': the resource waited for, and where it is. */
+      resourceId?: string;
+      resourceLabel?: string;
     }
   | {
       kind: 'run';
@@ -668,8 +671,48 @@ function occupancyInputs(
     }
     return out;
   };
-  const forward = toSpans(line.alignment.path, false);
-  const backward = line.alignment.returnPath?.length ? toSpans(line.alignment.returnPath, true) : [];
+  // Junction, turnout and crossing nodes are zones: one route at a time (R14b).
+  const clearance = parameterValue(net, 'crossingClearanceM');
+  const nodes = new Map(net.nodes.map((n) => [n.id, n]));
+  const zones = (steps: typeof line.alignment.path, reverseMap: boolean): ResourceSpan[] => {
+    const total = stepsLengthM(net, steps);
+    if (total <= 0) return [];
+    const scale = path.lengthM / total;
+    const out: ResourceSpan[] = [];
+    let at = 0;
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i]!;
+      const t = byId.get(st.trackId);
+      if (!t) continue;
+      at += Math.abs(st.to - st.from) * trackGeometry(net, t).lengthM * scale;
+      const nx = steps[i + 1];
+      if (!nx) continue;
+      const exitEnd = st.to >= st.from ? 'end' : 'start';
+      const nodeId = exitEnd === 'end' ? t.toNodeId : t.fromNodeId;
+      const node = nodes.get(nodeId);
+      if (!node || (nodeEnds(net, nodeId).length < 3 && !node.turnout)) continue;
+      const entryEnd = nx.to >= nx.from ? 'start' : 'end';
+      const route = `${st.trackId}:${exitEnd}>${nx.trackId}:${entryEnd}`;
+      // The zone is held from the head reaching it until the tail has cleared it.
+      const a = at - clearance;
+      const b = at + clearance + separation.vehicleLengthM;
+      out.push({
+        fromM: Math.max(0, reverseMap ? path.lengthM - b : a),
+        toM: Math.min(path.lengthM, reverseMap ? path.lengthM - a : b),
+        resourceId: `zone:${nodeId}`,
+        sign: 1,
+        opposing: false,
+        exclusive: true,
+        route,
+        label: nodeId,
+      });
+    }
+    return out;
+  };
+  const forward = [...toSpans(line.alignment.path, false), ...zones(line.alignment.path, false)];
+  const backward = line.alignment.returnPath?.length
+    ? [...toSpans(line.alignment.returnPath, true), ...zones(line.alignment.returnPath, true)]
+    : [];
   return { returnPath, ...separation, spans: { forward, backward } };
 }
 
@@ -744,7 +787,14 @@ function buildTrip(
           chainageM: dir === 1 ? a : b,
           kind: 'enter' as const,
           direction: dir,
-          span: { ...sp, fromM: a, toM: b, sign },
+          // Running the outbound spans backwards takes the opposite route through a zone.
+          span: {
+            ...sp,
+            fromM: a,
+            toM: b,
+            sign,
+            route: sp.route && dir === -1 && !model.spans.backward.length ? `${sp.route}<` : sp.route,
+          },
         };
       });
     const evs = [...dirEvents, ...enters].sort(
@@ -864,6 +914,7 @@ function buildTrip(
           sp.exclusive ? 0 : separationS,
           `${model.lineId}:${svc.id}:${dir}`,
           sp.exclusive ?? false,
+          sp.route,
         );
         let wait = start - t;
         if (wait > 1e-6) {
@@ -872,7 +923,14 @@ function buildTrip(
           wait = Math.max(0, start - t);
         }
         if (wait > 1e-6) {
-          phases.push({ kind: 'occupied', chainageM: pos, direction: dir, durationS: wait });
+          phases.push({
+            kind: 'occupied',
+            chainageM: pos,
+            direction: dir,
+            durationS: wait,
+            resourceId: sp.resourceId,
+            resourceLabel: sp.label,
+          });
           t += wait;
           if (wait > model.headwayS)
             model.context.warnings.add(

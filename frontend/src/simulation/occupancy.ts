@@ -19,6 +19,14 @@ export interface ResourceSpan {
   opposing: boolean;
   /** True for crossings: only one vehicle at a time, whatever its line or direction. */
   exclusive?: boolean;
+  /**
+   * Route through an exclusive zone (a junction node: entry and exit track end). Vehicles
+   * on the same route only keep their separation; any other route waits until the zone
+   * is clear (OSRD's routing requirements).
+   */
+  route?: string;
+  /** Where the resource is, for reports (e.g. a node id). */
+  label?: string;
 }
 
 interface Reservation {
@@ -27,6 +35,7 @@ interface Reservation {
   sign: 1 | -1;
   /** Vehicles of one queue (same line and direction) never overtake each other. */
   queue: string;
+  route?: string;
 }
 
 export class OccupancyLedger {
@@ -45,13 +54,14 @@ export class OccupancyLedger {
     separationS: number,
     queue = '',
     exclusive = false,
+    route?: string,
   ): number {
     const list = this.byResource.get(resourceId) ?? [];
     let s = arriveS;
     for (let guard = 0; guard < 10000; guard++) {
       let moved = false;
       for (const r of list) {
-        if (exclusive) {
+        if (exclusive && !(route && r.route === route)) {
           // A crossing holds one vehicle at a time: wait until the one inside has left.
           if (s < r.exit && s + durationS > r.enter) {
             s = r.exit;
@@ -78,7 +88,7 @@ export class OccupancyLedger {
       }
       if (!moved) break;
     }
-    list.push({ enter: s, exit: s + durationS, sign, queue });
+    list.push({ enter: s, exit: s + durationS, sign, queue, route });
     this.byResource.set(resourceId, list);
     return s;
   }

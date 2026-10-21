@@ -8,6 +8,12 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Junction zones and an operations report (R14b)**: junctions, turnouts and crossings
+  of tracks are held by one train route at a time in the simulation (after OSRD's
+  routing requirements); the Dashboard sums one simulated hour of waits for occupied
+  track per line and place, with links to the map and the capacity warnings. A
+  two-direction service that changes track at an end without a connection is
+  reported; a turnback is now information instead of a warning.
 - **Stops at platforms (R14a)**: while creating a rail service, zoomed in, every
   platform track of a station shows a (+); clicking it adds a stop at that platform
   (also selectable per stop in the panel and the line inspector). Routes are found
