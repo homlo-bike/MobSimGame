@@ -142,6 +142,8 @@ describe('application shell', () => {
     act(() => useStore.getState().setNewLineMode('tram'));
     await user.click(screen.getByRole('button', { name: 'New service' }));
     for (const st of stations) await user.selectOptions(screen.getByLabelText('Add a station'), st.id);
+    // Without crossovers at the ends the service runs back on the other track.
+    await user.selectOptions(screen.getByLabelText('After the last stop'), 'back');
     await user.click(screen.getByRole('button', { name: 'Create service' }));
     const line = useStore.getState().project.scenarios[0]!.lines.at(-1)!;
     expect(line.alignment.kind === 'track' && line.alignment.status).toBe('routed');

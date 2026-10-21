@@ -102,7 +102,7 @@ export function createStopLine(
   });
   const next = updateLine(c.scenario, c.line.id, {
     direction: 'one_way',
-    stops: ids.map((stationId) => ({ stationId })),
+    stops: ids.map((stationId) => ({ stationId, trackId: null })),
   });
   return {
     scenario: next,

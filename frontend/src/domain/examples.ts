@@ -234,7 +234,7 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
         notes: `${line.notes} Track fitted with lines and arcs (largest deviation ${Math.round(fit.maxDeviationM)} m).`,
       };
     }
-    line = { ...line, stops: stops.map((s) => ({ stationId: s.id })) };
+    line = { ...line, stops: stops.map((s) => ({ stationId: s.id, trackId: null })) };
     lines.push(line);
   });
   // Structures (tunnel, viaduct) are not imported: stations follow the mode's default structure.

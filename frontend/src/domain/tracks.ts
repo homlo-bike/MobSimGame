@@ -968,8 +968,16 @@ export function splitTrack(scenario: Scenario, trackId: string, fraction: number
             to: s.reversed ? p.from : p.to,
           }));
       });
+    // A stop on the split track's platform follows the station to the part it stands on.
+    const stops = l.stops.map((stop) => {
+      if (stop.trackId !== t.id) return stop;
+      const st = stations.find((x) => x.id === stop.stationId);
+      const ref = st?.trackRefs.find((r) => r.trackId === a.id || r.trackId === b.id);
+      return ref ? { ...stop, trackId: ref.trackId } : stop;
+    });
     return {
       ...l,
+      stops,
       alignment: {
         ...l.alignment,
         path: splitSteps(l.alignment.path),

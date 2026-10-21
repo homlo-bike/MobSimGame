@@ -223,7 +223,7 @@ export function reorderStops(scenario: Scenario, lineId: string): Scenario {
   const ordered = orderedStops(line, scenario.stations);
   const known = new Set(ordered.map((o) => o.station.id));
   const stops = [
-    ...ordered.map((o) => ({ stationId: o.station.id })),
+    ...ordered.map((o) => ({ stationId: o.station.id, trackId: null })),
     // Stops whose station cannot be projected stay at the end so nothing is silently dropped.
     ...line.stops.filter((s) => !known.has(s.stationId)),
   ];
@@ -286,7 +286,7 @@ export function addStationOnLine(
       };
     }
     const next = reorderStops(
-      updateLine(scenario, lineId, { stops: [...line.stops, { stationId: existing.id }] }),
+      updateLine(scenario, lineId, { stops: [...line.stops, { stationId: existing.id, trackId: null }] }),
       lineId,
     );
     return { scenario: next, station: existing, reused: true, error: null };
@@ -322,7 +322,7 @@ export function addStationOnLine(
   };
   const withStation = touch({ ...scenario, stations: [...scenario.stations, station] });
   const next = reorderStops(
-    updateLine(withStation, lineId, { stops: [...line.stops, { stationId: station.id }] }),
+    updateLine(withStation, lineId, { stops: [...line.stops, { stationId: station.id, trackId: null }] }),
     lineId,
   );
   return { scenario: next, station, reused: false, error: null };
@@ -357,7 +357,10 @@ export function addExistingStationToLine(scenario: Scenario, lineId: string, sta
   const line = scenario.lines.find((l) => l.id === lineId);
   if (!line || line.stops.some((s) => s.stationId === stationId)) return scenario;
   if (!scenario.stations.some((s) => s.id === stationId)) return scenario;
-  return reorderStops(updateLine(scenario, lineId, { stops: [...line.stops, { stationId }] }), lineId);
+  return reorderStops(
+    updateLine(scenario, lineId, { stops: [...line.stops, { stationId, trackId: null }] }),
+    lineId,
+  );
 }
 
 export function removeStopFromLine(scenario: Scenario, lineId: string, stationId: string): Scenario {
@@ -453,7 +456,9 @@ export function splitLine(scenario: Scenario, lineId: string, fraction: number):
     coordinates: a.coordinates,
     alignment: a.alignment,
     segments: normalizeSegments(sliceSegments(line.segments, 0, fraction), line.segments[0]!),
-    stops: stops.filter((s) => s.fraction <= fraction).map((s) => ({ stationId: s.station.id })),
+    stops: stops
+      .filter((s) => s.fraction <= fraction)
+      .map((s) => ({ stationId: s.station.id, trackId: null })),
     termination: {
       kind: 'ends',
       start: line.termination.kind === 'ends' ? line.termination.start : 'terminal_station',
@@ -472,7 +477,9 @@ export function splitLine(scenario: Scenario, lineId: string, fraction: number):
       sliceSegments(line.segments, fraction, 1),
       line.segments[line.segments.length - 1]!,
     ),
-    stops: stops.filter((s) => s.fraction >= fraction).map((s) => ({ stationId: s.station.id })),
+    stops: stops
+      .filter((s) => s.fraction >= fraction)
+      .map((s) => ({ stationId: s.station.id, trackId: null })),
     termination: {
       kind: 'ends',
       start: 'terminal_station',

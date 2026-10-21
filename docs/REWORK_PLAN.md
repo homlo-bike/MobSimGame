@@ -34,7 +34,7 @@ with each one.
 | R4c | Automatic same-level crossings and merges between any lines (also the same mode) with priority; lower priority waits; buses on a shared street keep their distance | merged (#19; per-crossing priority overrides follow with the project properties page) |
 | R4d | Walking links between stations of different modes | merged (#20; shown in the schematic and text view with R11) |
 | R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | merged (#21, #23: trolleybus wire follows the lines; warning where it crosses rail overhead line) |
-| R5 | Turnouts and smooth junctions to VDV/BOStrab | this PR (turnouts, diamonds and slips at nodes with Deutsche Bahn standard designs or own values; VDV/BOStrab texts not readable, tram and metro values are user input; crossover objects follow) |
+| R5 | Turnouts and smooth junctions to VDV/BOStrab | merged (#36: turnouts, diamonds and slips at nodes with Deutsche Bahn standard designs or own values; VDV/BOStrab texts not readable, tram and metro values are user input; crossover objects follow) |
 | R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | merged (#28: ramps from level heights, gradient and station checks, portals; terrain follows) |
 | R7 | Trains drawn to scale (length, width, units per consist) | merged (#24) |
 | R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | merged (#33) |
@@ -43,7 +43,7 @@ with each one.
 | R11 | Schematic: select, move, pan and zoom; text alternative as the line with its stations and their symbols | planned |
 | R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status | merged (#25) |
 | R13 | Realistic vehicle movement from SUMO's **published models, not its code** (owner decision): acceleration and braking from the vehicle profiles, then car following (Intelligent Driver Model / Krauss, cited); parameters in Project properties; per-crossing priority overrides | merged (#26 acceleration and braking, #27 following); per-crossing overrides not needed (owner) |
-| R14a | Rail services stop at **platforms**: (+) on a station track while creating a service, stops list station and track, routes found between platforms, the service returns to its first stop, an error names each pair without a route | planned |
+| R14a | Rail services stop at **platforms**: (+) on a station track while creating a service, stops list station and track, routes found between platforms, the service returns to its first stop, an error names each pair without a route | this PR |
 | R14b | Blocks and route reservation in the simulation (OSRD spacing and routing requirements, blocking-time method): no two trains in one block, track changes only through turnouts, conflict and deadlock findings | planned |
 | R15a | Running time from **train physics** (methods of OSRD and NeTrainSim, no code): traction, running resistance, gradient and curves; envelopes with braking curves | merged (#34) |
 | R15b | Energy estimate per run (NeTrainSim method: traction energy, regenerative braking, efficiencies), estimated under the selected assumptions | merged (#35) |
