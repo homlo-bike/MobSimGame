@@ -378,6 +378,11 @@ export function LayerPanel() {
         checked={layers.catchments}
         onChange={() => toggle('catchments')}
       />
+      <Checkbox
+        label="Junction symbols (permitted ways through, from zoom 15)"
+        checked={layers.junctionSymbols}
+        onChange={() => toggle('junctionSymbols')}
+      />
       <fieldset className="mt-2">
         <legend className="text-xs font-medium text-slate-800">Validation markers on the map</legend>
         {SEVERITY_ORDER.map((sev) => (

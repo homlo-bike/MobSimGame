@@ -86,6 +86,8 @@ export interface LayerToggles {
   traffic: boolean;
   parkingLandUse: boolean;
   catchments: boolean;
+  /** Permitted-movement diagrams beside track junctions. */
+  junctionSymbols: boolean;
 }
 
 export type View = 'map' | 'schematic' | 'dashboard' | 'table';
@@ -270,6 +272,7 @@ export const useStore = create<AppState>()((set, get) => {
       traffic: false,
       parkingLandUse: true,
       catchments: false,
+      junctionSymbols: true,
     },
     view: 'map',
     unitSystem: 'metric',

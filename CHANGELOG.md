@@ -129,7 +129,9 @@ All notable changes are documented here. The format follows
   box in the line and track inspectors). Changing a project setting updates everything
   that follows it. Lines and tracks from earlier projects keep their values as their own.
 - **Junction symbols**: zoomed in (from zoom 15), every junction shows a small curve for
-  each permitted way through it (a small violet diagram at the node). Track direction
+  each permitted way through it (a small diagram beside the node, in the widest gap
+  between its tracks: a grey arm per track, a violet curve per permitted way). They can
+  be switched off in Map layers ("Junction symbols"). Track direction
   arrows appear only near the two ends
   of each track instead of along its whole length.
 - **Service day in the animation**: lines run from their service start to their end,

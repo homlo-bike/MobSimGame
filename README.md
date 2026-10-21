@@ -51,8 +51,9 @@ set, labelled as such. See the [roadmap](#roadmap).
     ([docs/TURNOUTS_AND_CROSSINGS.md](docs/TURNOUTS_AND_CROSSINGS.md)).
   - **Joining:** ending a new track on another track creates a junction. A drawn
     loop closes tangentially.
-  - **Reading the map:** zoomed in, every junction shows a small curve for each way
-    through it that is allowed (no curve: not allowed). A track's running direction
+  - **Reading the map:** zoomed in, every junction has a small diagram beside it: a
+    grey arm per track and a violet curve for each way through that is allowed (no curve:
+    not allowed). A track's running direction
     is shown by arrows near its two ends only (one arrow each way on two-way track).
   - **Editing:** drag a track end and every connected track follows. Split a track
     at a chainage. Deleting a track that services use asks whether to reroute,
