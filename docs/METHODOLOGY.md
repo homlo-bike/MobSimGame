@@ -275,6 +275,45 @@ code is used): `x = v₀t + ½at²`; the peak speed of a section of length `d` i
   class is used. SUMO describes these as comfortable service values, not the maximum
   a vehicle can reach.
 
+### Running time from train physics
+
+When a line's vehicle profile gives **mass in service** and **traction power at the
+wheel**, each run is computed from the forces on the train instead of constant rates.
+The methods are taken from two published descriptions and written here from them; no
+code of either project is used.
+
+- **Equation of motion** (OSRD documentation, "Running time calculation: physical
+  modelling", Open Rail Association, osrd.fr/en/docs/explanation/running_time_calculation/,
+  read 21 October 2026): `a(v, x) = [F(v) − R(v) − m·g·i(x)] / m`, with the Davis running
+  resistance `R(v) = A + B·v + C·v²` and the equivalent gradient `i(x) = s(x) + 800 / r(x)`
+  (per mille; `s` the line gradient from the levels and ramps, `r` the curve radius in
+  metres from the track geometry).
+- **Tractive force** (Aredah, Fadhloun & Rakha 2024, "NeTrainSim: a network-level
+  simulator for modeling freight train longitudinal motion and energy consumption",
+  Railway Engineering Science 32(4):480–498, doi:10.1007/s40534-024-00331-x, CC BY 4.0,
+  Eq. 4): `F(v) = min(P / v, F_max)`, power-limited at speed. `F_max` is the vehicle's
+  starting tractive effort; where it is not given, the adhesion limit `μ·m·g` with the
+  project parameter μ (default 0.4, the value of NeTrainSim's validation scenarios on dry
+  rail; applied to the whole mass, which overstates the starting force of vehicles with
+  unpowered axles).
+- **Envelopes** (OSRD, "Running time calculation: pipeline" and "envelopes system"): the
+  most restrictive speed profile from the line, segment and vehicle speed limits, held
+  until the tail of the train has left a slower section; braking curves built backwards
+  at the constant service deceleration (OSRD's "hourly" braking) from every stop and every
+  lower limit ahead; the acceleration curve integrated forwards (fourth-order Runge-Kutta
+  over distance, steps of about 5 m, also over constant-speed parts so that a train slows
+  on steep upgrades); the lowest curve applies. Time over each step assumes constant
+  acceleration within it: `Δt = 2·Δx / (v_i + v_{i+1})`.
+- The vehicle profile's acceleration, if given, caps the acceleration (comfort limit).
+- On dedicated track the speed limit applies as it is; on streets (mixed traffic or a
+  dedicated lane) the right-of-way factor still stands in for traffic.
+- A train that cannot hold its speed on an upgrade crawls at 0.5 m/s and the
+  simulation reports it.
+- Not modelled: discrete throttle notches, jerk limits and exponential smoothing
+  (NeTrainSim), allowances and economical driving (OSRD's linear and MARECO
+  allowances), and the gradient's effect on braking.
+- Without mass or power, the constant-rate model below applies.
+
 ### Following the vehicle ahead
 
 - Buses, BRT, trolleybuses, trams and light rail drive **on sight**: they keep the

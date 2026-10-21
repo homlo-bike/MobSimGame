@@ -33,16 +33,23 @@ with each one.
 | R4a | Mode tabs, strict separation, trolleybus mode | merged (#18) |
 | R4c | Automatic same-level crossings and merges between any lines (also the same mode) with priority; lower priority waits; buses on a shared street keep their distance | merged (#19; per-crossing priority overrides follow with the project properties page) |
 | R4d | Walking links between stations of different modes | merged (#20; shown in the schematic and text view with R11) |
-| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | stop-by-stop lines merged (#21); trolleybus wire (follows the lines) and rail overhead-line crossing warning: this PR |
+| R4b | Bus, BRT and trolleybus lines by clicking stops in order (one direction, kerb side matters), routed between them, Esc or right-click finishes and the route returns to the first stop; trolleybus wire network | merged (#21, #23: trolleybus wire follows the lines; warning where it crosses rail overhead line) |
 | R5 | Turnouts and smooth junctions to VDV/BOStrab | planned |
-| R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | this PR (ramps from level heights, gradient and station checks, portals; terrain follows) |
-| R7 | Trains drawn to scale (length, width, units per consist) | this PR (vehicles at scale from zoom 15.5; waiting shown by outline) |
-| R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | this PR |
-| R9 | `.env` examples for development, test and production (including `MOBSIM_VALHALLA_URL=http://valhalla:8002`); full export with every calculated value and all metadata; **GTFS export** and **SUMO network/route export** (owner decision: interoperate with SUMO through files, no extra container); later optional import of SUMO vehicle output for playback | environment files and full export: this PR; GTFS and SUMO export follow |
+| R6 | Ramps between underground, street level and elevated: length from the gradient and the terrain | merged (#28: ramps from level heights, gradient and station checks, portals; terrain follows) |
+| R7 | Trains drawn to scale (length, width, units per consist) | merged (#24) |
+| R8 | Station naming from map labels; elevator, escalator and ramp symbols next to station names | merged (#33) |
+| R9 | `.env` examples for development, test and production (including `MOBSIM_VALHALLA_URL=http://valhalla:8002`); full export with every calculated value and all metadata; **GTFS export** and **SUMO network/route export** (owner decision: interoperate with SUMO through files, no extra container); later optional import of SUMO vehicle output for playback | merged (#31 environment files and full export; #32 GTFS and SUMO export) |
 | R10 | Read-only demo viewer (Cloudflare Pages) | planned |
 | R11 | Schematic: select, move, pan and zoom; text alternative as the line with its stations and their symbols | planned |
-| R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status | this PR (Parameters, Modes with gauge and electrification of new track, Vehicles, Crossing priority) |
-| R13 | Realistic vehicle movement from SUMO's **published models, not its code** (owner decision): acceleration and braking from the vehicle profiles, then car following (Intelligent Driver Model / Krauss, cited); parameters in Project properties; per-crossing priority overrides | planned |
+| R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status | merged (#25) |
+| R13 | Realistic vehicle movement from SUMO's **published models, not its code** (owner decision): acceleration and braking from the vehicle profiles, then car following (Intelligent Driver Model / Krauss, cited); parameters in Project properties; per-crossing priority overrides | merged (#26 acceleration and braking, #27 following); per-crossing overrides not needed (owner) |
+| R14a | Rail services stop at **platforms**: (+) on a station track while creating a service, stops list station and track, routes found between platforms, the service returns to its first stop, an error names each pair without a route | planned |
+| R14b | Blocks and route reservation in the simulation (OSRD spacing and routing requirements, blocking-time method): no two trains in one block, track changes only through turnouts, conflict and deadlock findings | planned |
+| R15a | Running time from **train physics** (methods of OSRD and NeTrainSim, no code): traction, running resistance, gradient and curves; envelopes with braking curves | this PR |
+| R15b | Energy estimate per run (NeTrainSim method: traction energy, regenerative braking, efficiencies), estimated under the selected assumptions | planned |
+
+Order (owner, 2026-10-21): R15a, R15b, then R5 turnouts, R14a, R14b, R11, R10, then app
+settings with OIDC, then the desktop apps.
 
 Order after R4b (owner, 2026-10-20): stop merge distance setting, R4b wire, **R7 next**,
 then R12 project properties, R13 vehicle movement, R9 environment files and export (GTFS, SUMO), then R8, R5, R6, R11, R10.

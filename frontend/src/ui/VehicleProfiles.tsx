@@ -187,6 +187,56 @@ function ProfileEditor({ v }: { v: VehicleType }) {
           onCommit={(n) => patch({ maxGradePercent: n })}
         />
       </div>
+      <fieldset className="mb-2 rounded border border-slate-300 p-2">
+        <legend className="px-1 text-xs font-medium">Running physics (optional, one unit)</legend>
+        <p className="mb-1 text-xs text-slate-700">
+          {v.massT && v.tractionPowerKw
+            ? 'Running times come from the forces on the train: traction, running resistance, gradient and curves (methods of OSRD and NeTrainSim).'
+            : 'With mass and traction power, running times come from the forces on the train instead of constant rates. Use the manufacturer’s data.'}
+        </p>
+        <div className="grid grid-cols-2 gap-x-2">
+          <NumberField
+            label="Mass in service"
+            unit="t"
+            value={v.massT}
+            onCommit={(n) => patch({ massT: n })}
+          />
+          <NumberField
+            label="Traction power at the wheel"
+            unit="kW"
+            value={v.tractionPowerKw}
+            onCommit={(n) => patch({ tractionPowerKw: n })}
+          />
+          <NumberField
+            label="Starting tractive effort"
+            unit="kN"
+            value={v.startingTractiveEffortKn}
+            onCommit={(n) => patch({ startingTractiveEffortKn: n })}
+          />
+          <NumberField
+            label="Running resistance A"
+            unit="kN"
+            value={v.davisAKn}
+            onCommit={(n) => patch({ davisAKn: n })}
+          />
+          <NumberField
+            label="Running resistance B"
+            unit="kN per m/s"
+            value={v.davisBKnPerMs}
+            onCommit={(n) => patch({ davisBKnPerMs: n })}
+          />
+          <NumberField
+            label="Running resistance C"
+            unit="kN per (m/s)²"
+            value={v.davisCKnPerMs2}
+            onCommit={(n) => patch({ davisCKnPerMs2: n })}
+          />
+        </div>
+        <p className="text-xs text-slate-700">
+          Running resistance R = A + B·v + C·v² (Davis). Without a starting tractive effort the adhesion limit
+          from Project properties applies.
+        </p>
+      </fieldset>
       <SelectField
         label="Energy"
         value={v.energy}

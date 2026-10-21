@@ -75,6 +75,19 @@ export const TRACK_PARAMETERS = {
     status: 'demonstration',
     source: 'Editor tolerance, not an engineering value.',
   },
+  adhesionCoefficient: {
+    id: 'adhesionCoefficient',
+    label: 'Wheel–rail adhesion for starting, when a vehicle gives no starting tractive effort (simulation)',
+    unit: '',
+    defaultValue: 0.4,
+    min: 0.05,
+    max: 0.5,
+    status: 'documented_default',
+    source:
+      'Aredah, Fadhloun and Rakha (2024), NeTrainSim, Railway Engineering Science 32(4), Table 2: coefficient of friction 0.4 in both validation scenarios (CC BY 4.0).',
+    notes:
+      'Value of freight-train scenarios on dry rail, applied to the whole vehicle mass (every axle driven). It overstates the starting force of vehicles with unpowered axles; enter the starting tractive effort in the vehicle profile instead.',
+  },
   followingTimeGapS: {
     id: 'followingTimeGapS',
     label: 'Time gap to the vehicle ahead, buses and trams driving on sight (simulation)',

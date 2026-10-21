@@ -41,6 +41,10 @@ import {
   stopLossS,
   type Profile,
 } from './kinematics';
+import { envelopeDistance, equivalentGradientPerMille, linePhysics, runEnvelope } from './trainPhysics';
+import type { Envelope, TrainPhysics } from './trainPhysics';
+import { lineCurveProfile, radiusAtFraction } from '../domain/lineCurvature';
+import { physicsSpeedKmh } from './speeds';
 
 const R = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -99,6 +103,8 @@ export type Phase =
       direction: 1 | -1;
       /** Speed profile (acceleration, cruise, braking); without it the speed is constant. */
       profile?: Profile;
+      /** Speed over the run from train physics (takes precedence over `profile`). */
+      envelope?: Envelope;
     };
 
 /** Something a vehicle waits for at a chainage, in one or both directions. */
@@ -169,6 +175,43 @@ export interface LineSimulationModel {
   rates: { accelMs2: number; decelMs2: number } | null;
   /** Height of the line (m, relative to the street) along its length, for drawing vehicles underground. */
   heightProfile: HeightProfile;
+  /** Running time from train physics (R15a); null = constant rates. */
+  physics: LinePhysicsModel | null;
+}
+
+/** Train physics of a line and the track it runs on, in line chainage. */
+export interface LinePhysicsModel {
+  train: TrainPhysics;
+  /** Length of the consist (m). */
+  lengthM: number;
+  /** Speed limit at a chainage (m/s). */
+  limitAt: (m: number) => number;
+  /** Equivalent gradient (per mille) at a chainage, uphill positive in the line's direction. */
+  gradientAt: (m: number) => number;
+  notes: string[];
+  /** Memoised envelopes per run. */
+  cache: Map<string, Envelope>;
+}
+
+/** Envelope of a run from `fromM` to `toM` (line chainage) starting at `v0`, ending at most at `v1`. */
+function physicsRun(ph: LinePhysicsModel, fromM: number, toM: number, v0: number, v1: number): Envelope {
+  const key = `${fromM.toFixed(2)}|${toM.toFixed(2)}|${v0.toFixed(3)}|${v1.toFixed(3)}`;
+  const hit = ph.cache.get(key);
+  if (hit) return hit;
+  const dir = toM >= fromM ? 1 : -1;
+  const env = runEnvelope(
+    ph.train,
+    {
+      lengthM: Math.abs(toM - fromM),
+      limitAt: (x) => ph.limitAt(fromM + dir * x),
+      gradientAt: (x) => dir * ph.gradientAt(fromM + dir * x),
+    },
+    v0,
+    v1,
+    ph.lengthM,
+  );
+  ph.cache.set(key, env);
+  return env;
 }
 
 export interface VehicleState {
@@ -438,8 +481,14 @@ function buildModelBody(
   const stopsUpper =
     (events.length + extras.spans.forward.length + extras.spans.backward.length + 2) *
     stopLossS(line.maxSpeedKmh / 3.6, rates.accelMs2, rates.decelMs2);
+  const physics = options.constantSpeed ? null : physicsModel(line, scenario, path.lengthM);
+  // Physics can be slower than the placeholder speeds (upgrades, low power): bound by both.
+  const fullRunS = Math.max(
+    speedAt(0, longest),
+    physics ? physicsRun(physics, 0, longest, 0, 0).durationS : 0,
+  );
   const maxTripS =
-    2 * (speedAt(0, longest) + layoverS) +
+    2 * (fullRunS + layoverS) +
     2 * events.reduce((t, e) => t + (e.durationS ?? 0), 0) +
     2 * signalCount * maxSignalWait +
     2 * stopsUpper +
@@ -462,6 +511,51 @@ function buildModelBody(
     ring,
     rates: options.constantSpeed ? null : lineRates(line, scenario),
     heightProfile: lineHeightProfile(scenario, line),
+    physics,
+  };
+}
+
+/** Train physics for a line whose vehicle profile gives mass and traction power. */
+export function physicsModel(
+  line: TransportLine,
+  scenario: Scenario,
+  lengthM: number,
+): LinePhysicsModel | null {
+  const lp = linePhysics(line, scenario);
+  if (!lp) return null;
+  const vehicle = scenario.vehicleTypes.find((x) => x.id === line.vehicleTypeId);
+  const segs = [...line.segments].sort((a, b) => a.fromFraction - b.fromFraction);
+  const heights = lineHeightProfile(scenario, line);
+  const curves = lineCurveProfile(scenario, line);
+  const L = Math.max(lengthM, 1e-9);
+  const limitAt = (m: number) => {
+    const f = Math.min(1, Math.max(0, m / L));
+    const seg = segs.find((x) => f >= x.fromFraction && f <= x.toFraction) ?? segs[segs.length - 1];
+    const kmh = seg
+      ? physicsSpeedKmh(line, seg, vehicle?.maxSpeedKmh)
+      : Math.min(line.maxSpeedKmh, vehicle?.maxSpeedKmh ?? Infinity);
+    return kmh / 3.6;
+  };
+  const gradientAt = (m: number) => {
+    const f = Math.min(1, Math.max(0, m / L));
+    let perMille = 0;
+    for (let i = 1; i < heights.length; i++) {
+      const a = heights[i - 1]!;
+      const b = heights[i]!;
+      if (f >= a.fraction && f <= b.fraction && b.fraction > a.fraction) {
+        perMille = ((b.heightM - a.heightM) / ((b.fraction - a.fraction) * L)) * 1000;
+        break;
+      }
+    }
+    return equivalentGradientPerMille(perMille, radiusAtFraction(curves, f));
+  };
+  return {
+    train: lp.physics,
+    lengthM: consistLengthM(line, vehicle) ?? 0,
+    limitAt,
+    gradientAt,
+    notes: lp.notes,
+    cache: new Map(),
   };
 }
 
@@ -597,6 +691,7 @@ function emptyModel(
     ring: false,
     rates: null,
     heightProfile: [],
+    physics: null,
   };
 }
 
@@ -661,7 +756,24 @@ function buildTrip(
       const cruiseS = model.speedAt(pos, target);
       const d = Math.abs(target - pos);
       const rates = model.rates;
-      if (!rates || cruiseS <= 0 || d <= 0) {
+      const ph = model.physics;
+      if (ph && rates && d > 0) {
+        const env = physicsRun(ph, pos, target, speed, stop ? 0 : aheadCap(ph, target, rates.decelMs2));
+        if (env.stalled)
+          model.context.warnings.add(
+            `${model.lineId}: the train cannot hold its speed on an upgrade and crawls; check power, mass and gradient.`,
+          );
+        phases.push({
+          kind: 'run',
+          fromM: pos,
+          toM: target,
+          direction: dir,
+          durationS: env.durationS,
+          envelope: env,
+        });
+        t += env.durationS;
+        speed = env.v1;
+      } else if (!rates || cruiseS <= 0 || d <= 0) {
         phases.push({ kind: 'run', fromM: pos, toM: target, direction: dir, durationS: cruiseS });
         t += cruiseS;
         speed = 0;
@@ -676,9 +788,28 @@ function buildTrip(
       }
       pos = target;
     };
+    /**
+     * Highest speed at `target` from which every speed limit ahead, and the next certain
+     * stop, can still be met with service braking.
+     */
+    const aheadCap = (ph: LinePhysicsModel, target: number, b: number) => {
+      const stopAt = nextStopFrom(target);
+      const span = Math.min(stopAt, 3000);
+      let cap = Number.isFinite(stopAt) ? Math.sqrt(2 * b * stopAt) : Infinity;
+      for (let x = 0; x <= span; x += 10)
+        cap = Math.min(cap, Math.sqrt(ph.limitAt(target + dir * x) ** 2 + 2 * b * x));
+      return cap;
+    };
     /** The vehicle has to stop where it is: re-time the run just before to brake into it. */
     const brakeHere = () => {
       const last = phases[phases.length - 1];
+      if (speed > 0 && last?.kind === 'run' && last.envelope && model.physics) {
+        const env = physicsRun(model.physics, last.fromM, last.toM, last.envelope.v0, 0);
+        t += env.durationS - last.durationS;
+        phases[phases.length - 1] = { ...last, durationS: env.durationS, envelope: env };
+        speed = 0;
+        return;
+      }
       if (speed <= 0 || !last || last.kind !== 'run' || !last.profile || !model.rates) {
         speed = 0;
         return;
@@ -813,9 +944,11 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
           let chainageM: number;
           let state: VehicleState['state'];
           if (p.kind === 'run') {
-            const f = p.profile
-              ? profileDistance(p.profile, local) / Math.max(p.profile.d, 1e-9)
-              : local / p.durationS;
+            const f = p.envelope
+              ? envelopeDistance(p.envelope, local) / Math.max(p.envelope.d, 1e-9)
+              : p.profile
+                ? profileDistance(p.profile, local) / Math.max(p.profile.d, 1e-9)
+                : local / p.durationS;
             chainageM = p.fromM + (p.toM - p.fromM) * Math.min(1, f);
             state = 'running';
           } else {

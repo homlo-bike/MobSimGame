@@ -211,6 +211,20 @@ export const VehicleTypeSchema = z.object({
   unitsPerConsist: z.number().int().positive().default(1),
   accelerationMs2: z.number().positive().nullable().default(null),
   serviceBrakingMs2: z.number().positive().nullable().default(null),
+  /**
+   * Running physics of one unit (R15a), all optional. With mass and traction power the
+   * running time comes from the forces on the train; otherwise from constant rates.
+   * Mass in service (t), including the planning passenger load.
+   */
+  massT: z.number().positive().nullable().default(null),
+  /** Traction power at the wheel (kW). */
+  tractionPowerKw: z.number().positive().nullable().default(null),
+  /** Starting tractive effort (kN); without it the adhesion limit applies. */
+  startingTractiveEffortKn: z.number().positive().nullable().default(null),
+  /** Davis running resistance R = A + B·v + C·v² of one unit: A (kN), B (kN per m/s), C (kN per (m/s)²). */
+  davisAKn: z.number().nonnegative().nullable().default(null),
+  davisBKnPerMs: z.number().nonnegative().nullable().default(null),
+  davisCKnPerMs2: z.number().nonnegative().nullable().default(null),
   /** Smallest curve radius the vehicle can run through, metres (from the manufacturer). */
   minRadiusM: z.number().positive().nullable().default(null),
   maxGradePercent: z.number().positive().nullable().default(null),
