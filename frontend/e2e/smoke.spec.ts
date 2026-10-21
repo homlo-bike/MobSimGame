@@ -230,7 +230,7 @@ test('animation, closures, schematic and exports work', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Schematic' }).click();
   await expect(page.getByRole('img', { name: /Schematic network map/ })).toBeVisible();
-  await expect(page.getByText(/Text alternative/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Text view' })).toBeVisible();
 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'File', exact: true }).click();

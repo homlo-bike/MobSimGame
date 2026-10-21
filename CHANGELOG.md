@@ -8,6 +8,11 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Schematic (R11)**: stations can be selected (click or Enter) and dragged (snapped
+  to half grid steps) besides the arrow keys; the view pans and zooms (wheel, drag, + −,
+  Fit) and exports always show the whole map; walking links appear as dashed connectors
+  with walking time and stations show access symbols; the text view lists each line's
+  stations with the lines to change to, walks to other modes and access facilities.
 - **Junction zones and an operations report (R14b)**: junctions, turnouts and crossings
   of tracks are held by one train route at a time in the simulation (after OSRD's
   routing requirements); the Dashboard sums one simulated hour of waits for occupied
