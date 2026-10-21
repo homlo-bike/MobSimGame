@@ -22,3 +22,16 @@ export function segmentSpeedKmh(line: TransportLine, segment: TrackSegment, vehi
   if (vehicleMaxKmh) caps.push(vehicleMaxKmh);
   return Math.max(1, Math.min(...caps) * RIGHT_OF_WAY_SPEED_FACTOR[segment.rightOfWay]);
 }
+
+/**
+ * Speed limit for the running-time calculation from train physics (R15a): acceleration and
+ * braking are modelled, so on dedicated track the limit itself applies; on streets the
+ * right-of-way factor still stands in for traffic.
+ */
+export function physicsSpeedKmh(line: TransportLine, segment: TrackSegment, vehicleMaxKmh?: number): number {
+  const caps = [line.maxSpeedKmh];
+  if (segment.speedLimitKmh) caps.push(segment.speedLimitKmh);
+  if (vehicleMaxKmh) caps.push(vehicleMaxKmh);
+  const factor = segment.rightOfWay === 'dedicated_track' ? 1 : RIGHT_OF_WAY_SPEED_FACTOR[segment.rightOfWay];
+  return Math.max(1, Math.min(...caps) * factor);
+}

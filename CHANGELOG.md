@@ -8,6 +8,14 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Running time from train physics**: vehicle profiles can give mass, traction power,
+  starting tractive effort and Davis running resistance. Runs are then computed from the
+  forces on the train (power- and adhesion-limited traction, running resistance,
+  gradient from levels and ramps, curve resistance from the track radii), with OSRD's
+  envelope method (speed limits held over the train length, braking curves backwards,
+  acceleration integrated forwards). Methods of OSRD and NeTrainSim, cited in
+  docs/METHODOLOGY.md; no code of either project is used. New project parameter:
+  adhesion for starting (0.4, NeTrainSim).
 - **Station names from map labels**: a new station is named after the labels the
   OpenStreetMap basemap shows within 500 m once it is on screen (station and stop
   labels first, a rail station preferring rail labels; then landmarks, districts and
