@@ -91,6 +91,7 @@ export function syncFleet(
     surplusSince: now,
     lastLineId: v.lineId,
     lastPosition: startOf(v.lineId) ?? v.lastPosition,
+    release: null,
   });
   const lineOf = new Map(scenario.lines.map((l) => [l.id, l]));
   fleet = fleet.map((v) => {
@@ -135,6 +136,7 @@ export function syncFleet(
           surplusSince: null,
           lastLineId: null,
           lastPosition: null,
+          release: null,
         };
         fleet = fleet.map((v) => (v.id === spare.v.id ? back : v));
         options.changes?.reassigned.push({ vehicle: back, lineId: line.id, reachable: spare.r.reachable });
@@ -150,6 +152,7 @@ export function syncFleet(
           surplusSince: null,
           lastLineId: null,
           lastPosition: null,
+          release: null,
           capacityOverride: null,
           notes: '',
         };

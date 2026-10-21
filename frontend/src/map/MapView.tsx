@@ -27,7 +27,7 @@ import { basemapOptions } from '../providers/basemaps';
 import { mockProviders } from '../providers/registry';
 import {
   buildScenarioModels,
-  surplusStates,
+  surplusPlan,
   vehicleStates,
   type LineSimulationModel,
 } from '../simulation/engine';
@@ -1254,8 +1254,9 @@ export default function MapView() {
     const simOptions = simulationOptions(scenario, closures);
     let models: LineSimulationModel[] = buildScenarioModels(scenario, simOptions);
     // Surplus vehicles stand in their depots all day (F7).
-    let parked = surplusStates(scenario, models);
-    const allStates = (t: number) => [...models.flatMap((m) => vehicleStates(m, t)), ...parked];
+    // Surplus vehicles finish their trip, drive to their depot and stand there (F7/F8).
+    let surplus = surplusPlan(scenario, models);
+    const allStates = (t: number) => [...models.flatMap((m) => vehicleStates(m, t)), ...surplus(t)];
     let frame = 0;
     let lastDraw = 0;
     let lastSignals = 0;
@@ -1278,7 +1279,7 @@ export default function MapView() {
           return;
         }
       }
-      const spare = parked.find((x) => x.id === id);
+      const spare = surplus(t).find((x) => x.id === id);
       if (spare) {
         if (centreOnVehicle.current) {
           centreOnVehicle.current = false;
@@ -1315,7 +1316,7 @@ export default function MapView() {
     } else {
       simulationClock.pause();
       models = buildScenarioModels(scenario, simOptions);
-      parked = surplusStates(scenario, models);
+      surplus = surplusPlan(scenario, models);
       if (map.getSource(SRC.vehicles)) {
         const t = simulationClock.timeS;
         const states = allStates(t);

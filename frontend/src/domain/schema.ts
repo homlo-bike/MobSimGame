@@ -605,6 +605,16 @@ export const VehicleRecordSchema = z.object({
   /** Line it last served and where that line started (F8): a surplus vehicle without depot room stays there. */
   lastLineId: z.string().nullable().default(null),
   lastPosition: LngLatSchema.nullable().default(null),
+  /**
+   * The rest of the trip a vehicle was on when it became surplus (F8): simulated time of
+   * the edit and its positions [t s, lng, lat] until the end of that trip, taken from the
+   * plan before the edit. It finishes the trip, then drives to its depot. null = it was
+   * not on a trip (it goes to or stays in the depot).
+   */
+  release: z
+    .object({ atS: z.number(), samples: z.array(z.tuple([z.number(), z.number(), z.number()])) })
+    .nullable()
+    .default(null),
   /** Own capacity (passengers); null = the vehicle profile's (G1). */
   capacityOverride: z.number().int().positive().nullable().default(null),
   notes: z.string().default(''),

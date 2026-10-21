@@ -14,7 +14,8 @@ import { newId, nowIso } from '../util/id';
 import { loadFromLocalStorage } from './persistence';
 import { stationMode } from '../domain/modeSeparation';
 import type { UnitSystem } from '../analysis/units';
-import { simulationClock, simulationStartS } from '../simulation/runtime';
+import { simulationClock, simulationOptions, simulationStartS } from '../simulation/runtime';
+import { releasesFor } from '../simulation/release';
 import { newlySurplus, syncFleet, type FleetChanges } from '../domain/fleetRegistry';
 import { spareRanker } from '../domain/reassign';
 import { notify } from './notifications';
@@ -353,7 +354,23 @@ export const useStore = create<AppState>()((set, get) => {
     commitScenario: (scenario, label) => {
       const before = activeScenario(get().project);
       const changes: FleetChanges = { reassigned: [], added: [] };
-      const synced = withFleet(scenario, before, changes);
+      let synced = withFleet(scenario, before, changes);
+      // Vehicles the edit makes surplus finish the trip they are on (from the plan before
+      // the edit, at the current simulated time), then drive to their depot (F8).
+      const released = newlySurplus(before, synced).map((v) => v.code);
+      if (released.length) {
+        const trips = releasesFor(
+          before,
+          simulationOptions(before, get().closures),
+          released,
+          simulationClock.timeS,
+        );
+        if (trips.size)
+          synced = {
+            ...synced,
+            fleet: synced.fleet.map((v) => (trips.has(v.code) ? { ...v, release: trips.get(v.code)! } : v)),
+          };
+      }
       push(replaceScenario(get().project, synced), label);
       reportFleet(before, synced, changes);
     },
