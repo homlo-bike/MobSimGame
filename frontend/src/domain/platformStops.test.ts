@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createLine, updateLine } from './network';
 import { routeThroughStations, setServiceStops } from './serviceRouting';
-import { splitTrack } from './tracks';
+import { emptyScenario } from './network';
+import { placeStation } from './stationLayout';
+import { createTracks, splitTrack } from './tracks';
 import { railLine, xy } from '../test/fixtures/tracks';
+import { togglePlatformStop } from '../map/overlays';
 
 /** A service through `stops` that returns to the first stop after the last (R14a default). */
 function loopService(
@@ -88,5 +91,101 @@ describe('stops at platforms', () => {
       expect(st(stop.stationId).trackRefs.some((r) => r.trackId === stop.trackId)).toBe(true);
     // The station at 1800 m now stands on the new second part of the track.
     expect(after.stops[1]!.trackId).not.toBe(trackId);
+  });
+
+  it('names the one-way track a path would have to run against', () => {
+    let s = emptyScenario();
+    for (const x of [0, 1000])
+      s = placeStation(s, {
+        position: xy(x, 0),
+        mode: 'tram',
+        bearingDeg: 90,
+        sidePlatforms: 2,
+        islandPlatforms: 0,
+      }).scenario;
+    const [a, b] = s.stations;
+    const ta = a!.layout!.trackIds;
+    const tb = b!.layout!.trackIds;
+    const nodeAt = (trackId: string, end: 'from' | 'to') => {
+      const t = s.trackNetwork.tracks.find((x) => x.id === trackId)!;
+      return s.trackNetwork.nodes.find((n) => n.id === (end === 'from' ? t.fromNodeId : t.toNodeId))!
+        .position;
+    };
+    s = createTracks(s, {
+      points: [nodeAt(ta[0]!, 'to'), nodeAt(tb[0]!, 'from')],
+      mode: 'tram',
+      double: true,
+    }).scenario;
+    // Crossovers: track 1 to track 2 after station 1, track 2 back to track 1 before station 2.
+    const y = (k: number) => nodeAt(ta[k]!, 'to')[1];
+    const p = (x: number, k: number): [number, number] => [xy(x, 0)[0], y(k)];
+    s = createTracks(s, { points: [p(200, 0), p(260, 1)], mode: 'tram', double: false }).scenario;
+    s = createTracks(s, { points: [p(740, 1), p(800, 0)], mode: 'tram', double: false }).scenario;
+    const stops = [
+      { stationId: a!.id, trackId: ta[0]! },
+      { stationId: b!.id, trackId: tb[1]! },
+    ];
+    const r = routeThroughStations(s, stops, false, 'tram');
+    expect(r.error).toMatch(/against the one-way direction of Track \d+/);
+    expect(r.error).toMatch(/running direction to both ways, or add a crossover/);
+    // Single (two-way) track between the stations: the same stops route.
+    let single = emptyScenario();
+    for (const x of [0, 1000])
+      single = placeStation(single, {
+        position: xy(x, 0),
+        mode: 'tram',
+        bearingDeg: 90,
+        sidePlatforms: 1,
+        islandPlatforms: 0,
+      }).scenario;
+    const [c, d] = single.stations;
+    const tc = c!.layout!.trackIds[0]!;
+    const td = d!.layout!.trackIds[0]!;
+    const n2 = (trackId: string, end: 'from' | 'to') => {
+      const t = single.trackNetwork.tracks.find((x) => x.id === trackId)!;
+      return single.trackNetwork.nodes.find((n) => n.id === (end === 'from' ? t.fromNodeId : t.toNodeId))!
+        .position;
+    };
+    single = createTracks(single, {
+      points: [n2(tc, 'to'), n2(td, 'from')],
+      mode: 'tram',
+      double: false,
+    }).scenario;
+    const ok = routeThroughStations(
+      single,
+      [
+        { stationId: c!.id, trackId: tc },
+        { stationId: d!.id, trackId: td },
+      ],
+      false,
+      'tram',
+    );
+    expect(ok.error).toBeNull();
+  });
+
+  it('says when tracks are not connected at all', () => {
+    let s = emptyScenario();
+    for (const x of [0, 1000])
+      s = placeStation(s, {
+        position: xy(x, 0),
+        mode: 'tram',
+        bearingDeg: 90,
+        sidePlatforms: 1,
+        islandPlatforms: 0,
+      }).scenario;
+    const [a, b] = s.stations;
+    const r = routeThroughStations(s, [a!.id, b!.id], false, 'tram');
+    expect(r.error).toMatch(/not connected through nodes/);
+  });
+});
+
+describe('picking platforms', () => {
+  it('a second click on a picked platform takes it out again', () => {
+    const one = togglePlatformStop([], { stationId: 'a', trackId: 't1' });
+    expect(one).toEqual({ draft: [{ stationId: 'a', trackId: 't1' }], removed: false });
+    const two = togglePlatformStop(one.draft, { stationId: 'a', trackId: 't2' });
+    expect(two.draft).toHaveLength(2);
+    const back = togglePlatformStop(two.draft, { stationId: 'a', trackId: 't1' });
+    expect(back).toEqual({ draft: [{ stationId: 'a', trackId: 't2' }], removed: true });
   });
 });

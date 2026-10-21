@@ -549,8 +549,6 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     minzoom: 13,
     layout: {
       'icon-image': ARROW_IMAGE,
-      'icon-rotate': ['get', 'rotate'],
-      'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 0.9],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
@@ -795,8 +793,8 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
     },
   });
   // (+) on platform tracks while a rail service is being created (R14a), on top of
-  // everything. The markers of one station fan out across its tracks in the order of the
-  // tracks (offset in the map frame), so parallel platforms each get their own (+).
+  // everything. Each marker sits on its own platform track, so parallel platforms part
+  // as the map zooms in.
   for (const picked of [false, true])
     if (!map.hasImage(plusImageId(picked)))
       map.addImage(plusImageId(picked), plusImage(picked), { pixelRatio: 1 });
@@ -809,16 +807,12 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       'icon-image': ['case', ['get', 'picked'], plusImageId(true), plusImageId(false)],
       'icon-rotation-alignment': 'map',
       'icon-rotate': ['get', 'rotate'],
-      'icon-offset': ['get', 'iconOffset'],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       ...(opts.labels
         ? {
             'text-field': ['get', 'label'],
             'text-size': 11,
-            'text-rotation-alignment': 'map',
-            'text-rotate': ['get', 'rotate'],
-            'text-offset': ['get', 'textOffset'],
             'text-allow-overlap': true,
             'text-ignore-placement': true,
           }

@@ -21,6 +21,7 @@ export function successors(
   track: PhysicalTrack,
   dir: Dir,
   allow?: (t: PhysicalTrack) => boolean,
+  ignoreDirection = false,
 ): { track: PhysicalTrack; dir: Dir }[] {
   const nodeId = dir === 1 ? track.toNodeId : track.fromNodeId;
   const node = net.nodes.find((n) => n.id === nodeId);
@@ -33,7 +34,7 @@ export function successors(
     const t = net.tracks.find((x) => x.id === e.trackId);
     if (!t || (allow && !allow(t))) continue;
     const d: Dir = e.end === 'start' ? 1 : -1;
-    if (permits(t, d)) out.push({ track: t, dir: d });
+    if (ignoreDirection || permits(t, d)) out.push({ track: t, dir: d });
   }
   return out;
 }
@@ -70,6 +71,8 @@ export function shortestPath(
   to: TrackPosition,
   startDir?: Dir,
   allow?: (t: PhysicalTrack) => boolean,
+  /** Diagnosis only: also run tracks against their running direction. */
+  ignoreDirection = false,
 ): GraphPath | null {
   const byId = new Map(net.tracks.map((t) => [t.id, t]));
   const start = byId.get(from.trackId);
@@ -85,7 +88,7 @@ export function shortestPath(
   const along = (t: PhysicalTrack, d: Dir, f: number) => (d === 1 ? f : 1 - f) * len(t);
   const open: Label[] = [];
   for (const d of startDir ? [startDir] : ([1, -1] as Dir[]))
-    if (permits(start, d))
+    if (ignoreDirection || permits(start, d))
       open.push({ track: start, dir: d, entry: -along(start, d, from.fraction), prev: null, start: true });
   const settled = new Set<string>();
   let best: { label: Label; total: number } | null = null;
@@ -105,7 +108,7 @@ export function shortestPath(
       if (ahead && (!best || atGoal < best.total)) best = { label: cur, total: atGoal };
     }
     const exit = cur.entry + len(cur.track);
-    for (const nx of successors(net, cur.track, cur.dir, allow))
+    for (const nx of successors(net, cur.track, cur.dir, allow, ignoreDirection))
       if (!settled.has(`${nx.track.id}|${nx.dir}`))
         open.push({ track: nx.track, dir: nx.dir, entry: exit, prev: cur, start: false });
   }
@@ -118,6 +121,40 @@ export function shortestPath(
     return { trackId: l.track.id, reversed: l.dir === -1, from: f0, to: f1 };
   });
   return { steps, lengthM: Math.max(0, best.total), arrivalDir: best.label.dir };
+}
+
+/**
+ * Why there is no permitted path from `from` to `to`, in words, or null when there is one:
+ * a path exists only against a one-way track's running direction (named), or the tracks
+ * are not connected through nodes at all.
+ */
+export function explainNoPath(
+  net: TrackNetwork,
+  from: TrackPosition,
+  to: TrackPosition,
+  startDir?: Dir,
+  allow?: (t: PhysicalTrack) => boolean,
+  label: (trackId: string) => string = (id) => id,
+): string | null {
+  if (shortestPath(net, from, to, startDir, allow)) return null;
+  const against = shortestPath(net, from, to, startDir, allow, true);
+  if (against) {
+    const byId = new Map(net.tracks.map((t) => [t.id, t]));
+    const wrong = [
+      ...new Set(
+        against.steps
+          .filter((st) => {
+            const t = byId.get(st.trackId);
+            return t && !permits(t, st.reversed ? -1 : 1);
+          })
+          .map((st) => label(st.trackId)),
+      ),
+    ];
+    return `the only way runs against the one-way direction of ${wrong.join(', ')} (each track of a double track runs one way). Change that track's running direction to both ways, or add a crossover so the train reaches the platform in the track's direction`;
+  }
+  if (startDir && shortestPath(net, from, to, undefined, allow, true))
+    return 'the train would have to reverse at the stop before; services reverse only at their ends';
+  return 'the tracks are not connected through nodes (a crossing on the map is not a connection): join them, or add a crossover or turnout';
 }
 
 /** Length in metres of a list of steps. */

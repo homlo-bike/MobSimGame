@@ -116,6 +116,15 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Service routing errors say why**: when no permitted path exists between two
+  stops, the message names the one-way track(s) the only path would run against
+  (each track of a double track runs one way) and suggests making it two-way or
+  adding a crossover, or says that the tracks are not connected through nodes.
+- **Platform (+) markers** sit on their own platform tracks instead of fanning out at
+  the station centre, so they part as the map zooms in and are clicked where they
+  are drawn. Clicking a picked platform (or station) again removes it from the new
+  service.
+- New track is **single** by default (double track stays one click away).
 - **One background at a time**: the Layers panel's "Background" choice is a map
   (OpenStreetMap styles), aerial imagery, terrain relief or none. Terrain is now a
   background (hillshading, 3D when tilted) instead of an extra layer on top of the

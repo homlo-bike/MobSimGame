@@ -10,8 +10,10 @@ chooses its stops in calling order:
 
 - the **New service** tool: click stations, or, zoomed in (from zoom 15), click the
   **(+)** on one of a station's platform tracks to call at that platform; Enter
-  creates the service. A station's (+) markers fan out across its tracks in the
-  order of the tracks; a picked platform shows its stop number;
+  creates the service. Each (+) sits on its own platform track, so parallel
+  platforms move apart as the map zooms in; the click picks the nearest marker on
+  screen. A picked platform shows its stop number; clicking it again (or clicking a
+  picked station again) takes it out of the service, so each platform is listed once;
 - the station list in the tool panel (keyboard), with a **Platform** choice per stop
   where the station has more than one track;
 - the line inspector (add, remove, ▲ ▼, platform per stop).
@@ -36,6 +38,11 @@ stations* keeps the earlier two-direction service.
    - it uses Dijkstra over (track, direction);
    - it passes through nodes only along permitted movements;
    - it uses each track only in its permitted running direction.
+   When no permitted path exists, the search runs again ignoring running directions
+   (`trackGraph.explainNoPath`) to say why: the one-way track(s) the only path would
+   run against (each track of a double track runs one way: make it two-way or add a
+   crossover), a reversal at the stop before, or tracks that are not connected
+   through nodes at all.
 4. A train does not reverse between stops: after the first leg, every leg departs in
    the direction it arrived. A dynamic programme over (station track, arrival
    direction) picks the combination with the shortest total length.

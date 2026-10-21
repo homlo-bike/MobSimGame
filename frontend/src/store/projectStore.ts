@@ -249,7 +249,7 @@ export const useStore = create<AppState>()((set, get) => {
     tool: 'select',
     newLineMode: 'tram',
     stationTargetLineId: null,
-    trackDraw: { double: true, radius: 'default', structure: 'default', guides: true },
+    trackDraw: { double: false, radius: 'default', structure: 'default', guides: true },
     serviceDraft: [],
     serviceReturn: 'loop',
     stopDraft: [],
