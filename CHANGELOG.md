@@ -123,6 +123,15 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Trains wait at the clearance point of a junction**: the point where the converging
+  tracks are 3.50 m apart, measured on the drawn tracks; metro and commuter trains stop
+  a further signal overlap back (0, 50, 100 or 200 m by speed). Sources and status are
+  in Project properties (the values come from secondary sources).
+- **Route setting at junctions**: a train reserves the junction and the sections just
+  beyond it together, and waits clear of the junction while they are taken (a train
+  ahead running the same way at the following distance does not stop it). Sections are
+  released when the train has actually left them.
+- **Schematic tabs**: one network per rail mode, plus all modes together.
 - **Persistent vehicles**: rings and two-direction lines run a fixed fleet
   (⌈cycle / headway⌉ vehicles) that circulate; between trips a vehicle waits at the
   start for its next departure instead of vanishing, and leaves late when it came back

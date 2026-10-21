@@ -29,7 +29,7 @@ export interface ResourceSpan {
   label?: string;
 }
 
-interface Reservation {
+export interface Reservation {
   enter: number;
   exit: number;
   sign: 1 | -1;
@@ -42,10 +42,10 @@ export class OccupancyLedger {
   private byResource = new Map<string, Reservation[]>();
 
   /**
-   * Reserve `durationS` of the resource from the earliest time ≥ `arriveS` that
-   * is free, and return that time. Waiting happens outside the resource.
+   * Earliest time ≥ `arriveS` at which `durationS` of the resource is free for this
+   * vehicle (nothing is reserved). Waiting happens outside the resource.
    */
-  reserve(
+  earliest(
     resourceId: string,
     sign: 1 | -1,
     opposing: boolean,
@@ -88,8 +88,52 @@ export class OccupancyLedger {
       }
       if (!moved) break;
     }
-    list.push({ enter: s, exit: s + durationS, sign, queue, route });
+    return s;
+  }
+
+  /** Reserve [enterS, enterS + durationS]; the returned booking's exit can be set to the actual time later. */
+  book(
+    resourceId: string,
+    sign: 1 | -1,
+    enterS: number,
+    durationS: number,
+    queue = '',
+    route?: string,
+  ): Reservation {
+    const r: Reservation = { enter: enterS, exit: enterS + durationS, sign, queue, route };
+    const list = this.byResource.get(resourceId) ?? [];
+    list.push(r);
     this.byResource.set(resourceId, list);
+    return r;
+  }
+
+  /**
+   * Reserve `durationS` of the resource from the earliest time ≥ `arriveS` that
+   * is free, and return that time. Waiting happens outside the resource.
+   */
+  reserve(
+    resourceId: string,
+    sign: 1 | -1,
+    opposing: boolean,
+    arriveS: number,
+    durationS: number,
+    separationS: number,
+    queue = '',
+    exclusive = false,
+    route?: string,
+  ): number {
+    const s = this.earliest(
+      resourceId,
+      sign,
+      opposing,
+      arriveS,
+      durationS,
+      separationS,
+      queue,
+      exclusive,
+      route,
+    );
+    this.book(resourceId, sign, s, durationS, queue, route);
     return s;
   }
 

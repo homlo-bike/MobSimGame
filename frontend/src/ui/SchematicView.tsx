@@ -31,6 +31,9 @@ import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type 
 import { useStore, useScenario } from '../store/projectStore';
 import { computeSchematic, crossoverPoint, describeSchematic, GRID } from '../schematic/layout';
 import { schematicTextView, schematicWalks } from '../schematic/textView';
+import { scenarioForMode, schematicModes } from '../schematic/modeFilter';
+import type { TransportMode } from '../domain/schema';
+import { MODES } from '../domain/modes';
 import { accessFacilities, type AccessFacility } from '../domain/stationAccess';
 import { Button, Section } from './primitives';
 import { downloadText, safeFilename } from '../store/persistence';
@@ -43,10 +46,18 @@ export function SchematicView() {
   const selection = useStore((s) => s.selection);
   const svgRef = useRef<SVGSVGElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const layout = useMemo(() => computeSchematic(scenario, scenario.schematicOffsets), [scenario]);
+  // One network per rail mode, or all modes together.
+  const modes = useMemo(() => schematicModes(scenario), [scenario]);
+  const [tab, setTab] = useState<TransportMode | 'all'>('all');
+  const active = tab !== 'all' && modes.includes(tab) ? tab : 'all';
+  const shown = useMemo(
+    () => (active === 'all' ? scenario : scenarioForMode(scenario, active)),
+    [scenario, active],
+  );
+  const layout = useMemo(() => computeSchematic(shown, scenario.schematicOffsets), [shown, scenario]);
   const description = useMemo(() => describeSchematic(layout), [layout]);
-  const textView = useMemo(() => schematicTextView(scenario, layout), [scenario, layout]);
-  const walks = useMemo(() => schematicWalks(scenario, layout), [scenario, layout]);
+  const textView = useMemo(() => schematicTextView(shown, layout), [shown, layout]);
+  const walks = useMemo(() => schematicWalks(shown, layout), [shown, layout]);
   // View window in schematic coordinates (pan and zoom); null = the whole map.
   const [view, setView] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   // A station being dragged, or the background being panned.
@@ -191,6 +202,30 @@ export function SchematicView() {
   };
   return (
     <div className="h-full overflow-auto bg-white p-3">
+      {modes.length > 1 && (
+        <div role="tablist" aria-label="Network" className="mb-2 flex flex-wrap gap-0.5">
+          {(['all', ...modes] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={active === m}
+              onClick={() => {
+                setTab(m);
+                setView(null);
+              }}
+              className={`rounded-t border-b-2 px-2 py-1 text-sm ${
+                active === m
+                  ? 'border-current font-semibold text-slate-900'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+              style={m !== 'all' && active === m ? { color: MODES[m].color } : undefined}
+            >
+              {m === 'all' ? 'All modes' : MODES[m].label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mb-2 flex flex-wrap gap-2">
         <Button
           onClick={() =>
