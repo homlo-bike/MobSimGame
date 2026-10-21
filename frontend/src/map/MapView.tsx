@@ -71,6 +71,7 @@ import {
 } from './layers';
 import {
   arrowsCollection,
+  junctionMovesCollection,
   metresPerPixel,
   catchmentsCollection,
   closuresCollection,
@@ -159,6 +160,9 @@ function handleRegionDrawing(state: ReturnType<typeof useStore.getState>, geomet
 /** Screen distance between direction arrows, and their clearance around stations. */
 const ARROW_SPACING_PX = 120;
 const ARROW_STATION_CLEARANCE_PX = 14;
+/** Distance of a track's direction arrows from its ends, and size of the junction symbols (px). */
+const TRACK_END_ARROW_PX = 22;
+const JUNCTION_MOVE_PX = 16;
 
 /** Direction arrows for services and tracks, spaced for the current zoom and kept clear of stations. */
 function directionArrows(
@@ -176,7 +180,9 @@ function directionArrows(
     avoidM: ARROW_STATION_CLEARANCE_PX * mpp,
   };
   const a = arrowsCollection(segments, options);
-  return { ...a, features: [...a.features, ...arrowsCollection(tracks, options).features] };
+  // Tracks show their running direction only near their ends, where they meet nodes.
+  const t = arrowsCollection(tracks, { ...options, atEndsM: TRACK_END_ARROW_PX * mpp });
+  return { ...a, features: [...a.features, ...t.features] };
 }
 
 /** A track and, on double track, its partner. */
@@ -1072,6 +1078,14 @@ export default function MapView() {
         tracks,
         scenario,
         markers.features.map((f) => (f.geometry as GeoJSON.Point).coordinates as LngLat),
+      ),
+    );
+    setData(
+      map,
+      SRC.junctionMoves,
+      junctionMovesCollection(
+        scenario,
+        JUNCTION_MOVE_PX * metresPerPixel(map.getZoom(), map.getCenter().lat),
       ),
     );
     setData(map, SRC.crossovers, crossoversCollection(scenario));

@@ -123,6 +123,9 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Junction symbols**: zoomed in (from zoom 15), every junction shows a small curve for
+  each permitted way through it. Track direction arrows appear only near the two ends
+  of each track instead of along its whole length.
 - **Trains wait at the clearance point of a junction**: the point where the converging
   tracks are 3.50 m apart, measured on the drawn tracks; metro and commuter trains stop
   a further signal overlap back (0, 50, 100 or 200 m by speed). Sources and status are

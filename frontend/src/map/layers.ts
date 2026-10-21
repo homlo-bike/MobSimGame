@@ -16,6 +16,7 @@ export const SRC = {
   regionLabels: 'msg-region-labels',
   tracks: 'msg-tracks',
   trackNodes: 'msg-track-nodes',
+  junctionMoves: 'msg-junction-moves',
   segments: 'msg-segments',
   arrows: 'msg-arrows',
   crossovers: 'msg-crossovers',
@@ -343,6 +344,24 @@ export function ensureLayers(map: MlMap, opts: { labels: boolean }) {
       },
     });
   }
+  // Permitted movements through junctions: a short curve from each track that may be
+  // entered to each it may continue on (white casing so it reads on top of the tracks).
+  add({
+    id: 'msg-junction-moves-casing',
+    type: 'line',
+    source: SRC.junctionMoves,
+    minzoom: 15,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': 5 },
+  });
+  add({
+    id: 'msg-junction-moves',
+    type: 'line',
+    source: SRC.junctionMoves,
+    minzoom: 15,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#0f766e', 'line-width': 2.5 },
+  });
   // Track nodes: junctions are larger with a heavy ring, open ends are hollow (shape, not colour alone).
   add({
     id: TRACK_NODE_LAYER,
