@@ -97,6 +97,7 @@ function baseLine(data: NetworkLineData, mode: TransportMode, index: number): Tr
     consistUnits: null,
     dwellTimeS: defaults.defaultDwellTimeS,
     maxSpeedKmh: defaults.defaultMaxSpeedKmh,
+    inherits: ['dwellTimeS', 'maxSpeedKmh'],
     metadata: {},
     notes: data.gaps
       ? `Imported from OpenStreetMap ${data.id}; the mapped route has ${data.gaps} gap(s).`

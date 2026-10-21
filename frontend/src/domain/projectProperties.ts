@@ -6,6 +6,7 @@ import type { Electrification, Scenario, TransportMode } from './schema';
 import { MODES } from './modes';
 import { CURVE_RADIUS_RULES } from './modeProfiles';
 import { isRailMode, newTrackDefaults } from './tracks';
+import { modeSetting, syncInherited } from './inheritance';
 import { following, platformLengthM, type Following } from './trackParameters';
 import { MODE_TABS } from './modeSeparation';
 import { defaultRates, type Rates } from '../simulation/kinematics';
@@ -50,8 +51,8 @@ export function modeDefaultRows(scenario: Scenario): ModeDefaultRow[] {
             source: src ? `${src.title}${src.section ? `, ${src.section}` : ''}` : rule.context,
           }
         : null,
-      maxSpeedKmh: m.defaultMaxSpeedKmh,
-      dwellTimeS: m.defaultDwellTimeS,
+      maxSpeedKmh: modeSetting(scenario, mode, 'maxSpeedKmh'),
+      dwellTimeS: modeSetting(scenario, mode, 'dwellTimeS'),
       catchmentRadiusM: m.defaultCatchmentRadiusM,
       structure: m.defaultStructure,
       rightOfWay: m.defaultRightOfWay,
@@ -70,11 +71,16 @@ export function setModeTrackDefault(
   patch: Partial<{ gaugeMm: number | null; electrification: Electrification }>,
 ): Scenario {
   const net = scenario.trackNetwork;
-  const current = newTrackDefaults(net, mode);
-  return {
+  const current = net.modeDefaults[mode] ?? {
+    ...newTrackDefaults(net, mode),
+    maxSpeedKmh: null,
+    dwellTimeS: null,
+  };
+  // Tracks that follow the project defaults take the new value (G1).
+  return syncInherited({
     ...scenario,
     trackNetwork: { ...net, modeDefaults: { ...net.modeDefaults, [mode]: { ...current, ...patch } } },
-  };
+  });
 }
 
 /**

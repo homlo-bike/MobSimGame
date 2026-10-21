@@ -394,6 +394,8 @@ export const PhysicalTrackSchema = z.object({
   gaugeMm: z.number().int().positive().nullable().default(null),
   electrification: ElectrificationSchema.default('unknown'),
   speedLimitKmh: z.number().positive().nullable().default(null),
+  /** Fields that follow the project defaults of the track's mode; the others are its own. */
+  inherits: z.array(z.enum(['gaugeMm', 'electrification'])).default([]),
   /** Double track: both tracks share a group. */
   groupId: z.string().nullable().default(null),
   /** The station object this track belongs to (its geometry follows the station). */
@@ -445,6 +447,9 @@ export const TrackNetworkSchema = z.object({
       z.object({
         gaugeMm: z.number().int().positive().nullable().default(null),
         electrification: ElectrificationSchema.default('unknown'),
+        /** Project values for lines of the mode; null = the built-in placeholder default. */
+        maxSpeedKmh: z.number().positive().nullable().default(null),
+        dwellTimeS: z.number().nonnegative().nullable().default(null),
       }),
     )
     .default({}),
@@ -558,6 +563,11 @@ export const TransportLineSchema = z.object({
   consistUnits: z.number().int().positive().nullable().default(null),
   dwellTimeS: z.number().nonnegative(),
   maxSpeedKmh: z.number().positive(),
+  /**
+   * Fields that follow the project settings of the line's mode (Project properties); the
+   * stored value is kept in step with them. Any other field is the line's own value.
+   */
+  inherits: z.array(z.enum(['dwellTimeS', 'maxSpeedKmh'])).default([]),
   metadata: MetadataSchema.default({}),
   notes: z.string().default(''),
 });

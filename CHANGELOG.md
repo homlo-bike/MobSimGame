@@ -123,6 +123,11 @@ All notable changes are documented here. The format follows
 
 ### Changed
 
+- **Project settings are global values (G1)**: maximum speed and dwell time per mode are
+  editable in Project properties → Modes; lines follow them, and tracks follow the
+  project gauge and electrification, unless they set their own value ("Project setting"
+  box in the line and track inspectors). Changing a project setting updates everything
+  that follows it. Lines and tracks from earlier projects keep their values as their own.
 - **Service day in the animation**: lines run from their service start to their end,
   at peak headways inside the project's peak periods (new tab Project properties →
   Service day; placeholder defaults 07:00–09:00, 16:00–19:00) and off-peak headways

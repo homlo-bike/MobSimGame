@@ -251,6 +251,7 @@ function rebuildStation(scenario: Scenario, stationId: string): Scenario {
     if (!existing) {
       const base: Omit<PhysicalTrack, 'id' | 'fromNodeId' | 'toNodeId' | 'points' | 'radii'> = {
         name: `${st.name} track ${i + 1}`,
+        inherits: ['gaugeMm', 'electrification'],
         direction: 'both',
         structure,
         level,

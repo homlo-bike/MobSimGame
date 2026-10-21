@@ -1,3 +1,4 @@
+import { modeSetting, setLineInherits } from '../domain/inheritance';
 import { useMemo, useState } from 'react';
 import { buildLineModel, roundTripS } from '../simulation/engine';
 import { parameterValue } from '../domain/trackParameters';
@@ -353,24 +354,37 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
             value={pattern.serviceEnd}
             onCommit={(v) => (/^\d{2}:\d{2}$/.test(v) ? patchPattern({ serviceEnd: v }) : 'Use HH:MM')}
           />
-          <CommitField
-            label="Dwell time per stop"
-            unit="s"
-            type="number"
-            min={0}
-            max={600}
-            value={line.dwellTimeS}
-            onCommit={(v) => patch({ dwellTimeS: Number(v) })}
-          />
-          <CommitField
-            label="Maximum speed"
-            unit="km/h"
-            type="number"
-            min={1}
-            max={400}
-            value={line.maxSpeedKmh}
-            onCommit={(v) => patch({ maxSpeedKmh: Number(v) })}
-          />
+          {(
+            [
+              ['dwellTimeS', 'Dwell time per stop', 's', 0, 600],
+              ['maxSpeedKmh', 'Maximum speed', 'km/h', 1, 400],
+            ] as const
+          ).map(([key, label, unit, min, max]) => (
+            <div key={key}>
+              <CommitField
+                label={label}
+                unit={unit}
+                type="number"
+                min={min}
+                max={max}
+                value={line[key]}
+                // An entered value is the line's own (it no longer follows the project).
+                onCommit={(v) =>
+                  patch({ [key]: Number(v), inherits: line.inherits.filter((k) => k !== key) })
+                }
+              />
+              <Checkbox
+                label={`Project setting (${modeSetting(scenario, line.mode, key)} ${unit})`}
+                checked={line.inherits.includes(key)}
+                onChange={(v) =>
+                  commit(
+                    setLineInherits(scenario, line.id, key, v),
+                    v ? `${label}: project setting` : `${label}: own value`,
+                  )
+                }
+              />
+            </div>
+          ))}
         </div>
         {SIGNAL_MODES.includes(line.mode) && (
           <Checkbox

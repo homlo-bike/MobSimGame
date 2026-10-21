@@ -175,8 +175,10 @@ export function createLine(
     fleetSize: null,
     peakDemandPphpd: null,
     consistUnits: null,
-    dwellTimeS: mode.defaultDwellTimeS,
-    maxSpeedKmh: mode.defaultMaxSpeedKmh,
+    // New lines follow the project settings of their mode (G1).
+    dwellTimeS: scenario.trackNetwork.modeDefaults?.[input.mode]?.dwellTimeS ?? mode.defaultDwellTimeS,
+    maxSpeedKmh: scenario.trackNetwork.modeDefaults?.[input.mode]?.maxSpeedKmh ?? mode.defaultMaxSpeedKmh,
+    inherits: ['dwellTimeS', 'maxSpeedKmh'],
     metadata: {},
     notes: '',
   };

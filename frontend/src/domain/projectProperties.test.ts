@@ -28,10 +28,21 @@ describe('project properties', () => {
     s = setModeTrackDefault(s, 'tram', { electrification: 'overhead', gaugeMm: 1435 });
     s = createTracks(s, { points: [xy(0, 200), xy(300, 200)], mode: 'tram' }).scenario;
     expect(s.trackNetwork.tracks[1]).toMatchObject({ electrification: 'overhead', gaugeMm: 1435 });
-    const applied = applyModeDefaultsToTracks(s, 'tram');
+    // Existing track that follows the project took the new default at once (G1).
+    expect(s.trackNetwork.tracks[0]).toMatchObject({ electrification: 'overhead', gaugeMm: 1435 });
+    // Track with its own unset values (older projects) is filled in on request.
+    const own = {
+      ...s,
+      trackNetwork: {
+        ...s.trackNetwork,
+        tracks: s.trackNetwork.tracks.map((t, i) =>
+          i === 0 ? { ...t, inherits: [], electrification: 'unknown' as const, gaugeMm: null } : t,
+        ),
+      },
+    };
+    const applied = applyModeDefaultsToTracks(own, 'tram');
     expect(applied.changed).toBe(1);
     expect(applied.scenario.trackNetwork.tracks.every((t) => t.electrification === 'overhead')).toBe(true);
-    // Values set on a track are kept; metro track is not touched.
     expect(applyModeDefaultsToTracks(applied.scenario, 'tram').changed).toBe(0);
   });
 });
