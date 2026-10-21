@@ -73,7 +73,10 @@ set, labelled as such. See the [roadmap](#roadmap).
     modes are shown faded. Tracks record electrification and gauge. Passengers
     change between modes over walking links (distance and walking time).
   - Lines crossing or sharing a street are simulated without collisions: one
-    vehicle at a time at a crossing, by an editable mode priority.
+    vehicle at a time at a crossing, by an editable mode priority. Junctions,
+    turnouts and crossings of tracks are held by one train route at a time, and the
+    Dashboard reports one simulated hour of waits for occupied track per line and
+    place.
 - **Bus, BRT and trolleybus** lines are drawn by clicking their stops in order (at the
   kerb where the vehicle stops; Esc, Enter or right-click finishes). They run one way
   and return to the first stop, routed on streets by a self-hosted Valhalla server

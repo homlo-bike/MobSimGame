@@ -6,6 +6,7 @@
  * thresholds are uncited placeholders, which every such finding states. Nothing here declares an alignment
  * safe, buildable or construction-ready.
  */
+import { shortestPath } from '../domain/trackGraph';
 import type { LngLat, Scenario, TransportLine } from '../domain/schema';
 import { MODE_PROFILES, type CurveRadiusRule, type ModeProfile } from '../domain/modeProfiles';
 import { MODES } from '../domain/modes';
@@ -398,7 +399,36 @@ function checkLine(line: TransportLine, scenario: Scenario, options: ValidationO
       message: `No track path back: ${line.alignment.message.replace(/^Return direction: /, '') || 'the return direction cannot be routed.'} Add a return track, a crossover or a turning loop.`,
     });
   } else if (line.alignment.kind === 'track' && line.alignment.message) {
-    add({ severity: 'warning', category: 'geometry', message: line.alignment.message });
+    // A turnback at the end of a service that returns to its first stop is information.
+    const turnback = line.alignment.message.startsWith('The train reverses');
+    add({ severity: turnback ? 'info' : 'warning', category: 'geometry', message: line.alignment.message });
+  }
+  // Running back on the other track needs a connection at each end; otherwise trains
+  // would jump between tracks (R14b).
+  if (
+    line.alignment.kind === 'track' &&
+    line.alignment.status === 'routed' &&
+    line.alignment.returnPath?.length &&
+    line.alignment.path.length
+  ) {
+    const net = scenario.trackNetwork;
+    const out = line.alignment.path;
+    const back = line.alignment.returnPath;
+    const connected = (a: (typeof out)[number], b: (typeof out)[number]) =>
+      a.trackId === b.trackId ||
+      shortestPath(net, { trackId: a.trackId, fraction: a.to }, { trackId: b.trackId, fraction: b.from }) !==
+        null;
+    const ends: [string, boolean][] = [
+      ['last', connected(out[out.length - 1]!, back[0]!)],
+      ['first', connected(back[back.length - 1]!, out[0]!)],
+    ];
+    for (const [which, ok] of ends)
+      if (!ok)
+        add({
+          severity: existingInfrastructure(line) ? 'info' : 'warning',
+          category: 'geometry',
+          message: `At the ${which} stop the trains change to the other track without a track connection (the animation shows a jump). Add a crossover or a turning loop there, or let the service return to its first stop.`,
+        });
   }
 
   // --- Vehicles and fleet ------------------------------------------------------

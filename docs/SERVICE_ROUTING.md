@@ -74,8 +74,8 @@ them, and unit tests cover each choice.
 ## Not implemented yet
 
 - Routing preferences (avoid single track, prefer a track) and via points.
-- Blocks and route reservation in the simulation, so trains never share a block and
-  change track only through turnouts (R14b).
+- Signalled block sections with spacing requirements in the simulation (junction zones
+  and single-track blocks are reserved; see docs/METHODOLOGY.md).
 - Turnout-aware path costs. A diverging route costs the same as a straight one.
 - A pluggable bus routing provider interface beyond the existing Valhalla adapter
   (Priority 2).

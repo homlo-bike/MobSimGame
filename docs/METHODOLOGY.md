@@ -236,6 +236,25 @@ other track.
     a block do not extend the reservation, and there is no interlocking, signalling
     or braking model.
   - Waits longer than the headway mean the timetable exceeds the section's capacity.
+- **Junction zones** (R14b): every track node where three or more track ends meet
+  (junctions, turnouts, crossings of tracks) is a zone held by one route at a time,
+  after OSRD's routing requirements (documentation, "Conflict detection",
+  osrd.fr/en/docs/reference/design-docs/conflict-detection/, read 21 October 2026): two
+  trains on different routes through the node never hold it together; trains on the
+  same route (same entry and exit track end) only keep their following separation.
+  A train holds the zone from the crossing clearance before the node until its tail is
+  the crossing clearance past it. The time to reset a turnout between routes is not
+  modelled (no cited value).
+- **Operations report** (Dashboard): one hour of service at the peak headways is
+  scheduled in the same order as the animation; the waits for occupied track are summed
+  per line and per place (single-track section, junction zone, crossing with another
+  line, shared street or track ahead), with the capacity warnings of the scheduling.
+- **Changing track at the ends**: a two-direction service whose way back starts on
+  another track than the way out ends on, with no permitted track path between them, is
+  reported (the animation would show a jump); a crossover, a turning loop or a service
+  that returns to its first stop resolves it.
+- Not modelled yet: signalled block sections with their spacing requirements (signalled
+  modes keep a fixed placeholder distance, see "Following the vehicle ahead").
 
 ## Schematic
 

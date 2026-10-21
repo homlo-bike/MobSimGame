@@ -43,8 +43,8 @@ with each one.
 | R11 | Schematic: select, move, pan and zoom; text alternative as the line with its stations and their symbols | planned |
 | R12 | Project properties listing every default (radii per rail mode, vehicle dimensions, gauge, electrification, platforms, …) with source and status | merged (#25) |
 | R13 | Realistic vehicle movement from SUMO's **published models, not its code** (owner decision): acceleration and braking from the vehicle profiles, then car following (Intelligent Driver Model / Krauss, cited); parameters in Project properties; per-crossing priority overrides | merged (#26 acceleration and braking, #27 following); per-crossing overrides not needed (owner) |
-| R14a | Rail services stop at **platforms**: (+) on a station track while creating a service, stops list station and track, routes found between platforms, the service returns to its first stop, an error names each pair without a route | this PR |
-| R14b | Blocks and route reservation in the simulation (OSRD spacing and routing requirements, blocking-time method): no two trains in one block, track changes only through turnouts, conflict and deadlock findings | planned |
+| R14a | Rail services stop at **platforms**: (+) on a station track while creating a service, stops list station and track, routes found between platforms, the service returns to its first stop, an error names each pair without a route | merged (#37) |
+| R14b | Blocks and route reservation in the simulation (OSRD spacing and routing requirements, blocking-time method): no two trains in one block, track changes only through turnouts, conflict and deadlock findings | this PR (junction zones held by one route at a time, operations report of waits per line and place, track-jump check; signalled block sections follow) |
 | R15a | Running time from **train physics** (methods of OSRD and NeTrainSim, no code): traction, running resistance, gradient and curves; envelopes with braking curves | merged (#34) |
 | R15b | Energy estimate per run (NeTrainSim method: traction energy, regenerative braking, efficiencies), estimated under the selected assumptions | merged (#35) |
 
