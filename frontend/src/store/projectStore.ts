@@ -15,6 +15,19 @@ import { loadFromLocalStorage } from './persistence';
 import { stationMode } from '../domain/modeSeparation';
 import type { UnitSystem } from '../analysis/units';
 import { simulationClock, simulationStartS } from '../simulation/runtime';
+import { syncFleet } from '../domain/fleetRegistry';
+import { lineFleet } from '../analysis/fleet';
+
+/** Vehicles each transit line needs (in service plus spares), and the fleet synced to it. */
+function withFleet(scenario: Scenario): Scenario {
+  const needed = new Map<string, number>();
+  for (const l of scenario.lines) {
+    if (l.mode === 'cycling' || l.mode === 'pedestrian') continue;
+    const f = lineFleet(l, scenario);
+    if (f) needed.set(l.id, f.inService + f.spares);
+  }
+  return syncFleet(scenario, needed);
+}
 import { createLogger } from '../util/logger';
 import { DEFAULT_BASEMAP_ID } from '../providers/basemaps';
 
@@ -286,7 +299,8 @@ export const useStore = create<AppState>()((set, get) => {
     projectGate: { open: false, mode: 'create', resume: null },
     startCardDismissed: false,
 
-    commitScenario: (scenario, label) => push(replaceScenario(get().project, scenario), label),
+    // The fleet follows the lines on every edit (F3): no vehicle appears or vanishes unseen.
+    commitScenario: (scenario, label) => push(replaceScenario(get().project, withFleet(scenario)), label),
     commitProject: (project, label) => push(project, label),
     loadProject: (project) => {
       log.info('project loaded', {

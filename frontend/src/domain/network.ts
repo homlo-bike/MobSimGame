@@ -669,6 +669,7 @@ export function emptyScenario(name = 'Scenario A'): Scenario {
     vehicleTypes: defaultVehicleTypes(),
     assumptionSetId: null,
     peakPeriods: PLACEHOLDER_PEAK_PERIODS.map((p) => ({ ...p })),
+    fleet: [],
     schematicOffsets: {},
     createdAt: nowIso(),
     updatedAt: nowIso(),

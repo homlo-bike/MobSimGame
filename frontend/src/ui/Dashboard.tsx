@@ -11,6 +11,7 @@ import { RangeChart } from './RangeChart';
 import { ValidationSummary } from './FindingsList';
 import { Badge, Section } from './primitives';
 import { OperationsReportSection } from './OperationsReport';
+import { FleetSection } from './FleetPanel';
 
 function StatTile({ label, value, note }: { label: string; value: string; note: string }) {
   return (
@@ -107,6 +108,7 @@ function RealPlaceDashboard() {
         </table>
       </Section>
       <OperationsReportSection scenario={scenario} />
+      <FleetSection scenario={scenario} />
       <Section title="Estimates" id="dash-estimates">
         <ul className="list-disc ps-5 text-sm">
           {['Weekday boardings', 'Peak capacity use', 'Capital cost', 'Operating cost', 'Emissions'].map(

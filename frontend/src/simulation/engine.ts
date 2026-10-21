@@ -27,6 +27,7 @@ import { segmentSpeedKmh } from './speeds';
 import { SIGNAL_MODES } from '../domain/signals';
 import { returnCoordinates, stepsCoordinates } from '../domain/serviceRouting';
 import { assignStabling } from '../domain/stabling';
+import { lineVehicles } from '../domain/fleetRegistry';
 import { singleTrackBlocks, stepsLengthM } from '../domain/trackGraph';
 import { following, parameterValue, signalOverlapM, type Following } from '../domain/trackParameters';
 import { clearanceDistanceM } from '../domain/clearancePoints';
@@ -205,6 +206,11 @@ export interface LineSimulationModel {
   ready: Map<string, number[]>;
   /** Depot slot of each vehicle and the empty runs there and back (F6); null = none. */
   stabling: Map<number, DepotRun> | null;
+  /**
+   * Fleet numbers of the line's vehicles (F3), vehicle 1, 2, … in order; vehicles beyond
+   * the ones in service are spares and wait in their depot slots.
+   */
+  vehicleCodes: string[];
 }
 
 /** A vehicle's empty runs between the start of its line and its depot slot. */
@@ -686,6 +692,7 @@ function buildModelBody(
     tripsOf: new Map(),
     ready: new Map(),
     stabling: null,
+    vehicleCodes: [],
   };
 }
 
@@ -991,6 +998,7 @@ function emptyModel(
     tripsOf: new Map(),
     ready: new Map(),
     stabling: null,
+    vehicleCodes: [],
   };
 }
 
@@ -1480,7 +1488,7 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
         if (ahead !== null) tripPhases(model, svc, ahead);
       }
       for (let k = 0; k < model.fleet; k++) {
-        const id = `${model.lineId}-${svc.id}-v${k + 1}`;
+        const id = model.vehicleCodes[k] ?? `${model.lineId}-${svc.id}-v${k + 1}`;
         const list = model.tripsOf.get(`${svc.id}:${k}`) ?? [];
         let i = list.length - 1;
         while (i >= 0 && departOf(model, list[i]!) > tS) i--;
@@ -1521,6 +1529,11 @@ export function vehicleStates(model: LineSimulationModel, tS: number): VehicleSt
           if (st) out.push({ ...st, state: 'parked' });
         }
       }
+      // Spares: not needed in service, they wait in their depot slots.
+      for (let k = model.fleet; k < model.vehicleCodes.length; k++) {
+        const run = model.stabling?.get(k);
+        if (run) out.push(depotState(model, run, tS, -Infinity, Infinity, model.vehicleCodes[k]!));
+      }
       continue;
     }
     if (last === null) continue;
@@ -1548,6 +1561,7 @@ export function buildScenarioModels(scenario: Scenario, options?: SimulationOpti
   for (const m of models) {
     m.context = context;
     context.add(m);
+    m.vehicleCodes = lineVehicles(scenario, m.lineId).map((v) => v.code);
   }
   // Depot tracks (F6): with the service day, vehicles out of service wait in depot slots.
   if (options?.timetable) {
@@ -1558,7 +1572,7 @@ export function buildScenarioModels(scenario: Scenario, options?: SimulationOpti
       const vehicles = new Map(
         scenario.lines
           .filter((l) => l.mode === mode && (byId.get(l.id)?.fleet ?? 0) > 0)
-          .map((l) => [l.id, byId.get(l.id)!.fleet]),
+          .map((l) => [l.id, Math.max(byId.get(l.id)!.fleet, byId.get(l.id)!.vehicleCodes.length)]),
       );
       const { slots } = assignStabling(scenario, mode, vehicles);
       for (const [key, slot] of slots) {

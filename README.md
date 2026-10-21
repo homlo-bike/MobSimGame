@@ -110,6 +110,12 @@ set, labelled as such. See the [roadmap](#roadmap).
   editable per project; per-mode defaults (cited curve radii, speed, dwell, catchment,
   platform length, and the gauge and electrification new track gets); vehicle profiles;
   crossing priority. Uncited values are marked placeholder.
+- **Vehicles (fleet register):** every vehicle of the project has a fleet number (for
+  example TRM-007), mode, type, line, status and the date it joined (Dashboard →
+  Vehicles). The fleet follows the lines: a line gets the vehicles it needs in service
+  plus spares; vehicles no longer needed become surplus and stay until you delete them.
+  A vehicle can have its own capacity instead of the profile's. In the animation each
+  vehicle carries its fleet number; spares wait in the depot.
 - **Depot tracks:** mark a track no service uses as a depot track (track inspector →
   Use). Trains not needed in service run to the nearest free slot there, wait (also at
   night) and come back before their next trip. A warning appears when a mode's depot

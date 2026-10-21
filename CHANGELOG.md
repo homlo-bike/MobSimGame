@@ -14,6 +14,11 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Fleet register (F3)**: every vehicle has a fleet number (TRM-001, BUS-012, …), mode,
+  type, line, status and date added (Dashboard → Vehicles). The fleet follows the lines
+  after every edit; extra vehicles become surplus and are deleted only by the user (with
+  confirmation). A vehicle can have its own capacity (else the profile's). Animated
+  vehicles carry their fleet numbers; spares wait in their depot slots.
 - **Depot tracks (F6)**: a track can be a depot (stabling) track; services are routed
   around it and an error marks a service still running over one. Each rail mode's need
   (all consists and gaps) is compared with its depot track, with a warning when short.
