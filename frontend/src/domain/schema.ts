@@ -517,9 +517,13 @@ export const StationSchema = z.object({
     .object({
       stepFree: z.boolean().nullable(),
       elevators: z.number().int().nonnegative().nullable(),
+      /** Added in R8; older files read as unknown. */
+      escalators: z.number().int().nonnegative().nullable().default(null),
+      /** A step-free ramp between street and platform. */
+      ramp: z.boolean().nullable().default(null),
       tactilePaving: z.boolean().nullable(),
     })
-    .default({ stepFree: null, elevators: null, tactilePaving: null }),
+    .default({ stepFree: null, elevators: null, escalators: null, ramp: null, tactilePaving: null }),
   catchmentRadiusM: z.number().positive(),
   /**
    * A rail station object: its own tracks and platforms, placed and rotated freely

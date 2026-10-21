@@ -208,7 +208,7 @@ describe('exploratory demand', () => {
       layout: null,
       verticalOffsetM: null,
       entrances: [],
-      accessibility: { stepFree: null, elevators: null, tactilePaving: null },
+      accessibility: { stepFree: null, elevators: null, escalators: null, ramp: null, tactilePaving: null },
       catchmentRadiusM: 500,
       notes: '',
       trackRefs: [],

@@ -2,6 +2,7 @@
  * Non-map alternative for the main editing tasks: create lines from typed
  * coordinates, and review/select every line and station in tables.
  */
+import { accessSummary } from '../domain/stationAccess';
 import { useId, useState, type FormEvent } from 'react';
 import type { LngLat, TransportMode } from '../domain/schema';
 import { createLine, isInterchange, lineLengthM, linesServingStation } from '../domain/network';
@@ -318,6 +319,9 @@ export function TableView() {
               <th scope="col" className="text-start">
                 Construction
               </th>
+              <th scope="col" className="text-start">
+                Access
+              </th>
               <th scope="col" className="text-end">
                 Longitude
               </th>
@@ -345,6 +349,7 @@ export function TableView() {
                     .join(', ')}
                 </td>
                 <td>{s.construction}</td>
+                <td>{accessSummary(s.accessibility) || 'not recorded'}</td>
                 <td className="text-end font-mono">{s.position[0].toFixed(5)}</td>
                 <td className="text-end font-mono">{s.position[1].toFixed(5)}</td>
               </tr>

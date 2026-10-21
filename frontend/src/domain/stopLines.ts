@@ -126,7 +126,7 @@ function newStop(scenario: Scenario, at: LngLat, mode: TransportMode): Station {
     layout: null,
     verticalOffsetM: null,
     entrances: [],
-    accessibility: { stepFree: null, elevators: null, tactilePaving: null },
+    accessibility: { stepFree: null, elevators: null, escalators: null, ramp: null, tactilePaving: null },
     catchmentRadiusM: MODES[mode].defaultCatchmentRadiusM,
     notes: '',
     trackRefs: [],

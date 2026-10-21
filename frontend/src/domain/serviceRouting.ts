@@ -138,7 +138,7 @@ export function addStationOnTracks(
     layout: null,
     verticalOffsetM: null,
     entrances: [],
-    accessibility: { stepFree: null, elevators: null, tactilePaving: null },
+    accessibility: { stepFree: null, elevators: null, escalators: null, ramp: null, tactilePaving: null },
     catchmentRadiusM: mode.defaultCatchmentRadiusM,
     trackRefs: refs.length ? refs : [{ trackId: nearestHit.track.id, fraction: nearestHit.fraction }],
     metadata: {},

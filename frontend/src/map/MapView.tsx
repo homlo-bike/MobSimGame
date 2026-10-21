@@ -100,6 +100,7 @@ import {
   wiresCollection,
 } from './overlays';
 import { setMapInstance } from './mapInstance';
+import { nameStationsFromMap } from './autoName';
 import { trackGuideSnap, type TrackGuideSnap } from '../domain/trackGuides';
 import { findConflicts } from '../simulation/conflicts';
 import { stationMode } from '../domain/modeSeparation';
@@ -269,6 +270,24 @@ export default function MapView() {
       }));
       ensureLayers(map, { labels: !!map.getStyle().glyphs });
       setStyleVersion((v) => v + 1);
+    });
+    // New stations take their name from the basemap labels around them, once they are on screen.
+    // Each station is named at most once per session, so undoing the naming sticks.
+    const autoNamed = new Set<string>();
+    map.on('idle', () => {
+      const state = useStore.getState();
+      if (state.project.fictional) return;
+      const scenario = activeScenario(state.project);
+      if (!scenario.stations.some((s) => s.nameSource === 'generated' && !autoNamed.has(s.id))) return;
+      const language = (document.documentElement.lang || navigator.language || 'en').split('-')[0]!;
+      const result = nameStationsFromMap(map, scenario, language, autoNamed);
+      result?.named.forEach((id) => autoNamed.add(id));
+      if (!result) return;
+      log.info('stations named from map labels', { count: result.named.length });
+      state.commitScenario(
+        result.scenario,
+        result.named.length === 1 ? 'Station named from map labels' : 'Stations named from map labels',
+      );
     });
     map.on('error', (e) => {
       // Tile and glyph failures are expected offline: debug only. Anything else is a warning.

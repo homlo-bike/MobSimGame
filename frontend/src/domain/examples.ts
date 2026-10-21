@@ -164,7 +164,7 @@ export function networkToProject(network: NetworkData, provenance: Provenance): 
       layout: null,
       verticalOffsetM: null,
       entrances: [],
-      accessibility: { stepFree: null, elevators: null, tactilePaving: null },
+      accessibility: { stepFree: null, elevators: null, escalators: null, ramp: null, tactilePaving: null },
       catchmentRadiusM: MODES[network.kind === 'bus' ? 'bus' : network.kind].defaultCatchmentRadiusM,
       trackRefs: [],
       metadata: {},

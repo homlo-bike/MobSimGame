@@ -284,6 +284,24 @@ export function StationInspector({ station, scenario }: { station: Station; scen
               patch({ accessibility: { ...station.accessibility, elevators: v === '' ? null : Number(v) } })
             }
           />
+          <CommitField
+            label="Escalators"
+            type="number"
+            min={0}
+            max={50}
+            value={station.accessibility.escalators}
+            onCommit={(v) =>
+              patch({ accessibility: { ...station.accessibility, escalators: v === '' ? null : Number(v) } })
+            }
+          />
+          <Checkbox
+            label="Ramp between street and platform"
+            checked={station.accessibility.ramp === true}
+            onChange={(v) => patch({ accessibility: { ...station.accessibility, ramp: v } })}
+          />
+          <p className="text-xs text-slate-700">
+            Elevators, escalators and ramps show as symbols after the station name on the map.
+          </p>
         </fieldset>
         <CommitField label="Notes" value={station.notes} onCommit={(v) => patch({ notes: v })} />
         <MetadataEditor

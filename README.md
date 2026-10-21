@@ -92,8 +92,12 @@ set, labelled as such. See the [roadmap](#roadmap).
 - **Custom fields** (key/value) on lines, stations, tracks and nodes.
 - **Crossovers** before or after each station (map and schematic).
 - Stations snapped to lines (click or chainage); shared stations become
-  interchanges; drag to move; delete; name suggestions from nearby features
-  (OSM via backend, synthetic in the demo) that never overwrite user-edited names.
+  interchanges; drag to move; delete; new stations named automatically from the
+  basemap labels around them (station and stop labels first), plus name suggestions
+  from nearby features (OSM via backend, synthetic in the demo); neither overwrites
+  user-edited names.
+- Station access: elevators, escalators, ramp, step-free and tactile paving; elevator,
+  escalator and ramp symbols follow the station name on the map.
 - Modes: bus, BRT, tram, light rail, metro, elevated rail, commuter rail, cycling,
   pedestrian, custom. One-way / bidirectional, left/right running.
 - Per-segment structure (surface, underground, elevated, bridge, bored tunnel,

@@ -8,6 +8,13 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Station names from map labels**: a new station is named after the labels the
+  OpenStreetMap basemap shows within 500 m once it is on screen (station and stop
+  labels first, a rail station preferring rail labels; then landmarks, districts and
+  streets). No network request; a typed name is never replaced, undo keeps the
+  generated name, and fictional projects are not named this way.
+- **Elevator, escalator and ramp symbols** after station names on the map, from new
+  station accessibility fields (escalators, ramp); the Table view lists access in words.
 - **SUMO export** (File menu): rail track network, platforms and rail services as
   plain-XML files for Eclipse SUMO (build with `netconvert --proj.utm`).
 - **GTFS export** (File menu): a GTFS Schedule feed with routes, stops, trips, stop
