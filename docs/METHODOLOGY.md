@@ -194,6 +194,20 @@ pure function of simulated time (each trip is built in time order from its
 departure time). Rings circulate; one-way lines return out of service;
 bidirectional lines reverse at terminals.
 
+**Service day (F2)**: the animation runs a timetable. Each line departs from its service
+start to its service end (past midnight when the end is earlier), every peak headway
+inside the project's peak periods (Project properties → Service day; the defaults
+07:00–09:00 and 16:00–19:00 are placeholders) and every off-peak headway outside them;
+no trips outside the service span. The timetable repeats every day. Trips are assigned
+to vehicles as they depart (vehicle blocking): of the vehicles free at the start, the one
+that came back last runs it, so off-peak fewer vehicles circulate and the others stand
+out of service; if none is free, the first one back leaves late. Until depots exist
+(F5, F6), vehicles out of service stand at the end of their last trip (before their
+first trip: at the start of the line). The clock shows day and time; it starts at the
+first peak. Steady-state analyses (round trip, energy, operations report, GTFS) still
+use a trip every peak headway. Street lines with a leg not yet routed on streets are not
+animated (a vehicle never cuts across on a straight placeholder).
+
 **Vehicles in service** (rings and two-direction lines): the line runs a fixed fleet,
 N = ⌈cycle / headway⌉ (the cycle is one undisturbed round trip; R16). Vehicle k runs
 every N-th trip; between trips it waits at the start of the service until its next

@@ -8,7 +8,8 @@ import { useScenario, useStore, type PropertiesTab } from '../store/projectStore
 import { applyModeDefaultsToTracks, modeDefaultRows, setModeTrackDefault } from '../domain/projectProperties';
 import { ELECTRIFICATION_LABELS } from '../domain/compatibility';
 import { RIGHT_OF_WAY_LABELS, STRUCTURE_LABELS } from '../domain/modes';
-import type { RightOfWay, StructureType } from '../domain/schema';
+import type { RightOfWay, ServicePeriod, StructureType } from '../domain/schema';
+import { newId } from '../util/id';
 import { TrackParametersPanel } from './TrackInspector';
 import { PriorityPanel } from './PriorityPanel';
 import { VehicleProfilesPanel } from './VehicleProfiles';
@@ -19,6 +20,7 @@ const TABS: { id: PropertiesTab; label: string }[] = [
   { id: 'modes', label: 'Modes' },
   { id: 'vehicles', label: 'Vehicles' },
   { id: 'priority', label: 'Crossing priority' },
+  { id: 'service_day', label: 'Service day' },
 ];
 
 export function ProjectPropertiesDialog() {
@@ -75,9 +77,107 @@ function PropertiesDialog({ tab }: { tab: PropertiesTab }) {
           {tab === 'modes' && <ModeDefaults />}
           {tab === 'vehicles' && <VehicleProfilesPanel defaultOpen />}
           {tab === 'priority' && <PriorityPanel defaultOpen />}
+          {tab === 'service_day' && <ServiceDay />}
         </div>
       </div>
     </dialog>
+  );
+}
+
+/** Peak periods of the service day; each line's headways and service hours are in its inspector. */
+function ServiceDay() {
+  const scenario = useScenario();
+  const commit = useStore((s) => s.commitScenario);
+  const periods = scenario.peakPeriods;
+  const save = (next: ServicePeriod[], label: string) => commit({ ...scenario, peakPeriods: next }, label);
+  const patch = (i: number, p: Partial<ServicePeriod>) =>
+    save(
+      periods.map((x, k) => (k === i ? { ...x, ...p } : x)),
+      'Peak period changed',
+    );
+  return (
+    <div className="px-3 text-sm">
+      <p className="mb-2 text-xs text-slate-600">
+        Inside these periods every line runs its peak headway, outside them its off-peak headway, between its
+        service start and end (line inspector → service). The default periods are placeholders: enter the
+        local peak hours. The animation clock runs the service day.
+      </p>
+      <table className="mb-2 text-start">
+        <caption className="sr-only">Peak periods</caption>
+        <thead>
+          <tr className="text-xs text-slate-600">
+            <th scope="col" className="pe-2 text-start">
+              Name
+            </th>
+            <th scope="col" className="pe-2 text-start">
+              From
+            </th>
+            <th scope="col" className="pe-2 text-start">
+              To
+            </th>
+            <th scope="col" />
+          </tr>
+        </thead>
+        <tbody>
+          {periods.map((p, i) => (
+            <tr key={p.id}>
+              <td className="pe-2">
+                <input
+                  aria-label={`Name of peak period ${i + 1}`}
+                  className="rounded border border-slate-400 px-1"
+                  defaultValue={p.name}
+                  onBlur={(e) => e.target.value !== p.name && patch(i, { name: e.target.value })}
+                />
+              </td>
+              <td className="pe-2">
+                <input
+                  type="time"
+                  aria-label={`Start of ${p.name}`}
+                  className="rounded border border-slate-400 px-1"
+                  value={p.start}
+                  onChange={(e) => e.target.value && patch(i, { start: e.target.value })}
+                />
+              </td>
+              <td className="pe-2">
+                <input
+                  type="time"
+                  aria-label={`End of ${p.name}`}
+                  className="rounded border border-slate-400 px-1"
+                  value={p.end}
+                  onChange={(e) => e.target.value && patch(i, { end: e.target.value })}
+                />
+              </td>
+              <td>
+                <Button
+                  onClick={() =>
+                    save(
+                      periods.filter((_, k) => k !== i),
+                      'Peak period removed',
+                    )
+                  }
+                  aria-label={`Remove ${p.name}`}
+                >
+                  Remove
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Button
+        onClick={() =>
+          save(
+            [
+              ...periods,
+              { id: newId('peak'), name: `Peak ${periods.length + 1}`, start: '07:00', end: '09:00' },
+            ],
+            'Peak period added',
+          )
+        }
+      >
+        Add peak period
+      </Button>
+    </div>
   );
 }
 

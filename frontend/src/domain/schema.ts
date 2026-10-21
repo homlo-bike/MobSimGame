@@ -160,6 +160,21 @@ export const ServicePatternSchema = z.object({
 });
 export type ServicePattern = z.infer<typeof ServicePatternSchema>;
 
+/** A period of the service day with peak headways (outside all of them: off-peak). */
+export const ServicePeriodSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  start: z.string().regex(/^\d{2}:\d{2}$/),
+  end: z.string().regex(/^\d{2}:\d{2}$/),
+});
+export type ServicePeriod = z.infer<typeof ServicePeriodSchema>;
+
+/** Placeholder peak periods (not from a cited source): enter the local peak hours. */
+export const PLACEHOLDER_PEAK_PERIODS: ServicePeriod[] = [
+  { id: 'am-peak', name: 'Morning peak (placeholder)', start: '07:00', end: '09:00' },
+  { id: 'pm-peak', name: 'Afternoon peak (placeholder)', start: '16:00', end: '19:00' },
+];
+
 /** Vehicle categories; which ones a mode may use is defined in domain/vehicles.ts. */
 export const VehicleCategorySchema = z.enum([
   'standard_bus',
@@ -851,6 +866,8 @@ export const ScenarioSchema = z.object({
   signalSettings: SignalSettingsSchema.default(PLACEHOLDER_SIGNAL_SETTINGS),
   vehicleTypes: z.array(VehicleTypeSchema),
   assumptionSetId: z.string().nullable(),
+  /** Peak periods of the service day (R-F2); other service hours are off-peak. */
+  peakPeriods: z.array(ServicePeriodSchema).default(PLACEHOLDER_PEAK_PERIODS),
   /** Manual corrections to the generated schematic, in schematic pixels per station id. */
   schematicOffsets: z.record(z.string(), z.object({ dx: z.number(), dy: z.number() })).default({}),
   createdAt: z.string(),

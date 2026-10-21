@@ -3,7 +3,7 @@
  * returns a new Scenario so the store can keep undo history by reference.
  */
 import type { LngLat, Scenario, Station, TransportLine, TransportMode, Project, SharedTrack } from './schema';
-import { EMPTY_TRACK_NETWORK, PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
+import { EMPTY_TRACK_NETWORK, PLACEHOLDER_PEAK_PERIODS, PLACEHOLDER_SIGNAL_SETTINGS } from './schema';
 import { MODES, defaultVehicleTypes } from './modes';
 import { parameterValue } from './trackParameters';
 import { compatibleVehicles } from './vehicles';
@@ -666,6 +666,7 @@ export function emptyScenario(name = 'Scenario A'): Scenario {
     signalSettings: { ...PLACEHOLDER_SIGNAL_SETTINGS },
     vehicleTypes: defaultVehicleTypes(),
     assumptionSetId: null,
+    peakPeriods: PLACEHOLDER_PEAK_PERIODS.map((p) => ({ ...p })),
     schematicOffsets: {},
     createdAt: nowIso(),
     updatedAt: nowIso(),
