@@ -232,6 +232,26 @@ function ProfileEditor({ v }: { v: VehicleType }) {
             onCommit={(n) => patch({ davisCKnPerMs2: n })}
           />
         </div>
+        <div className="grid grid-cols-2 gap-x-2">
+          <NumberField
+            label="Efficiency, supply to wheel"
+            unit="0–1"
+            value={v.tractionEfficiency}
+            onCommit={(n) => patch({ tractionEfficiency: n === null ? null : Math.min(1, n) || null })}
+          />
+          <NumberField
+            label="Braking energy fed back"
+            unit="share 0–1"
+            value={v.regenerationShare}
+            onCommit={(n) => patch({ regenerationShare: n === null ? null : Math.min(1, n) })}
+          />
+          <NumberField
+            label="Auxiliary power"
+            unit="kW"
+            value={v.auxiliaryPowerKw}
+            onCommit={(n) => patch({ auxiliaryPowerKw: n })}
+          />
+        </div>
         <p className="text-xs text-slate-700">
           Running resistance R = A + B·v + C·v² (Davis). Without a starting tractive effort the adhesion limit
           from Project properties applies.

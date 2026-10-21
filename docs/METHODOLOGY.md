@@ -244,6 +244,27 @@ steps (40 px), snapped to the grid, collisions moved to the nearest free cell;
 consecutive stations are joined with octilinear elbows. Manual offsets are stored
 per station. Crossing minimisation is not implemented yet.
 
+### Energy from train physics
+
+With train physics, each round trip also gives an energy estimate (line inspector, full
+export). Over every integration step the force at the wheel that produces the simulated
+motion is `F = m·a + R(v) + m·g·i` (the equation of motion above solved for the force);
+where `F > 0` the traction delivers `F·Δx`, where `F < 0` the brakes absorb `−F·Δx`.
+NeTrainSim (Aredah, Fadhloun & Rakha 2024, section 4.4) derives energy from the same
+forces.
+
+- Reported at the wheel: traction energy and braking energy per round trip of one
+  vehicle, and traction energy per kilometre.
+- From the supply: `E = E_traction / η − E_braking · r + P_aux · t`, with the vehicle's
+  efficiency from supply to wheel `η`, the share of braking energy fed back `r`
+  (regeneration and the receptivity of the supply together) and the auxiliary power
+  `P_aux` over the round-trip time `t`. These are vehicle inputs without defaults; while
+  any is missing, the supply figure is not estimated and the panel says which input is
+  missing.
+- Estimated under the selected assumptions for the line's first round trip; not a
+  measured value. Not included: efficiency varying with load and speed, line losses in
+  the supply, and the energy of waiting with the doors open beyond the auxiliary power.
+
 ### Acceleration and braking
 
 Each run between two events is a speed profile: accelerate at the rate `a` from the

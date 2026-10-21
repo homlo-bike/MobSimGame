@@ -8,6 +8,10 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Energy per round trip** from train physics (line inspector and full export): traction
+  and braking energy at the wheel, and, when the vehicle profile gives the efficiency
+  from supply to wheel, the share of braking energy fed back and the auxiliary power,
+  the energy drawn from the supply. Estimated under the selected assumptions.
 - **Running time from train physics**: vehicle profiles can give mass, traction power,
   starting tractive effort and Davis running resistance. Runs are then computed from the
   forces on the train (power- and adhesion-limited traction, running resistance,

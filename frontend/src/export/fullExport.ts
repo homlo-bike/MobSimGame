@@ -24,6 +24,7 @@ import { analyseScenario } from '../analysis/demoAnalysis';
 import { validateScenario } from '../validation/validate';
 import { findConflicts } from '../simulation/conflicts';
 import { buildLineModel, roundTripS } from '../simulation/engine';
+import { lineRoundTripEnergy } from '../simulation/energy';
 import { lineRates } from '../simulation/kinematics';
 import { consistShape } from '../simulation/footprint';
 
@@ -143,6 +144,8 @@ function lineResults(s: Scenario, l: TransportLine) {
     fleet: lineFleet(l, s),
     /** Simulated duration of one round trip including dwell, waits and acceleration. */
     simulatedRoundTripS: model ? roundTripS(model) : null,
+    /** Energy per round trip from train physics, estimated under the vehicle's inputs; null without physics. */
+    energyPerRoundTrip: model ? lineRoundTripEnergy(model, l, s) : null,
     rates: lineRates(l, s),
     following: model ? { ...model.following, vehicleLengthM: model.vehicleLengthM } : null,
     consist: consistShape(l, s),

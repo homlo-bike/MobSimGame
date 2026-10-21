@@ -146,6 +146,14 @@ set, labelled as such. See the [roadmap](#roadmap).
   findings, every parameter with value, status and source) plus metadata (versions,
   units, attribution, disclaimer). Synthetic demonstration figures are included only
   for the fictional demo, labelled.
+- **Running time and energy from train physics**: when a vehicle profile gives mass and
+  traction power (optionally starting tractive effort and Davis running resistance),
+  runs follow the forces on the train (traction, resistance, gradient from levels and
+  ramps, curve resistance) with OSRD's envelope method; otherwise constant acceleration
+  and braking rates apply. Each line shows traction and braking energy per round trip at
+  the wheel, and the energy from the supply when the vehicle gives its efficiencies
+  (estimated under the selected assumptions). Methods of OSRD and NeTrainSim, cited in
+  [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
 - Illustrative vehicle animation (play/pause/reset/speed; reduced-motion mode). Zoomed
   in (from zoom 15.5) every vehicle is drawn to scale: length and width from its vehicle
   profile, one outline per unit of the consist, bending through curves; a waiting or

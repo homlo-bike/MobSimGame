@@ -84,6 +84,8 @@ export interface Envelope {
   xs: number[];
   vs: number[];
   ts: number[];
+  /** Equivalent gradient at each point (per mille, uphill positive). */
+  gs: number[];
   v0: number;
   v1: number;
   durationS: number;
@@ -154,7 +156,8 @@ export function runEnvelope(
     const sum = vs[i]! + vs[i + 1]!;
     ts.push(ts[i]! + (sum > 0 ? (2 * dx) / sum : 0));
   }
-  return { d, xs, vs, ts, v0: vs[0]!, v1: vs[n]!, durationS: ts[n]!, stalled };
+  const gs = xs.map((x) => track.gradientAt(x));
+  return { d, xs, vs, ts, gs, v0: vs[0]!, v1: vs[n]!, durationS: ts[n]!, stalled };
 }
 
 /** Distance from the start of the run after `tau` seconds (0…d). */

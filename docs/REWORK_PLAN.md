@@ -45,8 +45,8 @@ with each one.
 | R13 | Realistic vehicle movement from SUMO's **published models, not its code** (owner decision): acceleration and braking from the vehicle profiles, then car following (Intelligent Driver Model / Krauss, cited); parameters in Project properties; per-crossing priority overrides | merged (#26 acceleration and braking, #27 following); per-crossing overrides not needed (owner) |
 | R14a | Rail services stop at **platforms**: (+) on a station track while creating a service, stops list station and track, routes found between platforms, the service returns to its first stop, an error names each pair without a route | planned |
 | R14b | Blocks and route reservation in the simulation (OSRD spacing and routing requirements, blocking-time method): no two trains in one block, track changes only through turnouts, conflict and deadlock findings | planned |
-| R15a | Running time from **train physics** (methods of OSRD and NeTrainSim, no code): traction, running resistance, gradient and curves; envelopes with braking curves | this PR |
-| R15b | Energy estimate per run (NeTrainSim method: traction energy, regenerative braking, efficiencies), estimated under the selected assumptions | planned |
+| R15a | Running time from **train physics** (methods of OSRD and NeTrainSim, no code): traction, running resistance, gradient and curves; envelopes with braking curves | merged (#34) |
+| R15b | Energy estimate per run (NeTrainSim method: traction energy, regenerative braking, efficiencies), estimated under the selected assumptions | this PR |
 
 Order (owner, 2026-10-21): R15a, R15b, then R5 turnouts, R14a, R14b, R11, R10, then app
 settings with OIDC, then the desktop apps.
