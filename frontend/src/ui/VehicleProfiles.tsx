@@ -261,7 +261,7 @@ function ProfileEditor({ v }: { v: VehicleType }) {
         </div>
         <p className="text-xs text-slate-700">
           Running resistance R = A + B·v + C·v² (Davis). Without a starting tractive effort the adhesion limit
-          from Project properties applies.
+          from Project preferences applies.
         </p>
       </fieldset>
       <SelectField

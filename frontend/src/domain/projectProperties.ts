@@ -1,5 +1,5 @@
 /**
- * Project properties: every default the editor and the simulation use, per mode, with
+ * Project preferences: every default the editor and the simulation use, per mode, with
  * where it comes from, plus the per-project defaults for new track. Pure.
  */
 import type { Electrification, Scenario, TransportMode } from './schema';
@@ -7,7 +7,7 @@ import { MODES } from './modes';
 import { CURVE_RADIUS_RULES } from './modeProfiles';
 import { isRailMode, newTrackDefaults } from './tracks';
 import { modeSetting, syncInherited } from './inheritance';
-import { following, platformLengthM, type Following } from './trackParameters';
+import { following, platformLengthM, spareRatioOf, type Following } from './trackParameters';
 import { MODE_TABS } from './modeSeparation';
 import { defaultRates, type Rates } from '../simulation/kinematics';
 
@@ -19,6 +19,8 @@ export interface ModeDefaultRow {
   curve: { minimumM: number; recommendedM: number | null; source: string } | null;
   maxSpeedKmh: number;
   dwellTimeS: number;
+  /** Spare vehicles per peak vehicle in service, and where the value comes from. */
+  spare: ReturnType<typeof spareRatioOf>;
   catchmentRadiusM: number;
   structure: string;
   rightOfWay: string;
@@ -53,6 +55,7 @@ export function modeDefaultRows(scenario: Scenario): ModeDefaultRow[] {
         : null,
       maxSpeedKmh: modeSetting(scenario, mode, 'maxSpeedKmh'),
       dwellTimeS: modeSetting(scenario, mode, 'dwellTimeS'),
+      spare: spareRatioOf(net, mode),
       catchmentRadiusM: m.defaultCatchmentRadiusM,
       structure: m.defaultStructure,
       rightOfWay: m.defaultRightOfWay,
@@ -75,6 +78,7 @@ export function setModeTrackDefault(
     ...newTrackDefaults(net, mode),
     maxSpeedKmh: null,
     dwellTimeS: null,
+    spareRatio: null,
   };
   // Tracks that follow the project defaults take the new value (G1).
   return syncInherited({

@@ -104,7 +104,7 @@ set, labelled as such. See the [roadmap](#roadmap).
   with the vehicle capacity (plus spares), and can be set by hand: with fewer vehicles
   the line runs less often. Warnings flag a fleet too small, demand above capacity and
   curves too tight for the vehicle.
-- **Project properties** (File menu or sidebar) show every default in one place with
+- **Project preferences** (File menu or sidebar) show every default in one place with
   its source and status: parameters (track spacing, stop merge distance, minimum
   separation, placeholders for unknown vehicle size, …) with default, range and source,
   editable per project; per-mode defaults (cited curve radii, speed, dwell, catchment,
@@ -136,7 +136,7 @@ set, labelled as such. See the [roadmap](#roadmap).
   tracks are shorter than all its trains together.
 - **Project settings are the global values.** A line's maximum speed and dwell time, and
   a track's gauge and electrification, follow the project setting of their mode
-  (Project properties → Modes) unless you give them their own value: each such field
+  (Project preferences → Modes) unless you give them their own value: each such field
   has a "Project setting" box in the inspector. Changing a project setting updates
   everything that follows it; a station's platform length left empty follows the
   project's platform length.

@@ -55,7 +55,7 @@ export function defaultRadiusM(mode: TransportMode): number | null {
   return rule ? (rule.recommendedM ?? rule.minimumM) : null;
 }
 
-/** Gauge and electrification of new track of a mode: the project default (Project properties). */
+/** Gauge and electrification of new track of a mode: the project default (Project preferences). */
 export function newTrackDefaults(
   net: Pick<TrackNetwork, 'modeDefaults'>,
   mode: TransportMode,

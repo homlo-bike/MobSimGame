@@ -105,7 +105,7 @@ export type Tool =
   | 'region_split';
 
 /** Options for drawing track (rail modes). */
-/** Tabs of the Project properties dialog. */
+/** Tabs of the Project preferences dialog. */
 export type PropertiesTab = 'parameters' | 'modes' | 'vehicles' | 'priority' | 'service_day';
 
 export interface ServiceDraftStop {
@@ -179,7 +179,7 @@ export interface AppState {
   serviceReturn: 'loop' | 'back';
   /** Stops clicked so far for a new bus, BRT or trolleybus line, in order. */
   stopDraft: LngLat[];
-  /** The Project properties dialog is open (at this tab). */
+  /** The Project preferences dialog is open (at this tab). */
   propertiesTab: PropertiesTab | null;
   pendingTrackDeletion: PendingTrackDeletion | null;
   /** A drawn track whose last point is back at its first: waiting for "close the loop?". */

@@ -10,7 +10,7 @@ import { isRing, lineLengthM, orderedStops } from '../domain/network';
 import { segmentSpeedKmh } from '../simulation/speeds';
 import { capacityPphpd, cycleTimeMin, vehiclesRequired } from './calculations';
 import { consistCapacity } from '../domain/vehicles';
-import { parameterValue } from '../domain/trackParameters';
+import { spareRatioOf } from '../domain/trackParameters';
 
 /** Layover at each terminal, minutes (the simulation's 2-minute editor default). */
 export const LAYOVER_MIN = 2;
@@ -90,7 +90,7 @@ export function lineFleet(
     demandHeadwayMin !== null ? Math.min(policyHeadwayMin, demandHeadwayMin) : policyHeadwayMin;
   const peakRequired = vehiclesRequired(cycleMin, designHeadwayMin);
   const offPeakRequired = vehiclesRequired(cycleMin, pattern.offPeakHeadwayMin);
-  const spares = Math.ceil(peakRequired * parameterValue(scenario.trackNetwork, 'spareRatio'));
+  const spares = Math.ceil(peakRequired * spareRatioOf(scenario.trackNetwork, line.mode).value);
   const assigned = line.fleetSize;
   const inService = assigned ?? peakRequired;
   const effectiveHeadwayMin = inService > 0 ? Math.max(designHeadwayMin, cycleMin / inService) : Infinity;
