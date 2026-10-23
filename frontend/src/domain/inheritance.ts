@@ -61,13 +61,14 @@ export function syncInherited(scenario: Scenario): Scenario {
 export function setModeSetting(
   scenario: Scenario,
   mode: TransportMode,
-  patch: Partial<{ maxSpeedKmh: number | null; dwellTimeS: number | null }>,
+  patch: Partial<{ maxSpeedKmh: number | null; dwellTimeS: number | null; spareRatio: number | null }>,
 ): Scenario {
   const net = scenario.trackNetwork;
   const cur = net.modeDefaults[mode] ?? {
     ...newTrackDefaults(net, mode),
     maxSpeedKmh: null,
     dwellTimeS: null,
+    spareRatio: null,
   };
   return syncInherited({
     ...scenario,

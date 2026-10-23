@@ -445,7 +445,7 @@ export const TrackNetworkSchema = z.object({
   runningSide: z.enum(['right', 'left']).default('right'),
   /** User overrides of the parameters in domain/trackParameters.ts, by id. */
   parameterOverrides: z.record(z.string(), z.number()).default({}),
-  /** Project defaults for new track of a mode (Project properties); unset = not specified. */
+  /** Project defaults for new track of a mode (Project preferences); unset = not specified. */
   modeDefaults: z
     .record(
       z.string(),
@@ -455,6 +455,8 @@ export const TrackNetworkSchema = z.object({
         /** Project values for lines of the mode; null = the built-in placeholder default. */
         maxSpeedKmh: z.number().positive().nullable().default(null),
         dwellTimeS: z.number().nonnegative().nullable().default(null),
+        /** Spare vehicles as a share of peak vehicles in service; null = the default of the mode. */
+        spareRatio: z.number().min(0).max(1).nullable().default(null),
       }),
     )
     .default({}),
@@ -576,7 +578,7 @@ export const TransportLineSchema = z.object({
   dwellTimeS: z.number().nonnegative(),
   maxSpeedKmh: z.number().positive(),
   /**
-   * Fields that follow the project settings of the line's mode (Project properties); the
+   * Fields that follow the project settings of the line's mode (Project preferences); the
    * stored value is kept in step with them. Any other field is the line's own value.
    */
   inherits: z.array(z.enum(['dwellTimeS', 'maxSpeedKmh'])).default([]),

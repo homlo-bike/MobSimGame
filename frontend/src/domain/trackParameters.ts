@@ -387,6 +387,25 @@ export function parameterValue(
   return parameter(network, id).value;
 }
 
+/** Modes the spare-ratio source covers (bus fleets); other modes use it as a placeholder. */
+const SPARE_CITED: TransportMode[] = ['bus', 'brt', 'trolleybus'];
+
+/**
+ * Spare ratio of a mode in force: the project's value for the mode, else the spare-ratio
+ * parameter. `cited` is false where that parameter's source does not cover the mode.
+ */
+export function spareRatioOf(
+  network: Pick<TrackNetwork, 'parameterOverrides' | 'modeDefaults'>,
+  mode: TransportMode,
+): { value: number; status: 'user_override' | 'documented_default' | 'placeholder' } {
+  const own = network.modeDefaults?.[mode]?.spareRatio;
+  if (own != null) return { value: own, status: 'user_override' };
+  return {
+    value: parameterValue(network, 'spareRatio'),
+    status: SPARE_CITED.includes(mode) ? 'documented_default' : 'placeholder',
+  };
+}
+
 const HEAVY: TransportMode[] = ['metro', 'elevated_metro', 'commuter_rail'];
 
 export function trackSpacingM(

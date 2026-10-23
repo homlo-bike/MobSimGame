@@ -23,7 +23,7 @@ convention, **not** a probabilistic confidence interval. The relative spread
 
 - Length: sum of haversine segment lengths (Turf, spherical earth radius
   6 371 008.8 m).
-- Station snapping: nearest point on the polyline; a click within the stop merge distance (Project properties → Parameters, default 20 m) of an
+- Station snapping: nearest point on the polyline; a click within the stop merge distance (Project preferences → Parameters, default 20 m) of an
   existing station reuses it (shared station).
 - Track geometry: physical tracks are **straight lines and circular arcs** with a
   radius entered per point, tangent to each other by construction, computed in a
@@ -196,7 +196,7 @@ bidirectional lines reverse at terminals.
 
 **Service day (F2)**: the animation runs a timetable. Each line departs from its service
 start to its service end (past midnight when the end is earlier), every peak headway
-inside the project's peak periods (Project properties → Service day; the defaults
+inside the project's peak periods (Project preferences → Service day; the defaults
 07:00–09:00 and 16:00–19:00 are placeholders) and every off-peak headway outside them;
 no trips outside the service span. The timetable repeats every day. Trips are assigned
 to vehicles as they depart (vehicle blocking): of the vehicles free at the start, the one
@@ -287,7 +287,7 @@ section by section. The position is the middle of the train (a stopped train sta
 centred on the platform); beyond the ends of a line the path continues straight, so a
 train at a terminal keeps its full length. Without a vehicle type the length is the placeholder
 `unknownVehicleLengthM` (20 m); without a width, the placeholder
-`unknownVehicleWidthM` (2.5 m), both editable in Project properties → Parameters. Services on double track return on the
+`unknownVehicleWidthM` (2.5 m), both editable in Project preferences → Parameters. Services on double track return on the
 other track.
 
 - **Traffic signals** (tram, light rail, bus, BRT; street-level segments only): a
@@ -351,7 +351,7 @@ other track.
     modes (metro, commuter rail) stop a further signal overlap back, by line speed:
     none up to 30 km/h, 50 m up to 40, 100 m up to 60, 200 m above (German Wikipedia,
     "Durchrutschweg", after Jochim & Lademann 2008; UK practice about 180 m). All are
-    parameters in Project properties.
+    parameters in Project preferences.
   - A train holds the zone from its head reaching that point until its tail has passed
     the clearance point beyond the node. The simulated position is the middle of the
     train, so the zone reaches half a train further on both sides.

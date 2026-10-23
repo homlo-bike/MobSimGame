@@ -702,7 +702,7 @@ function RampSection({ track, scenario }: { track: PhysicalTrack; scenario: Scen
             {ramp.cited ? '(cited)' : '(placeholder)'}; needs at least {Math.round(ramp.requiredLengthM)} m.
           </p>
           <p className="text-xs text-slate-600">
-            Level heights are set in Project properties → Parameters. The street is taken as flat; terrain
+            Level heights are set in Project preferences → Parameters. The street is taken as flat; terrain
             follows later.
           </p>
         </div>

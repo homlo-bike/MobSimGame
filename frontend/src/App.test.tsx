@@ -183,7 +183,7 @@ describe('File menu', () => {
       'Open real network…OSM',
       'Open project….json',
       'Save project.json',
-      'Project properties…',
+      'Project preferences…',
       'Settings…notifications',
       'Import GeoJSON…',
       'Export GeoJSON',
@@ -580,7 +580,7 @@ describe('project properties', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: 'Modes' }));
-    const dialog = screen.getByRole('dialog', { name: 'Project properties' });
+    const dialog = screen.getByRole('dialog', { name: 'Project preferences' });
     const rows = within(dialog).getAllByRole('row');
     // Header row plus one row per mode tab.
     expect(rows.length).toBe(8);
@@ -594,7 +594,7 @@ describe('project properties', () => {
     await user.click(within(dialog).getByRole('tab', { name: 'Parameters' }));
     expect(within(dialog).getByLabelText(/Distance within which a new stop/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Close project properties' }));
-    expect(screen.queryByRole('dialog', { name: 'Project properties' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Project preferences' })).not.toBeInTheDocument();
   });
 });
 

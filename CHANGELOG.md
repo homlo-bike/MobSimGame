@@ -14,6 +14,16 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- **Spare vehicles per mode (P4-10)**: Project preferences → Modes has a spare ratio per
+  mode (share of peak vehicles in service). Bus, BRT and trolleybus default to the US FTA
+  bus-fleet guideline (20 %); other modes show the same value as a placeholder until a
+  source for the mode is set. Lines of a mode size their spares with it.
+
+### Changed
+
+- "Project properties" is now called **Project preferences** (File menu and sidebar);
+  "Settings…" holds the settings of this browser.
+
 - **Surplus vehicles finish their trip (F8)**: a vehicle an edit makes surplus while it is
   out on the line first completes the trip it is on (taken from the plan before the edit,
   at the current simulated time), then drives to its depot out of service along paths of

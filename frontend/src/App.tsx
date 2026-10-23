@@ -397,13 +397,13 @@ export default function App() {
   );
 }
 
-/** Sidebar entry to the Project properties dialog (parameters, modes, vehicles, priority). */
+/** Sidebar entry to the Project preferences dialog (parameters, modes, vehicles, priority). */
 function ProjectPropertiesEntry() {
   const open = useStore((s) => s.openProperties);
   return (
     <section aria-labelledby="pp-entry" className="border-b border-slate-200 px-3 py-2">
       <h2 id="pp-entry" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Project properties
+        Project preferences
       </h2>
       <p className="mb-1 text-xs text-slate-600">
         All defaults with their sources: parameters, modes, vehicles and crossing priority.

@@ -1,5 +1,5 @@
 /**
- * Project properties: every default the project uses, with its source and status, in one
+ * Project preferences: every default the project uses, with its source and status, in one
  * place (parameters, per-mode defaults, vehicles, crossing priority).
  */
 import { useEffect, useRef } from 'react';
@@ -47,7 +47,7 @@ function PropertiesDialog({ tab }: { tab: PropertiesTab }) {
       <div className="p-4">
         <div className="mb-2 flex items-start justify-between gap-2">
           <h2 id="pp-title" className="text-lg font-semibold">
-            Project properties
+            Project preferences
           </h2>
           <Button onClick={() => open(null)} aria-label="Close project properties">
             Close
@@ -57,7 +57,7 @@ function PropertiesDialog({ tab }: { tab: PropertiesTab }) {
           Every default this project uses, with where it comes from. Values marked placeholder are not from a
           source: enter local values. Changes apply to this scenario.
         </p>
-        <div role="tablist" aria-label="Project properties" className="mb-2 flex flex-wrap gap-1">
+        <div role="tablist" aria-label="Project preferences" className="mb-2 flex flex-wrap gap-1">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -214,6 +214,9 @@ function ModeDefaults() {
               Dwell
             </th>
             <th scope="col" className="pe-2 text-start">
+              Spares
+            </th>
+            <th scope="col" className="pe-2 text-start">
               Catchment
             </th>
             <th scope="col" className="pe-2 text-start">
@@ -277,6 +280,40 @@ function ModeDefaults() {
                   {unit}
                 </td>
               ))}
+              <td className="pe-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="w-14 rounded border border-slate-500 px-1"
+                  aria-label={`${r.label}: spare vehicles, % of peak vehicles in service`}
+                  key={`${r.mode}-spare-${r.spare.value}`}
+                  defaultValue={Math.round(r.spare.value * 100)}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (e.target.value === '' || !(v >= 0 && v <= 100) || v / 100 === r.spare.value) return;
+                    commit(
+                      setModeSetting(scenario, r.mode, { spareRatio: v / 100 }),
+                      `${r.label}: spare vehicles ${v}%`,
+                    );
+                  }}
+                />{' '}
+                %{' '}
+                <Badge>
+                  {r.spare.status === 'user_override'
+                    ? 'Project value'
+                    : r.spare.status === 'documented_default'
+                      ? 'Documented'
+                      : 'Placeholder'}
+                </Badge>
+                <div className="text-xs text-slate-600">
+                  {r.spare.status === 'placeholder'
+                    ? 'Bus fleet guideline (US FTA, 20 %) used until a source for this mode is set'
+                    : r.spare.status === 'documented_default'
+                      ? 'US FTA guideline for bus fleets (≤ 20 % of peak vehicles)'
+                      : 'Own value for this project'}
+                </div>
+              </td>
               <td className="pe-2">{r.catchmentRadiusM} m</td>
               <td className="pe-2">
                 {STRUCTURE_LABELS[r.structure as StructureType]},{' '}

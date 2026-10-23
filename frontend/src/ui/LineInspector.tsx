@@ -1,7 +1,7 @@
 import { modeSetting, setLineInherits } from '../domain/inheritance';
 import { useMemo, useState } from 'react';
 import { buildLineModel, roundTripS } from '../simulation/engine';
-import { parameterValue } from '../domain/trackParameters';
+import { spareRatioOf } from '../domain/trackParameters';
 import { bbox, lineString } from '@turf/turf';
 import type {
   EndType,
@@ -538,8 +538,8 @@ export function LineInspector({ line, scenario }: { line: TransportLine; scenari
                       ? ` for the expected demand (timetable ${fleet.policyHeadwayMin} min)`
                       : ' from the timetable'}
                     : vehicles = ⌈round trip / headway⌉; spares{' '}
-                    {Math.round(parameterValue(scenario.trackNetwork, 'spareRatio') * 100)}% (project
-                    parameter).
+                    {Math.round(spareRatioOf(scenario.trackNetwork, line.mode).value * 100)}% (Project
+                    preferences → Modes).
                   </li>
                   {fleet.demandHeadwayMin === null && (
                     <li>Enter the expected peak demand to size the fleet for it.</li>

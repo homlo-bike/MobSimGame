@@ -204,7 +204,7 @@ export function Header({
     { kind: 'separator' },
     {
       kind: 'item',
-      label: 'Project properties…',
+      label: 'Project preferences…',
       onSelect: () => useStore.getState().openProperties('parameters'),
     },
     { kind: 'item', label: 'Settings…', hint: 'notifications', onSelect: () => setSettingsOpen(true) },
